@@ -1,8 +1,10 @@
-# PbtMetaGPT · v0.2.0
+# PbtMetaGPT · v0.3.0
 
 Aplicación Android en Kotlin para conversar con OpenAI Realtime y explorar la cámara de las Ray-Ban Meta mediante el SDK oficial Meta Wearables Device Access Toolkit (DAT).
 
 **Compilación debug, Android Lint y pruebas automáticas superadas en GitHub Actions. Las integraciones están implementadas en código, pero no se han probado de extremo a extremo con OpenAI real ni con gafas reales. No es una versión certificada como compatible con ningún modelo de Ray-Ban Meta.** El resultado exacto de cada comprobación se registra en [VALIDACION.md](docs/VALIDACION.md).
+
+Esta versión se centra en preparar pruebas reales: incorpora despliegue Docker Compose para Ubuntu Server, diagnósticos por etapa y pruebas locales de audio. Consulta la [auditoría de la base v0.2.0](docs/AUDITORIA-v0.3.0.md), la [guía de despliegue](deploy/README.md) y el [protocolo de pruebas físicas](docs/PRUEBAS_REALES.md). No se ha desplegado un servidor del usuario ni se ha usado una clave real durante el desarrollo.
 
 ## Funciones implementadas en código
 
@@ -13,6 +15,10 @@ Aplicación Android en Kotlin para conversar con OpenAI Realtime y explorar la c
 - Selección de ruta de comunicación Android: teléfono o preferencia Bluetooth. La ruta disponible no demuestra por sí sola que el micrófono de las gafas funcione.
 - Captura puntual de foto desde las gafas, vista previa local y segunda confirmación antes de preguntar «¿Qué estoy viendo?» a OpenAI.
 - Backend personal autenticado mediante tokens opacos, con hashes de credenciales, límites de emisión y errores filtrados.
+- Pantalla de diagnóstico en español: permisos, Bluetooth, DAT, cámara, HTTPS, credencial temporal, SDP, ICE, canal de datos, sesión y eventos nativos de audio. Cada resultado muestra su hora y distingue confirmación manual de observación software.
+- Captura local de tres segundos para medir nivel/ruta y tono de un segundo con confirmación humana. No se guardan ni envían muestras.
+- Comprobación WebRTC sin micrófono desde Android y prueba CLI de sesión/respuesta por WebSocket, ambas con credencial temporal real cuando el usuario configura el backend.
+- Docker Compose con Caddy HTTPS, backend no publicado, secretos montados, proceso no root y prueba de contenedores en CI.
 - Flujo de GitHub Actions para pruebas, Android Lint, compilación y publicación de APK debug únicamente tras superar la validación.
 
 No se incluyen simulaciones de conexión ni dispositivos ficticios en la aplicación.
@@ -22,7 +28,7 @@ No se incluyen simulaciones de conexión ni dispositivos ficticios en la aplicac
 | Componente | Versión fijada |
 | --- | --- |
 | Identificador | `com.pbtservers.pbtmetagpt` |
-| Versión de la aplicación | `0.2.0` / código `2` |
+| Versión de la aplicación | `0.3.0` / código `3` |
 | Java | 17 |
 | Gradle Wrapper | 8.14.1, descarga verificada por SHA-256 |
 | Android Gradle Plugin | 8.11.1 |
@@ -62,6 +68,8 @@ La APK, si la compilación termina correctamente, estará en `app/build/outputs/
 
 Sigue [backend/README.md](backend/README.md) para configurar la clave de OpenAI **solo en el servidor**, generar un token personal y publicar el servicio mediante HTTPS. La aplicación no conecta a servidores HTTP ni sigue redirecciones de autenticación.
 
+Para Ubuntu Server usa [deploy/README.md](deploy/README.md). La clave y los hashes se montan desde archivos bajo `/run/secrets`; las variables de entorno configuran dominio, correo, modelo y ubicación de esos archivos. `GET /healthz` no consume cuota ni prueba OpenAI. La prueba real requiere una URL, un token personal y acción explícita del usuario; los tests de CI usan exclusivamente valores ficticios.
+
 En la aplicación:
 
 1. Introduce la dirección HTTPS del backend y el token personal de acceso. No introduzcas una clave `sk-…` de OpenAI.
@@ -85,11 +93,11 @@ La cámara se cierra tras la captura o al cancelar. No se envía el flujo de ví
 ## Pruebas y CI
 
 ```powershell
-node --test backend/server.test.mjs
+node --test backend/*.test.mjs
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug
 ```
 
-El flujo [android.yml](.github/workflows/android.yml) se ejecuta en cada push a `master`, en pull requests y manualmente. Publica informes y, solo cuando pasan los pasos anteriores, el artifact `PbtMetaGPT-v0.2.0-debug` durante 14 días. Las pruebas del backend usan respuestas controladas de OpenAI, sin consumir cuota; no demuestran conectividad real con el proveedor ni con las gafas.
+El flujo [android.yml](.github/workflows/android.yml) se ejecuta en cada push a `master`, en pull requests y manualmente. Publica informes y, cuando pasan las comprobaciones Android, el artifact `PbtMetaGPT-v0.3.0-debug` durante 14 días. Incluye un trabajo independiente que valida Caddy y arranca backend/proxy con Docker Compose, comprobando salud y rechazo de acceso anónimo. La prueba del proxy en CI usa HTTP interno, sin emitir certificados públicos. Las pruebas del backend usan respuestas controladas de OpenAI, sin consumir cuota; no demuestran conectividad real con el proveedor ni con las gafas. Comprueba el resultado de ambos trabajos antes de dar por válida una entrega.
 
 Consulta la [matriz de validación](docs/VALIDACION.md) y la [arquitectura](docs/ARQUITECTURA.md).
 

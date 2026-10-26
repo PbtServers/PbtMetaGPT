@@ -118,7 +118,10 @@ class MetaGlasses(private val activity: Activity, private val scope: CoroutineSc
             created.start()
             connectTimeout = scope.launch {
                 delay(25_000)
-                if (!state.value.connected) { error("No se han podido conectar las gafas a tiempo."); disconnect() }
+                if (!state.value.connected) {
+                    diagnostics.record(Check.DAT_SESSION, CheckStatus.ERROR, "DAT no confirmó la conexión antes del límite.", "DAT_TIMEOUT")
+                    error("No se han podido conectar las gafas a tiempo."); disconnect()
+                }
             }
         }.onFailure { cause, _ ->
             diagnostics.record(Check.DAT_SESSION, CheckStatus.ERROR, "DAT no pudo crear una sesión.", Diagnostics.sdkCode(cause))

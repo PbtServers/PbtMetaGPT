@@ -1,8 +1,27 @@
-# Validación de v0.2.0
+# Validación de v0.3.0
 
 Registro de trabajo del 26 de octubre de 2026. **Las pruebas automáticas y la revisión de muestras no sustituyen las pruebas con gafas reales.**
 
-## Comprobaciones automáticas
+## Estado de v0.3.0
+
+Base de desarrollo: `9898ef7`. Se han revisado sus limitaciones y creado [AUDITORIA-v0.3.0.md](AUDITORIA-v0.3.0.md). Las instrucciones de intervención manual están en [deploy/README.md](../deploy/README.md) y [PRUEBAS_REALES.md](PRUEBAS_REALES.md).
+
+| Comprobación | Resultado de v0.3.0 | Qué demuestra |
+| --- | --- | --- |
+| Node: backend y protocolo de comprobación real | 19 pruebas superadas localmente y en CI | Autenticación, límites, secretos, errores, salud y protocolo con proveedor sustituido |
+| Android: pruebas JVM, Lint y APK debug | Superado en CI, commit `9e0eaea` | Ocho pruebas JVM y compilación/análisis; no ejecuta sensores |
+| Docker Compose / Caddy | Configuración Caddy válida; corrección de sintaxis tmpfs pendiente de siguiente ejecución | No se ha emitido un certificado público |
+| Comprobación CLI con OpenAI real | No realizada: faltan backend HTTPS y token personal configurados | El comando se ha ejecutado sin credenciales y termina como no realizado |
+| WebRTC real en Android | Pendiente de intervención manual | Pantalla preparada; recibir session.created es distinto de verificar voz |
+| Micrófono/altavoz del teléfono | Pendiente de intervención manual | Pruebas locales de nivel/ruta y tono implementadas, sin grabaciones persistentes |
+| Ray-Ban Meta: DAT, audio y cámara | Sin pruebas físicas | No se declara funcional ni compatible ningún modelo |
+| Ubuntu Server público y HTTPS ACME | Preparado, no desplegado | No se dispone de servidor/dominio del usuario ni de claves en el entorno |
+
+Las pruebas automáticas de la comprobación real sustituyen red/WebSocket para verificar el protocolo; no son llamadas reales. La prueba de Docker usa secretos ficticios y HTTP en loopback del runner. No se ha utilizado una clave privada ni consumido cuota de OpenAI durante el desarrollo.
+
+La pantalla de diagnóstico empieza con todos los sensores **sin comprobar**, registra códigos reales al recibirlos y conserva hora/último intento. Un RMS positivo o un capturador iniciado no acredita inteligibilidad; un tono enviado requiere confirmación humana. El informe no exporta secretos, transcripciones, fotos, muestras, nombres ni direcciones de dispositivos.
+
+## Historial de v0.2.0: comprobaciones automáticas
 
 | Comprobación | Estado | Alcance |
 | --- | --- | --- |
@@ -42,4 +61,4 @@ No se ha ejecutado Mock Device Kit ni se incluye un modo que simule gafas en la 
 
 ## Criterio de entrega
 
-No declarar terminada v0.2.0 hasta obtener una compilación y pruebas Android correctas, confirmar el workflow del commit publicado y descargar su artifact. La compatibilidad con un modelo concreto solo puede afirmarse después de completar y registrar las pruebas físicas correspondientes.
+La entrega técnica de v0.3.0 requiere ambos trabajos de CI correctos, APK del commit publicado e instrucciones reproducibles. La conexión real con OpenAI solo se marca como probada después de ejecutar la comprobación contra el proveedor; la conversación por voz y la compatibilidad con un modelo concreto solo pueden afirmarse después de registrar sus pruebas físicas. Preparar herramientas de diagnóstico no equivale a completar esas comprobaciones.

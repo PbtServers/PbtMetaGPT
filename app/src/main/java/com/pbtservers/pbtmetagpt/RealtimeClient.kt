@@ -55,10 +55,12 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
         for (check in listOf(Check.SDP, Check.ICE, Check.DATA_CHANNEL, Check.REALTIME)) diagnostics.record(check, CheckStatus.PENDING, "Pendiente en este intento.")
         mutable.value = VoiceState(connecting = true, status = "Autorizando la conversación…")
         job = scope.launch {
+            var stage = Check.BACKEND
             try {
                 withTimeout(35_000) {
                     val secret = credential(baseUrl, accessToken)
                     ensureActive()
+                    stage = Check.ROUTE
                     val routeLabel = if (testOnly) "Prueba sin micrófono" else route.start(bluetooth)
                     if (!testOnly) diagnostics.record(Check.ROUTE, CheckStatus.WARNING, "Ruta de comunicación solicitada a Android. La selección no acredita micrófono o altavoz de las gafas.")
                     mutable.update { it.copy(route = routeLabel, status = "Conectando con OpenAI…") }
@@ -122,6 +124,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                         })
                     }
                     val offer = connection.offer()
+                    stage = Check.SDP
                     diagnostics.record(Check.SDP, CheckStatus.RUNNING, "Oferta de audio creada; esperando respuesta de OpenAI.")
                     connection.setDescription(offer, local = true)
                     val request = Request.Builder().url("https://api.openai.com/v1/realtime/calls")
@@ -142,7 +145,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
             } catch (_: TimeoutCancellationException) { if (generation == current) fail("Se agotó el tiempo para iniciar la conversación.")
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (problem: Exception) {
-                if (generation == current) recordFailure(problem)
+                if (generation == current) recordFailure(problem, stage)
                 if (generation == current) fail(if (problem is IllegalArgumentException || problem is IllegalStateException)
                     problem.message ?: "No se pudo iniciar la conversación." else "No se pudo conectar. Comprueba la red y la dirección HTTPS del backend.")
             }
@@ -195,7 +198,11 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                 }
                 "response.done" -> {
                     mutable.update { it.copy(responding = false, status = if (it.paused) "En pausa · micrófono apagado" else "Escuchando · micrófono encendido") }
-                    if (event.optJSONObject("response")?.optString("status") == "failed") error("OpenAI no pudo completar la respuesta. Comprueba cuota y compatibilidad del modelo.")
+                    if (event.optJSONObject("response")?.optString("status") == "failed") {
+                        val code = event.optJSONObject("response")?.optJSONObject("status_details")?.optJSONObject("error")?.optString("code").orEmpty()
+                        diagnostics.record(Check.PROVIDER, CheckStatus.ERROR, "OpenAI ha comunicado que la respuesta falló. No se guarda el cuerpo del error.", Diagnostics.safeCode(code))
+                        error("OpenAI no pudo completar la respuesta. Comprueba cuota y compatibilidad del modelo.")
+                    }
                 }
                 "response.output_audio_transcript.delta" -> mutable.update { it.copy(transcript = (it.transcript + event.optString("delta")).takeLast(4000)) }
                 "response.output_audio_transcript.done" -> mutable.update { it.copy(transcript = (it.transcript + "\n\n").takeLast(4000)) }
@@ -289,7 +296,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
             finally { if (current == generation) stop() }
         }
     }
-    private fun recordFailure(problem: Exception) {
+    private fun recordFailure(problem: Exception, fallback: Check = Check.BACKEND) {
         val code = when (problem) {
             is DiagnosticFailure -> problem.code
             is javax.net.ssl.SSLException -> "TLS_ERROR"
@@ -297,16 +304,17 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
             is java.net.SocketTimeoutException -> "NETWORK_TIMEOUT"
             else -> "CONNECTION_OR_CONFIGURATION"
         }
-        val target = if (code.startsWith("SDP")) Check.SDP else if (code.startsWith("OPENAI") || code.startsWith("BACKEND_")) Check.CREDENTIAL else Check.BACKEND
+        val target = if (code.startsWith("SDP")) Check.SDP else if (code.startsWith("OPENAI") || code.startsWith("BACKEND_")) Check.CREDENTIAL else fallback
         diagnostics.record(target, CheckStatus.ERROR, if (problem is DiagnosticFailure) problem.message.orEmpty() else "La etapa no pudo completarse. Revisa conexión, certificado y configuración.", code)
     }
     private fun fail(message: String) {
         diagnostics.record(Check.CONTROL, CheckStatus.ERROR, message)
-        stop(); error(message)
+        stopInternal(false); error(message)
     }
 
-    fun stop() {
-        if (state.value.active || state.value.connecting) diagnostics.record(Check.CONTROL, CheckStatus.WARNING, "Cierre de sesión y liberación de audio solicitados; no se reanuda automáticamente.", "STOP_REQUESTED")
+    fun stop() = stopInternal(true)
+    private fun stopInternal(recordControl: Boolean) {
+        if (recordControl && (state.value.active || state.value.connecting)) diagnostics.record(Check.CONTROL, CheckStatus.WARNING, "Cierre de sesión y liberación de audio solicitados; no se reanuda automáticamente.", "STOP_REQUESTED")
         generation++
         job?.cancel(); job = null
         timeout?.cancel(); timeout = null
