@@ -72,9 +72,18 @@ jobs:
       - name: Arrancar y comprobar backend y proxy
         run: |
           docker compose -f deploy/compose.yml -f deploy/compose.ci.yml up --build --wait --wait-timeout 120
+      - name: Comprobar salud mediante el proxy
+        run: |
           curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://localhost:18080/healthz
-          test "$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST http://localhost:18080/realtime/client-secret)" = 401
-          test -z "$(docker compose -f deploy/compose.yml -f deploy/compose.ci.yml port backend 8787 2>/dev/null || true)"
+      - name: Rechazar acceso sin token
+        run: |
+          status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' -X POST http://localhost:18080/realtime/client-secret)
+          echo "Estado HTTP sin autenticación: $status"
+          test "$status" = 401
+      - name: Comprobar aislamiento del puerto del backend
+        run: |
+          container=$(docker compose -f deploy/compose.yml -f deploy/compose.ci.yml ps -q backend)
+          docker inspect "$container" --format '{{json .NetworkSettings.Ports}}' | jq -e 'all(.[]; . == null)'
       - name: Detener contenedores de prueba
         if: always()
         run: docker compose -f deploy/compose.yml -f deploy/compose.ci.yml down --volumes
