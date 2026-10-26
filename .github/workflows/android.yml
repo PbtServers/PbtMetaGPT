@@ -1,0 +1,49 @@
+name: Android
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validar:
+    name: Pruebas y APK debug
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Instalar Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Probar el backend sin llamadas reales
+        run: node --test backend/*.test.mjs
+      - name: Compilar, analizar y probar Android
+        run: bash ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+      - name: Publicar informes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: informes-validacion
+          path: |
+            app/build/reports/
+            app/build/test-results/
+      - name: Publicar APK debug
+        uses: actions/upload-artifact@v4
+        with:
+          name: PbtMetaGPT-v0.2.0-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

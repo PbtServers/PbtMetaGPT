@@ -1,4 +1,5 @@
 .gradle/
+.gradle-user/
 build/
 **/build/
 .idea/
@@ -6,6 +7,7 @@ local.properties
 *.iml
 .env
 .env.*
+!backend/.env.example
 *.keystore
 *.jks
 *.apk
