@@ -10,6 +10,7 @@ Base: `9898ef73ac89cead77da1d10cc4e45a2feae378d`. La base compilaba y superaba L
 | No había un procedimiento reproducible de conexión real | Prueba CLI con credencial efímera y sesión/respuesta reales; comprobación WebRTC sin micrófono en Android | CLI usa WebSocket; Android y audio requieren sus propias pruebas |
 | Registro, SDP, ICE y sesión mezclados en un único estado | Pantalla por etapas, códigos reales observados e historial acotado | No se infiere funcionamiento físico de un estado software |
 | Sin prueba local separada de audio | Captura breve para RMS/ruta y tono con confirmación manual | RMS no acredita inteligibilidad; iniciar reproducción no acredita que se oiga |
+| El cuerpo HTTP se leía al reanudar en el hilo de interfaz | OkHttp consume y cierra credencial/SDP en su callback IO antes de reanudar la pantalla; cancelar cancela también esa lectura | Corregido en código; red real pendiente de configuración del usuario |
 | Selección de ruta no demostraba entrada/salida reales | Las pruebas locales consultan los dispositivos realmente enrutados y señalan discrepancias | Un tipo Bluetooth no identifica el modelo de gafas |
 | Errores DAT y cámara poco específicos | Estados, códigos de tipo/enum del SDK y códigos por etapa, sin exportar nombres ni identificadores de dispositivos | El soporte de cámara y audio de Ray-Ban sigue pendiente de prueba física |
 | Permisos comprobados solo al crear la pantalla | Relectura al volver a primer plano y bajo acción del usuario | No activa sensores ni reanuda sesiones al volver |

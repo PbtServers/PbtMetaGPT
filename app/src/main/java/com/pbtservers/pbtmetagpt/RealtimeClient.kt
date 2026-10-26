@@ -130,9 +130,9 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     val request = Request.Builder().url("https://api.openai.com/v1/realtime/calls")
                         .header("Authorization", "Bearer $secret")
                         .post(offer.description.toRequestBody("application/sdp".toMediaType())).build()
-                    val answer = http.newCall(request).await().use { response ->
+                    val answer = http.newCall(request).await().let { response ->
                         if (!response.isSuccessful) throw DiagnosticFailure("SDP_HTTP_${response.code}", "OpenAI rechazó la negociación SDP (HTTP ${response.code}). Revisa cuota, modelo y caducidad de la credencial.")
-                        response.body?.string() ?: throw IllegalStateException("OpenAI no devolvió una respuesta de conexión.")
+                        response.body.takeIf { it.isNotBlank() } ?: throw IllegalStateException("OpenAI no devolvió una respuesta de conexión.")
                     }
                     ensureActive()
                     connection.setDescription(SessionDescription(SessionDescription.Type.ANSWER, answer), local = false)
@@ -275,9 +275,9 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
         diagnostics.record(Check.BACKEND, CheckStatus.RUNNING, "Conectando por HTTPS sin redirecciones.")
         diagnostics.record(Check.CREDENTIAL, CheckStatus.RUNNING, "Solicitando una credencial temporal al backend.")
         val request = Request.Builder().url(endpoint).header("Authorization", "Bearer $accessToken").post(ByteArray(0).toRequestBody()).build()
-        return http.newCall(request).await().use { response ->
+        return http.newCall(request).await().let { response ->
             diagnostics.record(Check.BACKEND, CheckStatus.OK, "Se recibió respuesta HTTPS del backend.", "HTTP_${response.code}")
-            val body = response.body?.string().orEmpty()
+            val body = response.body
             if (!response.isSuccessful) throw RealtimeProtocol.backendFailure(body, response.code)
             RealtimeProtocol.secret(body, System.currentTimeMillis() / 1000).also {
                 diagnostics.record(Check.CREDENTIAL, CheckStatus.OK, "El backend emitió una credencial efímera vigente. Aún no se ha confirmado Realtime.", "EPHEMERAL_ISSUED")
@@ -331,12 +331,22 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     }
 }
 
-private suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->
+private data class HttpReply(val code: Int, val body: String) {
+    val isSuccessful: Boolean get() = code in 200..299
+}
+
+/** Consume y cierra el cuerpo en el hilo IO de OkHttp antes de volver a la interfaz. */
+private suspend fun Call.await(): HttpReply = suspendCancellableCoroutine { continuation ->
     continuation.invokeOnCancellation { cancel() }
     enqueue(object : Callback {
         override fun onFailure(call: Call, e: java.io.IOException) { if (continuation.isActive) continuation.resumeWithException(e) }
         override fun onResponse(call: Call, response: Response) {
-            continuation.resume(response) { _, resource, _ -> resource.close() }
+            try {
+                val reply = response.use { HttpReply(it.code, it.body?.string().orEmpty()) }
+                if (continuation.isActive) continuation.resume(reply)
+            } catch (problem: Exception) {
+                if (continuation.isActive) continuation.resumeWithException(problem)
+            }
         }
     })
 }

@@ -2,6 +2,8 @@
 
 La base de v0.2.0 se conserva. Se añaden `Diagnostics` (estados por etapa e historial acotado en memoria), `DiagnosticScreen` (observación y controles explícitos), `LocalAudioDiagnostics` (captura breve de nivel/ruta y tono) y comprobación WebRTC solo de recepción en `RealtimeClient`. El backend admite secretos montados, códigos de error filtrados y salud sin contactar con el proveedor. `deploy/compose.yml` añade Caddy HTTPS y aislamiento del puerto del backend. `check-live.mjs` verifica de forma separada una sesión por WebSocket; no se usa para afirmar que el audio Android funciona.
 
+La lectura de los cuerpos HTTPS de credenciales y SDP se realiza en el callback de red de OkHttp, antes de reanudar la interfaz, manteniendo la cancelación activa hasta cerrar el cuerpo. No se hacen lecturas de sockets en el hilo principal.
+
 ```mermaid
 flowchart LR
     G[Gafas Meta] <-->|Registro, sesión y cámara DAT| A[Aplicación Android]
