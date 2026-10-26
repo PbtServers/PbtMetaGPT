@@ -46,7 +46,35 @@ jobs:
       - name: Publicar APK debug
         uses: actions/upload-artifact@v4
         with:
-          name: PbtMetaGPT-v0.2.0-debug
+          name: PbtMetaGPT-v0.3.0-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+  contenedores:
+    name: Backend Docker y proxy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DOMAIN: localhost
+      ACME_EMAIL: pruebas@example.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar secretos ficticios de CI
+        run: |
+          mkdir -p deploy/secrets
+          printf 'clave-ficticia-de-ci' > deploy/secrets/openai_api_key
+          printf 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' > deploy/secrets/client_token_sha256
+          chmod 444 deploy/secrets/*
+      - name: Validar la configuración HTTPS de producción
+        run: |
+          docker compose -f deploy/compose.yml config --quiet
+          docker run --rm -e DOMAIN -e ACME_EMAIL -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+      - name: Arrancar y comprobar backend y proxy
+        run: |
+          docker compose -f deploy/compose.yml -f deploy/compose.ci.yml up --build --wait --wait-timeout 120
+          curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://localhost:18080/healthz
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST http://localhost:18080/realtime/client-secret)" = 401
+          test -z "$(docker compose -f deploy/compose.yml -f deploy/compose.ci.yml port backend 8787 2>/dev/null || true)"
+      - name: Detener contenedores de prueba
+        if: always()
+        run: docker compose -f deploy/compose.yml -f deploy/compose.ci.yml down --volumes

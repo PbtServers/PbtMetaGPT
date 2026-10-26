@@ -8,6 +8,9 @@ local.properties
 .env
 .env.*
 !backend/.env.example
+!deploy/.env.example
+deploy/secrets/
+diagnosticos-locales/
 *.keystore
 *.jks
 *.apk

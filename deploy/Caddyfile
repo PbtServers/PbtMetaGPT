@@ -1,0 +1,21 @@
+{
+    email {$ACME_EMAIL}
+    admin off
+}
+{$DOMAIN} {
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options nosniff
+        -Server
+    }
+    request_body {
+        max_size 1KB
+    }
+    reverse_proxy backend:8787 {
+        transport http {
+            dial_timeout 3s
+            response_header_timeout 15s
+        }
+    }
+    # Sin registro de acceso: no guardar Authorization, cuerpos ni parámetros.
+}

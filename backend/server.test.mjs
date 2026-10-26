@@ -2,7 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
-import { createTokenServer } from './server.mjs';
+import { createTokenServer, serverConfiguration } from './server.mjs';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const token = 'acceso_personal_de_prueba_1234567890';
 const hash = createHash('sha256').update(token).digest('hex');
@@ -125,4 +128,36 @@ test('limita las llamadas simultáneas al proveedor y libera las plazas', async 
   } finally { release(); }
   assert.deepEqual((await Promise.all(pending)).map(response => response.status), [200, 200, 200, 200]);
   assert.equal(count, 4);
+});
+test('healthz comprueba el proceso sin consumir cuota ni mostrar configuración', async t => {
+  const { url, calls } = await fixture(t);
+  const response = await fetch(url.replace('/realtime/client-secret', '/healthz'));
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { status: 'ok' });
+  assert.equal(calls.length, 0);
+});
+test('clasifica errores reales del proveedor sin reenviar sus cuerpos', async t => {
+  for (const [status, code] of [[401, 'OPENAI_AUTH'], [403, 'OPENAI_ACCESS'], [404, 'OPENAI_MODEL'], [429, 'OPENAI_QUOTA'], [500, 'OPENAI_UPSTREAM']]) {
+    const { request } = await fixture(t, { fetchImpl: async () => ({ ok: false, status, json: () => { assert.fail('No leer cuerpos de error sensibles'); } }) });
+    const response = await request();
+    const data = await response.json();
+    assert.equal(response.status, 502);
+    assert.equal(data.code, code);
+    assert.equal(data.request_id, response.headers.get('x-request-id'));
+    assert.match(data.request_id, /^[0-9a-f-]{36}$/);
+  }
+});
+test('admite secretos montados y rechaza fuentes ambiguas', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pbtmetagpt-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const keyFile = join(directory, 'key');
+  const hashesFile = join(directory, 'hashes');
+  writeFileSync(keyFile, 'clave-ficticia\n');
+  writeFileSync(hashesFile, hash + '\n');
+  const configuration = serverConfiguration({ OPENAI_API_KEY_FILE: keyFile, CLIENT_TOKEN_SHA256_FILE: hashesFile, HOST: '0.0.0.0' });
+  assert.equal(configuration.host, '0.0.0.0');
+  assert.equal(configuration.apiKey, 'clave-ficticia');
+  assert.deepEqual(configuration.tokenHashes, [hash]);
+  assert.throws(() => serverConfiguration({ OPENAI_API_KEY: 'x', OPENAI_API_KEY_FILE: keyFile }));
+  assert.throws(() => serverConfiguration({ PORT: 'invalido' }));
 });

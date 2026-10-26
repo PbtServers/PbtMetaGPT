@@ -1,0 +1,6 @@
+# Solo CI: prueba HTTP dentro del runner; no emite certificados ni llama a OpenAI.
+services:
+  https:
+    ports: !override ['127.0.0.1:18080:80']
+    volumes:
+      - ./Caddyfile.ci:/etc/caddy/Caddyfile:ro

@@ -1,0 +1,55 @@
+name: pbtmetagpt
+services:
+  backend:
+    build: ../backend
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: '8787'
+      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
+      CLIENT_TOKEN_SHA256_FILE: /run/secrets/client_token_sha256
+      OPENAI_REALTIME_MODEL: ${OPENAI_REALTIME_MODEL:-gpt-realtime}
+    secrets:
+      - openai_api_key
+      - client_token_sha256
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp:size=16m,mode=1777]
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 1.0
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: '3'}
+  https:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      backend: {condition: service_healthy}
+    environment:
+      DOMAIN: ${DOMAIN:?Configura DOMAIN en deploy/.env}
+      ACME_EMAIL: ${ACME_EMAIL:?Configura ACME_EMAIL en deploy/.env}
+    ports: ['80:80', '443:443']
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp:size=16m,mode=1777]
+    pids_limit: 128
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: '3'}
+secrets:
+  openai_api_key:
+    file: ./secrets/openai_api_key
+  client_token_sha256:
+    file: ./secrets/client_token_sha256
+volumes:
+  caddy_data:
+  caddy_config:

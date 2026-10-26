@@ -1,0 +1,6 @@
+{
+    admin off
+}
+http://localhost {
+    reverse_proxy backend:8787
+}
