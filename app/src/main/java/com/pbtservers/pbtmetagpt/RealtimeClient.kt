@@ -29,7 +29,7 @@ data class VoiceState(
 )
 
 /** Una conexión WebRTC conserva el contexto. No se persisten audio, imágenes ni credenciales. */
-class RealtimeClient(context: Context, private val scope: CoroutineScope, private val error: (String) -> Unit) {
+class RealtimeClient(context: Context, private val scope: CoroutineScope, private val error: (String) -> Unit, private val diagnostics: Diagnostics = Diagnostics()) {
     private val appContext = context.applicationContext
     private val mutable = MutableStateFlow(VoiceState())
     val state = mutable.asStateFlow()
@@ -44,50 +44,45 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     private var job: Job? = null
     private var timeout: Job? = null
     private var generation = 0
+    private var diagnosticOnly = false
     private val route = AudioRoute(appContext) { message -> scope.launch { stop(); error(message) } }
 
-    fun start(baseUrl: String, accessToken: String, bluetooth: Boolean) {
+    fun start(baseUrl: String, accessToken: String, bluetooth: Boolean, testOnly: Boolean = false) {
         if (state.value.active || state.value.connecting) return
         stop()
         val current = generation
+        diagnosticOnly = testOnly
+        for (check in listOf(Check.SDP, Check.ICE, Check.DATA_CHANNEL, Check.REALTIME)) diagnostics.record(check, CheckStatus.PENDING, "Pendiente en este intento.")
         mutable.value = VoiceState(connecting = true, status = "Autorizando la conversación…")
         job = scope.launch {
             try {
                 withTimeout(35_000) {
-                    val endpoint = RealtimeProtocol.endpoint(baseUrl)
-                    require(Regex("[A-Za-z0-9_-]{32,256}").matches(accessToken)) {
-                        "Introduce el token de acceso personal de tu backend, no una clave API de OpenAI."
-                    }
-                    require(!accessToken.startsWith("sk-") && !accessToken.startsWith("sk_")) {
-                        "No introduzcas claves API de OpenAI en la aplicación."
-                    }
-                    val tokenRequest = Request.Builder().url(endpoint)
-                        .header("Authorization", "Bearer $accessToken")
-                        .post(ByteArray(0).toRequestBody()).build()
-                    val secret = http.newCall(tokenRequest).await().use { response ->
-                        require(response.isSuccessful) { when (response.code) {
-                            401, 403 -> "Tu backend ha rechazado el acceso. Comprueba tu token personal."
-                            429 -> "Se ha alcanzado el límite de sesiones. Inténtalo más tarde."
-                            else -> "El backend no pudo autorizar la sesión (HTTP ${response.code})."
-                        } }
-                        RealtimeProtocol.secret(response.body?.string().orEmpty(), System.currentTimeMillis() / 1000)
-                    }
+                    val secret = credential(baseUrl, accessToken)
                     ensureActive()
-                    val routeLabel = route.start(bluetooth)
+                    val routeLabel = if (testOnly) "Prueba sin micrófono" else route.start(bluetooth)
+                    if (!testOnly) diagnostics.record(Check.ROUTE, CheckStatus.WARNING, "Ruta de comunicación solicitada a Android. La selección no acredita micrófono o altavoz de las gafas.")
                     mutable.update { it.copy(route = routeLabel, status = "Conectando con OpenAI…") }
                     PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions.builder(appContext).createInitializationOptions())
                     val audioModule = JavaAudioDeviceModule.builder(appContext)
                         .setAudioRecordErrorCallback(object : JavaAudioDeviceModule.AudioRecordErrorCallback {
-                            private fun failed() = dispatch(current) { fail("No se pudo utilizar el micrófono. Comprueba permisos, ruta de audio y otras aplicaciones.") }
+                            private fun failed() = dispatch(current) { diagnostics.record(Check.MICROPHONE, CheckStatus.ERROR, "WebRTC notificó un fallo real de captura.", "NATIVE_RECORD_ERROR"); fail("No se pudo utilizar el micrófono. Comprueba permisos, ruta de audio y otras aplicaciones.") }
                             override fun onWebRtcAudioRecordInitError(message: String) = failed()
                             override fun onWebRtcAudioRecordStartError(code: JavaAudioDeviceModule.AudioRecordStartErrorCode, message: String) = failed()
                             override fun onWebRtcAudioRecordError(message: String) = failed()
                         })
                         .setAudioTrackErrorCallback(object : JavaAudioDeviceModule.AudioTrackErrorCallback {
-                            private fun failed() = dispatch(current) { fail("No se pudo reproducir el audio. Comprueba el dispositivo de salida.") }
+                            private fun failed() = dispatch(current) { diagnostics.record(Check.PLAYBACK, CheckStatus.ERROR, "WebRTC notificó un fallo real de reproducción.", "NATIVE_PLAYBACK_ERROR"); fail("No se pudo reproducir el audio. Comprueba el dispositivo de salida.") }
                             override fun onWebRtcAudioTrackInitError(message: String) = failed()
                             override fun onWebRtcAudioTrackStartError(code: JavaAudioDeviceModule.AudioTrackStartErrorCode, message: String) = failed()
                             override fun onWebRtcAudioTrackError(message: String) = failed()
+                        })
+                        .setAudioRecordStateCallback(object : JavaAudioDeviceModule.AudioRecordStateCallback {
+                            override fun onWebRtcAudioRecordStart() = dispatch(current) { diagnostics.record(Check.MICROPHONE, CheckStatus.OK, "El capturador nativo ha iniciado. Comprueba que la voz procede del dispositivo esperado.", "NATIVE_RECORD_STARTED") }
+                            override fun onWebRtcAudioRecordStop() = dispatch(current) { diagnostics.record(Check.MICROPHONE, CheckStatus.WARNING, "El capturador nativo se ha detenido.", "NATIVE_RECORD_STOPPED") }
+                        })
+                        .setAudioTrackStateCallback(object : JavaAudioDeviceModule.AudioTrackStateCallback {
+                            override fun onWebRtcAudioTrackStart() = dispatch(current) { diagnostics.record(Check.PLAYBACK, CheckStatus.WARNING, "El reproductor nativo ha iniciado; falta confirmar que se oye el audio.", "NATIVE_PLAYBACK_STARTED") }
+                            override fun onWebRtcAudioTrackStop() = dispatch(current) { diagnostics.record(Check.PLAYBACK, CheckStatus.WARNING, "El reproductor nativo se ha detenido.", "NATIVE_PLAYBACK_STOPPED") }
                         }).createAudioDeviceModule()
                     module = audioModule
                     val createdFactory = PeerConnectionFactory.builder().setAudioDeviceModule(audioModule).createPeerConnectionFactory()
@@ -98,15 +93,24 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     ) ?: throw IllegalStateException("No se pudo preparar WebRTC.")
                     peer = connection
                     connection.setAudioRecording(false)
-                    val audioSource = createdFactory.createAudioSource(MediaConstraints())
-                    source = audioSource
-                    microphone = createdFactory.createAudioTrack("pbt-microphone", audioSource).apply { setEnabled(false) }
-                    connection.addTrack(requireNotNull(microphone), listOf("pbt-audio"))
+                    if (testOnly) {
+                        connection.addTransceiver(MediaStreamTrack.MediaType.MEDIA_TYPE_AUDIO,
+                            RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.RECV_ONLY))
+                    } else {
+                        val audioSource = createdFactory.createAudioSource(MediaConstraints())
+                        source = audioSource
+                        microphone = createdFactory.createAudioTrack("pbt-microphone", audioSource).apply { setEnabled(false) }
+                        connection.addTrack(requireNotNull(microphone), listOf("pbt-audio"))
+                    }
                     channel = connection.createDataChannel("oai-events", DataChannel.Init()).also { dc ->
                         dc.registerObserver(object : DataChannel.Observer {
                             override fun onBufferedAmountChange(previousAmount: Long) = Unit
                             override fun onStateChange() {
-                                dispatch(current) { if (dc.state() == DataChannel.State.CLOSED) fail("Se ha cerrado el canal de conversación.") }
+                                dispatch(current) {
+                                    val value = dc.state()
+                                    diagnostics.record(Check.DATA_CHANNEL, if (value == DataChannel.State.OPEN) CheckStatus.OK else CheckStatus.WARNING, "Estado observado del canal de eventos.", value.name)
+                                    if (value == DataChannel.State.CLOSED) fail("Se ha cerrado el canal de conversación.")
+                                }
                             }
                             override fun onMessage(buffer: DataChannel.Buffer) {
                                 if (buffer.binary) return
@@ -118,16 +122,18 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                         })
                     }
                     val offer = connection.offer()
+                    diagnostics.record(Check.SDP, CheckStatus.RUNNING, "Oferta de audio creada; esperando respuesta de OpenAI.")
                     connection.setDescription(offer, local = true)
                     val request = Request.Builder().url("https://api.openai.com/v1/realtime/calls")
                         .header("Authorization", "Bearer $secret")
                         .post(offer.description.toRequestBody("application/sdp".toMediaType())).build()
                     val answer = http.newCall(request).await().use { response ->
-                        require(response.isSuccessful) { "OpenAI rechazó la conexión (HTTP ${response.code}). Comprueba acceso al modelo y cuota del backend." }
+                        if (!response.isSuccessful) throw DiagnosticFailure("SDP_HTTP_${response.code}", "OpenAI rechazó la negociación SDP (HTTP ${response.code}). Revisa cuota, modelo y caducidad de la credencial.")
                         response.body?.string() ?: throw IllegalStateException("OpenAI no devolvió una respuesta de conexión.")
                     }
                     ensureActive()
                     connection.setDescription(SessionDescription(SessionDescription.Type.ANSWER, answer), local = false)
+                    diagnostics.record(Check.SDP, CheckStatus.OK, "OpenAI ha aceptado el SDP. Falta confirmar transporte y sesión.", "SDP_ACCEPTED")
                 }
                 if (!state.value.active) timeout = scope.launch {
                     delay(15_000)
@@ -136,6 +142,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
             } catch (_: TimeoutCancellationException) { if (generation == current) fail("Se agotó el tiempo para iniciar la conversación.")
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (problem: Exception) {
+                if (generation == current) recordFailure(problem)
                 if (generation == current) fail(if (problem is IllegalArgumentException || problem is IllegalStateException)
                     problem.message ?: "No se pudo iniciar la conversación." else "No se pudo conectar. Comprueba la red y la dirección HTTPS del backend.")
             }
@@ -145,6 +152,11 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     private fun observer(current: Int) = object : PeerConnection.Observer {
         override fun onSignalingChange(state: PeerConnection.SignalingState) = Unit
         override fun onIceConnectionChange(state: PeerConnection.IceConnectionState) {
+            dispatch(current) { diagnostics.record(Check.ICE, when (state) {
+                PeerConnection.IceConnectionState.CONNECTED, PeerConnection.IceConnectionState.COMPLETED -> CheckStatus.OK
+                PeerConnection.IceConnectionState.FAILED, PeerConnection.IceConnectionState.DISCONNECTED -> CheckStatus.ERROR
+                else -> CheckStatus.RUNNING
+            }, "Estado de transporte informado por WebRTC.", state.name) }
             if (state == PeerConnection.IceConnectionState.FAILED || state == PeerConnection.IceConnectionState.DISCONNECTED)
                 dispatch(current) { fail("Se perdió la conexión de audio. Inicia una sesión nueva cuando vuelva la red.") }
         }
@@ -171,6 +183,8 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
             when (event.optString("type")) {
                 "session.created" -> {
                     timeout?.cancel()
+                    diagnostics.record(Check.REALTIME, CheckStatus.OK, "OpenAI ha enviado session.created por el canal real. Esto no acredita audio ni gafas.", "SESSION_CREATED")
+                    if (diagnosticOnly) { stop(); return }
                     peer?.setAudioRecording(true)
                     microphone?.setEnabled(true)
                     mutable.update { it.copy(connecting = false, active = true, status = "Escuchando · micrófono encendido", route = it.route + "\n" + route.actualRoute()) }
@@ -185,7 +199,10 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                 }
                 "response.output_audio_transcript.delta" -> mutable.update { it.copy(transcript = (it.transcript + event.optString("delta")).takeLast(4000)) }
                 "response.output_audio_transcript.done" -> mutable.update { it.copy(transcript = (it.transcript + "\n\n").takeLast(4000)) }
-                "error" -> { mutable.update { it.copy(responding = false) }; error("OpenAI rechazó una operación de la sesión. Detén y vuelve a iniciar si el problema persiste.") }
+                "error" -> {
+                    diagnostics.record(Check.PROVIDER, CheckStatus.ERROR, "OpenAI rechazó una operación. El cuerpo original no se guarda.", Diagnostics.safeCode(event.optJSONObject("error")?.optString("code").orEmpty()))
+                    mutable.update { it.copy(responding = false) }; error("OpenAI rechazó una operación de la sesión. Consulta Diagnóstico.")
+                }
             }
         } catch (_: Exception) { error("Se recibió un evento de conversación no válido.") }
     }
@@ -245,9 +262,51 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
         throw IllegalStateException("Imagen demasiado grande")
     }
 
-    private fun fail(message: String) { stop(); error(message) }
+    private suspend fun credential(baseUrl: String, accessToken: String): String {
+        val endpoint = RealtimeProtocol.endpoint(baseUrl)
+        require(Regex("[A-Za-z0-9_-]{32,256}").matches(accessToken) && !Regex("^sk[-_].*").matches(accessToken)) { "Introduce el token personal del backend, nunca una clave de OpenAI." }
+        diagnostics.record(Check.BACKEND, CheckStatus.RUNNING, "Conectando por HTTPS sin redirecciones.")
+        diagnostics.record(Check.CREDENTIAL, CheckStatus.RUNNING, "Solicitando una credencial temporal al backend.")
+        val request = Request.Builder().url(endpoint).header("Authorization", "Bearer $accessToken").post(ByteArray(0).toRequestBody()).build()
+        return http.newCall(request).await().use { response ->
+            diagnostics.record(Check.BACKEND, CheckStatus.OK, "Se recibió respuesta HTTPS del backend.", "HTTP_${response.code}")
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) throw RealtimeProtocol.backendFailure(body, response.code)
+            RealtimeProtocol.secret(body, System.currentTimeMillis() / 1000).also {
+                diagnostics.record(Check.CREDENTIAL, CheckStatus.OK, "El backend emitió una credencial efímera vigente. Aún no se ha confirmado Realtime.", "EPHEMERAL_ISSUED")
+            }
+        }
+    }
+    fun probeCredentials(baseUrl: String, accessToken: String) {
+        if (state.value.active || state.value.connecting) return
+        stop()
+        val current = generation
+        mutable.value = VoiceState(connecting = true, status = "Comprobando backend sin activar audio…")
+        job = scope.launch {
+            try { credential(baseUrl, accessToken) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (problem: Exception) { if (current == generation) { recordFailure(problem); error("Falló la comprobación. Consulta el diagnóstico del backend.") } }
+            finally { if (current == generation) stop() }
+        }
+    }
+    private fun recordFailure(problem: Exception) {
+        val code = when (problem) {
+            is DiagnosticFailure -> problem.code
+            is javax.net.ssl.SSLException -> "TLS_ERROR"
+            is java.net.UnknownHostException -> "DNS_ERROR"
+            is java.net.SocketTimeoutException -> "NETWORK_TIMEOUT"
+            else -> "CONNECTION_OR_CONFIGURATION"
+        }
+        val target = if (code.startsWith("SDP")) Check.SDP else if (code.startsWith("OPENAI") || code.startsWith("BACKEND_")) Check.CREDENTIAL else Check.BACKEND
+        diagnostics.record(target, CheckStatus.ERROR, if (problem is DiagnosticFailure) problem.message.orEmpty() else "La etapa no pudo completarse. Revisa conexión, certificado y configuración.", code)
+    }
+    private fun fail(message: String) {
+        diagnostics.record(Check.CONTROL, CheckStatus.ERROR, message)
+        stop(); error(message)
+    }
 
     fun stop() {
+        if (state.value.active || state.value.connecting) diagnostics.record(Check.CONTROL, CheckStatus.WARNING, "Cierre de sesión y liberación de audio solicitados; no se reanuda automáticamente.", "STOP_REQUESTED")
         generation++
         job?.cancel(); job = null
         timeout?.cancel(); timeout = null

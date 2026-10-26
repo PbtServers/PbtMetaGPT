@@ -28,7 +28,7 @@ class AudioRoute(context: Context, private val onInterrupted: (String) -> Unit) 
             if (started && it < 0) onInterrupted("Conversación detenida porque otra aplicación necesita el audio.")
         }.build()
 
-    fun start(preferBluetooth: Boolean): String {
+    fun start(preferBluetooth: Boolean, speaker: Boolean = false): String {
         previousMode = manager.mode
         previousDevice = manager.communicationDevice
         require(manager.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
@@ -40,7 +40,7 @@ class AudioRoute(context: Context, private val onInterrupted: (String) -> Unit) 
         val bluetooth = if (preferBluetooth) devices.firstOrNull {
             it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || it.type == AudioDeviceInfo.TYPE_BLE_HEADSET
         } else null
-        val target = bluetooth ?: devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE }
+        val target = bluetooth ?: devices.firstOrNull { it.type == if (speaker) AudioDeviceInfo.TYPE_BUILTIN_SPEAKER else AudioDeviceInfo.TYPE_BUILTIN_EARPIECE }
             ?: devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
         require(target != null && manager.setCommunicationDevice(target)) { "No se pudo seleccionar una ruta de audio. Comprueba los permisos y el dispositivo." }
         bluetoothDeviceId = bluetooth?.id

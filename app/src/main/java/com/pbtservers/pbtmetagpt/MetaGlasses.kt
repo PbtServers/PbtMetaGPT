@@ -30,7 +30,7 @@ data class GlassesState(
 )
 
 /** Ciclo DAT 1.0.1. La conexión solo se confirma al recibir STARTED del SDK. */
-class MetaGlasses(private val activity: Activity, private val scope: CoroutineScope, private val error: (String) -> Unit) {
+class MetaGlasses(private val activity: Activity, private val scope: CoroutineScope, private val error: (String) -> Unit, private val diagnostics: Diagnostics = Diagnostics()) {
     private val mutable = MutableStateFlow(GlassesState())
     val state = mutable.asStateFlow()
     private var session: DeviceSession? = null
@@ -44,16 +44,20 @@ class MetaGlasses(private val activity: Activity, private val scope: CoroutineSc
         if (state.value.initialized) return
         try {
             Wearables.initialize(activity)
+            diagnostics.record(Check.DAT_INIT, CheckStatus.OK, "DAT ha aceptado la inicialización. Aún no se ha establecido una conexión con las gafas.", "INITIALIZED")
             mutable.update { it.copy(initialized = true, status = "SDK preparado; registra la aplicación en Meta AI") }
             scope.launch {
                 Wearables.registrationState.collect { registration ->
                     val registered = registration == RegistrationState.REGISTERED || registration == RegistrationState.UNREGISTERING
                     mutable.update { it.copy(registered = registered) }
+                    diagnostics.record(Check.DAT_REGISTRATION, if (registered) CheckStatus.OK else CheckStatus.WARNING, "Estado de registro informado por Meta AI.", registration.name)
                     if (!registered) disconnect()
                 }
             }
             scope.launch {
                 Wearables.devices.collect { devices ->
+                    diagnostics.record(Check.DAT_DEVICES, if (devices.isEmpty()) CheckStatus.WARNING else CheckStatus.OK,
+                        "DAT informa de ${devices.size} dispositivos. El descubrimiento no verifica sus capacidades.", "DEVICES_UPDATED")
                     (metadataJobs.keys - devices).forEach { id -> metadataJobs.remove(id)?.cancel(); deviceDescriptions.remove(id) }
                     devices.forEach { id ->
                         deviceDescriptions.putIfAbsent(id, "Gafas detectadas · comprobando compatibilidad")
@@ -69,7 +73,10 @@ class MetaGlasses(private val activity: Activity, private val scope: CoroutineSc
                     mutable.update { it.copy(devices = deviceDescriptions.values.toList()) }
                 }
             }
-        } catch (_: Exception) { error("No se pudo inicializar Meta Wearables. Comprueba Meta AI y los permisos Bluetooth.") }
+        } catch (problem: Exception) {
+            diagnostics.record(Check.DAT_INIT, CheckStatus.ERROR, "No se pudo inicializar DAT. Comprueba Meta AI y los permisos.", Diagnostics.sdkCode(problem))
+            error("No se pudo inicializar Meta Wearables. Comprueba Meta AI y los permisos Bluetooth.")
+        }
     }
 
     fun register() = safely { Wearables.startRegistration(activity) }
@@ -82,6 +89,11 @@ class MetaGlasses(private val activity: Activity, private val scope: CoroutineSc
             session = created
             sessionJobs += scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 created.state.collect { value ->
+                    diagnostics.record(Check.DAT_SESSION, when (value) {
+                        DeviceSessionState.STARTED -> CheckStatus.OK
+                        DeviceSessionState.STARTING, DeviceSessionState.IDLE -> CheckStatus.RUNNING
+                        else -> CheckStatus.WARNING
+                    }, "Estado real de sesión comunicado por DAT.", value.name)
                     mutable.update { it.copy(
                         connected = value == DeviceSessionState.STARTED,
                         connecting = value == DeviceSessionState.STARTING || value == DeviceSessionState.IDLE,
@@ -98,7 +110,8 @@ class MetaGlasses(private val activity: Activity, private val scope: CoroutineSc
                     if (value == DeviceSessionState.STOPPED) clearSession()
                 }
             }
-            sessionJobs += scope.launch { created.errors.collect {
+            sessionJobs += scope.launch { created.errors.collect { cause ->
+                diagnostics.record(Check.DAT_SESSION, CheckStatus.ERROR, "DAT ha comunicado un error de sesión. Comprueba registro, firmware y disponibilidad.", Diagnostics.sdkCode(cause))
                 error("Error de las gafas. Comprueba conexión, firmware y permisos en Meta AI.")
                 disconnect()
             } }
@@ -107,7 +120,8 @@ class MetaGlasses(private val activity: Activity, private val scope: CoroutineSc
                 delay(25_000)
                 if (!state.value.connected) { error("No se han podido conectar las gafas a tiempo."); disconnect() }
             }
-        }.onFailure { _, _ ->
+        }.onFailure { cause, _ ->
+            diagnostics.record(Check.DAT_SESSION, CheckStatus.ERROR, "DAT no pudo crear una sesión.", Diagnostics.sdkCode(cause))
             mutable.update { it.copy(connecting = false, status = "No se pudo crear la conexión") }
             error("Meta no pudo crear una sesión. Revisa el registro y la disponibilidad de las gafas.")
         }
@@ -132,14 +146,18 @@ class MetaGlasses(private val activity: Activity, private val scope: CoroutineSc
         val current = session ?: return
         if (!state.value.connected || state.value.capturing) return
         mutable.update { it.copy(capturing = true, photo = null) }
+        diagnostics.record(Check.CAMERA_CAPTURE, CheckStatus.RUNNING, "Captura puntual autorizada. No se envía la imagen.")
         captureJob = scope.launch {
             try {
                 withTimeout(20_000) {
                     current.addCamera(StreamConfiguration(videoQuality = VideoQuality.MEDIUM, frameRate = 24))
                         .onSuccess { camera ->
                             camera.use {
-                                camera.stream.start().onFailure { _, _ -> throw IllegalStateException() }
-                                camera.stream.state.first { it == StreamState.STREAMING }
+                                camera.stream.start().onFailure { cause, _ -> throw DiagnosticFailure(Diagnostics.sdkCode(cause), "DAT no pudo iniciar la cámara.") }
+                                camera.stream.state.first {
+                                    diagnostics.record(Check.CAMERA_STREAM, if (it == StreamState.STREAMING) CheckStatus.OK else CheckStatus.RUNNING, "Estado observado del flujo local de cámara.", it.name)
+                                    it == StreamState.STREAMING
+                                }
                                 camera.stream.capturePhoto().onSuccess { data ->
                                     val bitmap = withContext(Dispatchers.Default) {
                                         when (data) {
@@ -154,15 +172,22 @@ class MetaGlasses(private val activity: Activity, private val scope: CoroutineSc
                                         }
                                     }
                                     mutable.update { it.copy(photo = bitmap) }
-                                }.onFailure { _, _ -> throw IllegalStateException() }
+                                    diagnostics.record(Check.CAMERA_CAPTURE, CheckStatus.OK, "DAT ha entregado una imagen para vista previa local. No se ha enviado a OpenAI.", "PHOTO_RECEIVED")
+                                }.onFailure { cause, _ -> throw DiagnosticFailure(Diagnostics.sdkCode(cause), "DAT no pudo capturar una foto.") }
                             }
-                        }.onFailure { _, _ -> throw IllegalStateException() }
+                        }.onFailure { cause, _ -> throw DiagnosticFailure(Diagnostics.sdkCode(cause), "DAT no pudo adjuntar la cámara.") }
                 }
             } catch (_: TimeoutCancellationException) {
+                diagnostics.record(Check.CAMERA_CAPTURE, CheckStatus.ERROR, "La cámara no respondió antes del límite.", "CAMERA_TIMEOUT")
                 error("La cámara no respondió a tiempo. Comprueba que llevas puestas las gafas.")
             } catch (cancelled: CancellationException) { throw cancelled
-            } catch (_: Exception) { error("No se pudo capturar la foto. La cámara puede no estar disponible en estas gafas o en su firmware.")
-            } finally { mutable.update { it.copy(capturing = false) } }
+            } catch (problem: Exception) {
+                diagnostics.record(Check.CAMERA_CAPTURE, CheckStatus.ERROR, "No se completó la captura. Revisa permisos, disponibilidad y firmware.", if (problem is DiagnosticFailure) problem.code else Diagnostics.sdkCode(problem))
+                error("No se pudo capturar la foto. La cámara puede no estar disponible en estas gafas o en su firmware.")
+            } finally {
+                diagnostics.record(Check.CAMERA_STREAM, CheckStatus.WARNING, "El flujo de captura se ha cerrado o cancelado.", "CAPTURE_CLOSED")
+                mutable.update { it.copy(capturing = false) }
+            }
         }
     }
 

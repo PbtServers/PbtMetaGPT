@@ -1,6 +1,8 @@
 package com.pbtservers.pbtmetagpt
 
 import android.Manifest
+import android.bluetooth.BluetoothManager
+import android.media.AudioManager
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.WindowManager
@@ -35,19 +37,25 @@ class MainActivity : ComponentActivity() {
     private var message by mutableStateOf<String?>(null)
     private lateinit var glasses: MetaGlasses
     private lateinit var voice: RealtimeClient
+    private val diagnostics = Diagnostics()
+    private lateinit var localAudio: LocalAudioDiagnostics
     private var microphoneReady by mutableStateOf(false)
     private var bluetoothReady by mutableStateOf(false)
     private var foreground = false
 
     private val bluetoothPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         bluetoothReady = granted
+        refreshDiagnostics()
         if (granted) glasses.initialize() else message = "Sin permiso Bluetooth no se pueden buscar ni conectar las gafas. Puedes conversar con el audio del teléfono."
     }
     private val microphonePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         microphoneReady = granted
+        refreshDiagnostics()
         message = if (granted) "Micrófono autorizado. Pulsa Iniciar conversación cuando quieras hablar." else "El permiso de micrófono es necesario para conversar por voz."
     }
     private val cameraPermission = registerForActivityResult(Wearables.RequestPermissionContract()) { result ->
+        diagnostics.record(Check.CAMERA_PERMISSION, if (result.getOrDefault(PermissionStatus.Denied) == PermissionStatus.Granted) CheckStatus.OK else CheckStatus.WARNING,
+            "Resultado recibido del permiso de cámara de Meta AI.", if (result.getOrDefault(PermissionStatus.Denied) == PermissionStatus.Granted) "GRANTED" else "DENIED")
         message = if (result.getOrDefault(PermissionStatus.Denied) == PermissionStatus.Granted)
             "Cámara autorizada. Conecta las gafas si es necesario y vuelve a pulsar Capturar foto."
         else "Meta no ha concedido acceso a la cámara. No se ha capturado ninguna imagen."
@@ -57,8 +65,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        glasses = MetaGlasses(this, lifecycleScope) { message = it }
-        voice = RealtimeClient(this, lifecycleScope) { message = it }
+        glasses = MetaGlasses(this, lifecycleScope, { message = it }, diagnostics)
+        voice = RealtimeClient(this, lifecycleScope, { message = it }, diagnostics)
+        localAudio = LocalAudioDiagnostics(this, lifecycleScope, diagnostics)
         lifecycleScope.launch {
             var previouslyConnected = false
             glasses.state.collect { state ->
@@ -80,12 +89,20 @@ class MainActivity : ComponentActivity() {
                 var bluetooth by remember { mutableStateOf(false) }
                 var captureConsent by remember { mutableStateOf(false) }
                 var sendConsent by remember { mutableStateOf(false) }
-                Surface(Modifier.fillMaxSize()) {
+                var diagnosticsOpen by remember { mutableStateOf(false) }
+                val localBusy by localAudio.busy.collectAsStateWithLifecycle()
+                if (diagnosticsOpen) DiagnosticScreen(diagnostics, voice, localAudio,
+                    configured = backend.isNotBlank() && token.isNotBlank(), backend = backend, token = token, bluetooth = bluetooth,
+                    microphoneReady = microphoneReady, refresh = ::refreshDiagnostics,
+                    requestMic = { microphonePermission.launch(Manifest.permission.RECORD_AUDIO) },
+                    checkCamera = ::checkCameraPermission, onBack = { diagnosticsOpen = false })
+                else Surface(Modifier.fillMaxSize()) {
                     Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF152B38), Color(0xFF0D141D))))
                         .safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                         Text("PBT / ASISTENTE PERSONAL", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
                         Text("Tu voz.\nOtra perspectiva.", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-                        Text("PbtMetaGPT · 0.2.0", style = MaterialTheme.typography.titleMedium)
+                        Text("PbtMetaGPT · 0.3.0", style = MaterialTheme.typography.titleMedium)
+                        OutlinedButton(onClick = { refreshDiagnostics(); diagnosticsOpen = true }) { Text("Abrir diagnóstico y pruebas") }
                         Text("Habla con ChatGPT y comparte una foto cuando tú decidas. Integración con gafas pendiente de validación física.")
                         Panel("01 · Tus gafas", "Ray-Ban Meta") {
                             Text(gs.status, color = MaterialTheme.colorScheme.primary)
@@ -121,7 +138,7 @@ class MainActivity : ComponentActivity() {
                                     preferences.edit().putString("backend", backend).apply()
                                     if (bluetooth && !bluetoothReady) bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
                                     else voice.start(backend, token.trim(), bluetooth)
-                                }, enabled = backend.isNotBlank() && token.isNotBlank()) { Text("Iniciar conversación") }
+                                }, enabled = backend.isNotBlank() && token.isNotBlank() && !localBusy) { Text("Iniciar conversación") }
                             }
                             if (vs.active) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -171,8 +188,38 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    override fun onStart() { super.onStart(); foreground = true }
-    override fun onStop() { foreground = false; voice.stop(); glasses.stopCapture(); glasses.disconnect(); super.onStop() }
+    private fun checkCameraPermission() {
+        if (!glasses.state.value.initialized || !glasses.state.value.registered) {
+            diagnostics.record(Check.CAMERA_PERMISSION, CheckStatus.WARNING, "Primero permite Bluetooth e inicia el registro en Meta AI.", "REGISTRATION_REQUIRED")
+            return
+        }
+        lifecycleScope.launch {
+            Wearables.checkPermissionStatus(Permission.CAMERA).onSuccess { status ->
+                diagnostics.record(Check.CAMERA_PERMISSION, if (status == PermissionStatus.Granted) CheckStatus.OK else CheckStatus.WARNING,
+                    "Consulta del permiso DAT; no se ha abierto la cámara.", if (status == PermissionStatus.Granted) "GRANTED" else "DENIED")
+            }.onFailure { cause, _ -> diagnostics.record(Check.CAMERA_PERMISSION, CheckStatus.ERROR, "No se pudo consultar el permiso de cámara.", Diagnostics.sdkCode(cause)) }
+        }
+    }
+    private fun refreshDiagnostics() {
+        microphoneReady = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        bluetoothReady = checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+        diagnostics.record(Check.PERMISSIONS, if (microphoneReady && bluetoothReady) CheckStatus.OK else CheckStatus.WARNING,
+            "Micrófono Android: ${if (microphoneReady) "concedido" else "sin conceder"}. Bluetooth: ${if (bluetoothReady) "concedido" else "sin conceder"}. El permiso de cámara de las gafas se consulta por separado.")
+        if (!bluetoothReady) diagnostics.record(Check.BLUETOOTH, CheckStatus.WARNING, "No se puede consultar el adaptador sin permiso Bluetooth.", "PERMISSION_REQUIRED")
+        else runCatching {
+            val adapter = getSystemService(BluetoothManager::class.java)?.adapter
+            val enabled = adapter?.isEnabled == true
+            diagnostics.record(Check.BLUETOOTH, if (enabled) CheckStatus.OK else CheckStatus.WARNING,
+                if (adapter == null) "Este dispositivo no tiene adaptador Bluetooth." else if (enabled) "Bluetooth está activado. Esto no demuestra conexión DAT ni audio de las gafas." else "Bluetooth está desactivado.", if (enabled) "ENABLED" else "UNAVAILABLE")
+        }.onFailure { diagnostics.record(Check.BLUETOOTH, CheckStatus.ERROR, "Android rechazó la consulta Bluetooth.", "BLUETOOTH_QUERY") }
+        runCatching {
+            val manager = getSystemService(AudioManager::class.java)
+            val count = manager.availableCommunicationDevices.size
+            diagnostics.record(Check.ROUTE, CheckStatus.WARNING, "Android informa de $count rutas de comunicación. Ruta actual (tipo Android): ${manager.communicationDevice?.type ?: "sin confirmar"}. No se ha activado audio para esta consulta.")
+        }.onFailure { diagnostics.record(Check.ROUTE, CheckStatus.WARNING, "Android no permite consultar las rutas en este momento.", "ROUTE_QUERY") }
+    }
+    override fun onStart() { super.onStart(); foreground = true; refreshDiagnostics() }
+    override fun onStop() { foreground = false; localAudio.stop(); voice.stop(); glasses.stopCapture(); glasses.disconnect(); super.onStop() }
 }
 
 @Composable
