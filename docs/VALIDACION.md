@@ -10,12 +10,16 @@ Base de desarrollo: `9898ef7`. Se han revisado sus limitaciones y creado [AUDITO
 | --- | --- | --- |
 | Node: backend y protocolo de comprobación real | 19 pruebas superadas localmente y en CI | Autenticación, límites, secretos, errores, salud y protocolo con proveedor sustituido |
 | Android: pruebas JVM, Lint y APK debug | Superado en CI, commit `9e0eaea` | Ocho pruebas JVM y compilación/análisis; no ejecuta sensores |
-| Docker Compose / Caddy | Configuración Caddy válida; corrección de sintaxis tmpfs pendiente de siguiente ejecución | No se ha emitido un certificado público |
+| Docker Compose / Caddy | Superado en CI, commit `98baa48` | Caddy válido, contenedores saludables, tráfico por proxy, rechazo 401 y ningún puerto publicado del backend; no se ha emitido un certificado público |
 | Comprobación CLI con OpenAI real | No realizada: faltan backend HTTPS y token personal configurados | El comando se ha ejecutado sin credenciales y termina como no realizado |
 | WebRTC real en Android | Pendiente de intervención manual | Pantalla preparada; recibir session.created es distinto de verificar voz |
 | Micrófono/altavoz del teléfono | Pendiente de intervención manual | Pruebas locales de nivel/ruta y tono implementadas, sin grabaciones persistentes |
 | Ray-Ban Meta: DAT, audio y cámara | Sin pruebas físicas | No se declara funcional ni compatible ningún modelo |
 | Ubuntu Server público y HTTPS ACME | Preparado, no desplegado | No se dispone de servidor/dominio del usuario ni de claves en el entorno |
+
+Evidencia de contenedores: [Actions 40374529684](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40374529684), trabajo **Backend Docker y proxy**. Se corrigieron la sintaxis de `tmpfs` y una aserción que dependía de la salida del comando `compose port`; la comprobación definitiva consulta los puertos realmente publicados del contenedor con Docker Inspect, sin mostrar su entorno.
+
+Se intentó `adb devices -l` en el entorno local: el daemon ADB no pudo arrancar. No fue posible enumerar ni inspeccionar teléfonos/gafas; ese intento no cuenta como prueba de hardware ni demuestra que no haya dispositivos conectados.
 
 Las pruebas automáticas de la comprobación real sustituyen red/WebSocket para verificar el protocolo; no son llamadas reales. La prueba de Docker usa secretos ficticios y HTTP en loopback del runner. No se ha utilizado una clave privada ni consumido cuota de OpenAI durante el desarrollo.
 
