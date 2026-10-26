@@ -9,7 +9,7 @@ Base de desarrollo: `9898ef7`. Se han revisado sus limitaciones y creado [AUDITO
 | Comprobación | Resultado de v0.3.0 | Qué demuestra |
 | --- | --- | --- |
 | Node: backend y protocolo de comprobación real | 19 pruebas superadas localmente y en CI | Autenticación, límites, secretos, errores, salud y protocolo con proveedor sustituido |
-| Android: pruebas JVM, Lint y APK debug | Compilación y ocho pruebas superadas en CI, commit `9e0eaea`; dos regresiones HTTP añadidas para la siguiente ejecución | Diez pruebas JVM en la suite actual; no ejecuta sensores |
+| Android: pruebas JVM, Lint y APK debug | Diez pruebas JVM, compilación y Lint superados en CI, commit `162553e` | Incluye respuestas HTTP lentas y cancelación durante la lectura; no ejecuta sensores |
 | Docker Compose / Caddy | Superado en CI, commit `98baa48` | Caddy válido, contenedores saludables, tráfico por proxy, rechazo 401 y ningún puerto publicado del backend; no se ha emitido un certificado público |
 | Comprobación CLI con OpenAI real | No realizada: faltan backend HTTPS y token personal configurados | El comando se ha ejecutado sin credenciales y termina como no realizado |
 | WebRTC real en Android | Pendiente de intervención manual | Pantalla preparada; recibir session.created es distinto de verificar voz |
@@ -18,6 +18,8 @@ Base de desarrollo: `9898ef7`. Se han revisado sus limitaciones y creado [AUDITO
 | Ubuntu Server público y HTTPS ACME | Preparado, no desplegado | No se dispone de servidor/dominio del usuario ni de claves en el entorno |
 
 Evidencia de contenedores: [Actions 40374529684](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40374529684), trabajo **Backend Docker y proxy**. Se corrigieron la sintaxis de `tmpfs` y una aserción que dependía de la salida del comando `compose port`; la comprobación definitiva consulta los puertos realmente publicados del contenedor con Docker Inspect, sin mostrar su entorno.
+
+Ejecución completa de v0.3.0 con ambos trabajos correctos: [Actions 40375124794](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40375124794), commit `162553e`. Incluye APK debug e informes. Consulta la ejecución correspondiente al commit final para descargar su propio artifact; un artifact anterior no valida cambios posteriores.
 
 Se intentó `adb devices -l` en el entorno local: el daemon ADB no pudo arrancar. No fue posible enumerar ni inspeccionar teléfonos/gafas; ese intento no cuenta como prueba de hardware ni demuestra que no haya dispositivos conectados.
 

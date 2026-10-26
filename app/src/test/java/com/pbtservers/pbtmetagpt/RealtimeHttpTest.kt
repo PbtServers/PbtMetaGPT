@@ -15,11 +15,12 @@ class RealtimeHttpTest {
         val client = OkHttpClient()
         server.start()
         try {
-            server.enqueue(MockResponse().setBody("respuesta completa").setBodyDelay(300, TimeUnit.MILLISECONDS))
+            server.enqueue(MockResponse().setBody("respuesta completa").setBodyDelay(1, TimeUnit.SECONDS))
             val reply = async { client.newCall(Request.Builder().url(server.url("/")).build()).awaitReply() }
             var ticks = 0
             repeat(5) { delay(10); ticks++ }
             assertEquals(5, ticks)
+            assertFalse("El cuerpo sigue pendiente mientras la corrutina de interfaz progresa", reply.isCompleted)
             assertEquals("respuesta completa", reply.await().body)
             server.enqueue(MockResponse().setBody("segunda respuesta"))
             assertTrue(client.newCall(Request.Builder().url(server.url("/")).build()).awaitReply().isSuccessful)
