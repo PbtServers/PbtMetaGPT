@@ -140,7 +140,7 @@ class MainActivity : ComponentActivity() {
                             if (gs.capturing) OutlinedButton(onClick = glasses::stopCapture) { Text("Cancelar captura") }
                             gs.photo?.let { bitmap ->
                                 Image(bitmap.asImageBitmap(), contentDescription = "Vista previa local de la foto capturada; todavía no enviada", modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp))
-                                Button(onClick = { sendConsent = true }, enabled = vs.active && !vs.responding && !vs.sendingImage) {
+                                Button(onClick = { sendConsent = true }, enabled = vs.active && !vs.paused && !vs.responding && !vs.sendingImage) {
                                     Text(if (vs.sendingImage) "Enviando…" else "Preguntar a ChatGPT sobre esta foto")
                                 }
                                 OutlinedButton(onClick = glasses::discardPhoto, enabled = !vs.sendingImage) { Text("Descartar foto") }

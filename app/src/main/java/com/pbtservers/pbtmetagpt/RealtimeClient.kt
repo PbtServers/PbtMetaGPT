@@ -44,7 +44,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     private var job: Job? = null
     private var timeout: Job? = null
     private var generation = 0
-    private val route = AudioRoute(appContext) { scope.launch { stop(); error("Conversación detenida porque otra aplicación necesita el audio.") } }
+    private val route = AudioRoute(appContext) { message -> scope.launch { stop(); error(message) } }
 
     fun start(baseUrl: String, accessToken: String, bluetooth: Boolean) {
         if (state.value.active || state.value.connecting) return
@@ -76,7 +76,19 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     val routeLabel = route.start(bluetooth)
                     mutable.update { it.copy(route = routeLabel, status = "Conectando con OpenAI…") }
                     PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions.builder(appContext).createInitializationOptions())
-                    val audioModule = JavaAudioDeviceModule.builder(appContext).createAudioDeviceModule()
+                    val audioModule = JavaAudioDeviceModule.builder(appContext)
+                        .setAudioRecordErrorCallback(object : JavaAudioDeviceModule.AudioRecordErrorCallback {
+                            private fun failed() = dispatch(current) { fail("No se pudo utilizar el micrófono. Comprueba permisos, ruta de audio y otras aplicaciones.") }
+                            override fun onWebRtcAudioRecordInitError(message: String) = failed()
+                            override fun onWebRtcAudioRecordStartError(code: JavaAudioDeviceModule.AudioRecordStartErrorCode, message: String) = failed()
+                            override fun onWebRtcAudioRecordError(message: String) = failed()
+                        })
+                        .setAudioTrackErrorCallback(object : JavaAudioDeviceModule.AudioTrackErrorCallback {
+                            private fun failed() = dispatch(current) { fail("No se pudo reproducir el audio. Comprueba el dispositivo de salida.") }
+                            override fun onWebRtcAudioTrackInitError(message: String) = failed()
+                            override fun onWebRtcAudioTrackStartError(code: JavaAudioDeviceModule.AudioTrackStartErrorCode, message: String) = failed()
+                            override fun onWebRtcAudioTrackError(message: String) = failed()
+                        }).createAudioDeviceModule()
                     module = audioModule
                     val createdFactory = PeerConnectionFactory.builder().setAudioDeviceModule(audioModule).createPeerConnectionFactory()
                     factory = createdFactory
@@ -85,6 +97,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                         observer(current),
                     ) ?: throw IllegalStateException("No se pudo preparar WebRTC.")
                     peer = connection
+                    connection.setAudioRecording(false)
                     val audioSource = createdFactory.createAudioSource(MediaConstraints())
                     source = audioSource
                     microphone = createdFactory.createAudioTrack("pbt-microphone", audioSource).apply { setEnabled(false) }
@@ -93,7 +106,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                         dc.registerObserver(object : DataChannel.Observer {
                             override fun onBufferedAmountChange(previousAmount: Long) = Unit
                             override fun onStateChange() {
-                                if (dc.state() == DataChannel.State.CLOSED) dispatch(current) { fail("Se ha cerrado el canal de conversación.") }
+                                dispatch(current) { if (dc.state() == DataChannel.State.CLOSED) fail("Se ha cerrado el canal de conversación.") }
                             }
                             override fun onMessage(buffer: DataChannel.Buffer) {
                                 if (buffer.binary) return
@@ -144,7 +157,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
         override fun onDataChannel(dc: DataChannel) = Unit
         override fun onRenegotiationNeeded() = Unit
         override fun onAddTrack(receiver: RtpReceiver, streams: Array<out MediaStream>) {
-            (receiver.track() as? AudioTrack)?.setEnabled(true)
+            dispatch(current) { (receiver.track() as? AudioTrack)?.setEnabled(true) }
         }
     }
 
@@ -158,10 +171,14 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
             when (event.optString("type")) {
                 "session.created" -> {
                     timeout?.cancel()
+                    peer?.setAudioRecording(true)
                     microphone?.setEnabled(true)
                     mutable.update { it.copy(connecting = false, active = true, status = "Escuchando · micrófono encendido", route = it.route + "\n" + route.actualRoute()) }
                 }
-                "response.created" -> mutable.update { it.copy(responding = true, status = "ChatGPT está respondiendo…") }
+                "response.created" -> {
+                    mutable.update { it.copy(responding = true, status = if (it.paused) "En pausa · micrófono apagado" else "ChatGPT está respondiendo…") }
+                    if (state.value.paused) interrupt() else peer?.setAudioPlayout(true)
+                }
                 "response.done" -> {
                     mutable.update { it.copy(responding = false, status = if (it.paused) "En pausa · micrófono apagado" else "Escuchando · micrófono encendido") }
                     if (event.optJSONObject("response")?.optString("status") == "failed") error("OpenAI no pudo completar la respuesta. Comprueba cuota y compatibilidad del modelo.")
@@ -181,19 +198,21 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
         if (!state.value.active) return
         val pause = !state.value.paused
         microphone?.setEnabled(!pause)
+        peer?.setAudioRecording(!pause)
         if (pause) interrupt()
         mutable.update { it.copy(paused = pause, status = if (pause) "En pausa · micrófono apagado" else "Escuchando · micrófono encendido") }
     }
 
     fun interrupt() {
         if (!state.value.active) return
+        peer?.setAudioPlayout(false)
         if (state.value.responding) send(RealtimeProtocol.event("response.cancel"))
         send(RealtimeProtocol.event("output_audio_buffer.clear"))
         send(RealtimeProtocol.event("input_audio_buffer.clear"))
     }
 
     fun askImage(bitmap: Bitmap, onSent: () -> Unit) {
-        if (!state.value.active || state.value.responding || state.value.sendingImage) return
+        if (!state.value.active || state.value.paused || state.value.responding || state.value.sendingImage) return
         val current = generation
         mutable.update { it.copy(sendingImage = true) }
         scope.launch {
@@ -230,6 +249,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
         job?.cancel(); job = null
         timeout?.cancel(); timeout = null
         microphone?.setEnabled(false)
+        peer?.setAudioRecording(false)
         channel?.unregisterObserver(); channel?.close(); channel?.dispose(); channel = null
         peer?.close(); peer?.dispose(); peer = null
         microphone?.dispose(); microphone = null

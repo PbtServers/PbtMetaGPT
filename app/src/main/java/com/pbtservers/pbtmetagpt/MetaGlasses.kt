@@ -14,6 +14,7 @@ import com.meta.wearable.dat.core.session.DeviceSession
 import com.meta.wearable.dat.core.session.DeviceSessionState
 import com.meta.wearable.dat.core.types.RegistrationState
 import com.meta.wearable.dat.core.types.DeviceCompatibility
+import com.meta.wearable.dat.core.types.DeviceIdentifier
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -36,8 +37,8 @@ class MetaGlasses(private val activity: Activity, private val scope: CoroutineSc
     private val sessionJobs = mutableListOf<Job>()
     private var captureJob: Job? = null
     private var connectTimeout: Job? = null
-    private val metadataJobs = mutableMapOf<String, Job>()
-    private val deviceDescriptions = mutableMapOf<String, String>()
+    private val metadataJobs = mutableMapOf<DeviceIdentifier, Job>()
+    private val deviceDescriptions = mutableMapOf<DeviceIdentifier, String>()
 
     fun initialize() {
         if (state.value.initialized) return

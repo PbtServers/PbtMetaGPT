@@ -9,11 +9,12 @@ const hash = createHash('sha256').update(token).digest('hex');
 const clock = 1_800_000_000_000;
 async function fixture(t, overrides = {}) {
   const calls = [];
+  const currentTime = overrides.now ?? (() => clock);
   const server = createTokenServer({
     apiKey: 'clave-privada-solo-servidor', tokenHashes: [hash], now: () => clock,
     fetchImpl: async (...args) => {
       calls.push(args);
-      return { ok: true, json: async () => ({ value: 'ek_temporal_de_prueba', expires_at: clock / 1000 + 60, private: 'no devolver' }) };
+      return { ok: true, json: async () => ({ value: 'ek_temporal_de_prueba', expires_at: Math.floor(currentTime() / 1000) + 60, private: 'no devolver' }) };
     }, ...overrides,
   });
   server.listen(0, '127.0.0.1');
@@ -93,4 +94,35 @@ test('rechaza credenciales permanentes y caducadas', async t => {
     const { request } = await fixture(t, { fetchImpl: async () => ({ ok: true, json: async () => data }) });
     assert.equal((await request()).status, 502);
   }
+});
+test('el límite global horario persiste entre ventanas de identidad', async t => {
+  let time = clock;
+  const { request, calls } = await fixture(t, { now: () => time });
+  for (let minute = 0; minute < 6; minute++) {
+    for (let i = 0; i < 5; i++) assert.equal((await request()).status, 200);
+    time += 60_001;
+  }
+  assert.equal((await request()).status, 429);
+  assert.equal(calls.length, 30);
+  time += 3_600_000;
+  assert.equal((await request()).status, 200);
+});
+test('limita las llamadas simultáneas al proveedor y libera las plazas', async t => {
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  let started;
+  const ready = new Promise(resolve => { started = resolve; });
+  let count = 0;
+  const { request } = await fixture(t, { fetchImpl: async () => {
+    if (++count === 4) started();
+    await gate;
+    return { ok: true, json: async () => ({ value: 'ek_temporal_de_prueba', expires_at: clock / 1000 + 60 }) };
+  } });
+  const pending = Array.from({ length: 4 }, () => request());
+  try {
+    await ready;
+    assert.equal((await request()).status, 429);
+  } finally { release(); }
+  assert.deepEqual((await Promise.all(pending)).map(response => response.status), [200, 200, 200, 200]);
+  assert.equal(count, 4);
 });

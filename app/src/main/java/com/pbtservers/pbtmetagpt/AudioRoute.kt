@@ -10,7 +10,7 @@ import android.os.Handler
 import android.os.Looper
 
 /** Ruta de comunicación Android. No afirma que un dispositivo Bluetooth sea una Ray-Ban. */
-class AudioRoute(context: Context, private val onLostFocus: () -> Unit) {
+class AudioRoute(context: Context, private val onInterrupted: (String) -> Unit) {
     private val manager = context.getSystemService(AudioManager::class.java)
     private var previousMode = AudioManager.MODE_NORMAL
     private var previousDevice: AudioDeviceInfo? = null
@@ -18,13 +18,15 @@ class AudioRoute(context: Context, private val onLostFocus: () -> Unit) {
     private var bluetoothDeviceId: Int? = null
     private val devicesCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) {
-            if (started && removed.any { it.id == bluetoothDeviceId }) onLostFocus()
+            if (started && removed.any { it.id == bluetoothDeviceId }) onInterrupted("Se ha desconectado el dispositivo Bluetooth. La conversación se ha detenido.")
         }
     }
     private val focus = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
         .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
-        .setOnAudioFocusChangeListener { if (it < 0) onLostFocus() }.build()
+        .setOnAudioFocusChangeListener {
+            if (started && it < 0) onInterrupted("Conversación detenida porque otra aplicación necesita el audio.")
+        }.build()
 
     fun start(preferBluetooth: Boolean): String {
         previousMode = manager.mode
