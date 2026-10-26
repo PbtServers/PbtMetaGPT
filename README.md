@@ -1,91 +1,102 @@
-# PbtMetaGPT 🕶️
+# PbtMetaGPT · v0.2.0 en desarrollo
 
-**PbtMetaGPT** es un proyecto de código abierto para Android cuyo objetivo es integrar **ChatGPT y las capacidades de voz y visión de OpenAI** con las gafas inteligentes **Ray-Ban Meta**, utilizando el kit oficial **Meta Wearables Device Access Toolkit**.
+Aplicación Android en Kotlin para conversar con OpenAI Realtime y explorar la cámara de las Ray-Ban Meta mediante el SDK oficial Meta Wearables Device Access Toolkit (DAT).
 
-La finalidad es ofrecer una experiencia manos libres desde las gafas, con una aplicación Android que gestione las conexiones, los permisos, las conversaciones y la comunicación segura con OpenAI.
+**Esta versión incorpora las integraciones en código, pero todavía necesita validación de compilación y pruebas de extremo a extremo. No se ha probado con gafas reales. No es una versión certificada como compatible con ningún modelo de Ray-Ban Meta.** El resultado exacto de cada comprobación se registra en [VALIDACION.md](docs/VALIDACION.md).
 
-> [!IMPORTANT]
-> **Estado actual: estructura inicial de desarrollo.** La aplicación Android muestra una interfaz provisional y **todavía no se conecta a las gafas ni a OpenAI**. El backend devuelve deliberadamente `HTTP 501` en el endpoint de credenciales hasta implementar autenticación y límites de uso. No hay una APK funcional lista para utilizar.
+## Funciones implementadas en código
 
-## Objetivos del proyecto
+- Interfaz Material 3 en español de España, con estados de registro, conexión, micrófono y cámara.
+- Registro y retirada del registro en Meta AI, descubrimiento DAT, metadatos de dispositivos y sesiones con conexión/desconexión explícitas.
+- Conversación de voz por WebRTC con credenciales temporales; inicio, cancelación de conexión, pausa, reanudación, interrupción y finalización.
+- Contexto conservado en la conexión Realtime durante la sesión, incluida la pausa. Finalizar, salir de la aplicación o perder la conexión cierra la sesión; no hay historial persistente ni reconexión automática.
+- Selección de ruta de comunicación Android: teléfono o preferencia Bluetooth. La ruta disponible no demuestra por sí sola que el micrófono de las gafas funcione.
+- Captura puntual de foto desde las gafas, vista previa local y segunda confirmación antes de preguntar «¿Qué estoy viendo?» a OpenAI.
+- Backend personal autenticado mediante tokens opacos, con hashes de credenciales, límites de emisión y errores filtrados.
+- Flujo de GitHub Actions para pruebas, Android Lint, compilación y publicación de APK debug únicamente tras superar la validación.
 
-- **Conversación por voz:** hablar con ChatGPT y recibir respuestas a través de las gafas.
-- **Visión mediante cámara:** consultar a ChatGPT sobre imágenes capturadas con permiso del usuario.
-- **Interacción fluida:** explorar conversaciones en tiempo real con OpenAI Realtime API.
-- **Aplicación Android propia:** administrar la conexión, los permisos y la configuración desde el teléfono.
-- **Privacidad y seguridad:** permitir que el usuario controle cuándo se usa el micrófono o la cámara y evitar exponer claves privadas.
+No se incluyen simulaciones de conexión ni dispositivos ficticios en la aplicación.
 
-Estas funciones son **objetivos de desarrollo**, no características implementadas en la versión inicial. Su disponibilidad dependerá de las capacidades y restricciones del SDK oficial de Meta y de las pruebas con dispositivos reales.
+## Entorno Android
 
-## Tecnologías
-
-| Componente | Tecnología |
+| Componente | Versión fijada |
 | --- | --- |
-| Aplicación móvil | Kotlin / Android |
-| Entorno de compilación | Java 17 y Android SDK 36 |
-| Integración con las gafas | Meta Wearables Device Access Toolkit `1.0.1` |
-| Módulos previstos del SDK | `mwdat-core`, `mwdat-camera`, `mwdat-speech`, `mwdat-inputs` |
-| Inteligencia artificial | OpenAI Realtime API (integración pendiente) |
-| Backend | Node.js (estructura inicial, limitado a localhost por defecto) |
-| Desarrollo asistido | Codex, con instrucciones en `AGENTS.md` |
+| Identificador | `com.pbtservers.pbtmetagpt` |
+| Versión de la aplicación | `0.2.0` / código `2` |
+| Java | 17 |
+| Gradle Wrapper | 8.14.1, descarga verificada por SHA-256 |
+| Android Gradle Plugin | 8.11.1 |
+| Kotlin y complemento Compose | 2.2.21 |
+| Android | mínimo 12 / API 31; compilación y destino API 36 |
+| Meta DAT | `com.meta.wearable:mwdat-core:1.0.1` y `mwdat-camera:1.0.1` |
+| Transporte WebRTC Android | `io.github.webrtc-sdk:android:150.7871.01` |
+| Backend | Node.js 22 o posterior, sin dependencias externas |
 
-## Puesta en marcha para desarrollo
+Los artefactos DAT están publicados en Maven Central: **no hace falta un token de GitHub Packages**. La versión y las APIs se han contrastado con la [muestra oficial CameraAccess](https://github.com/facebook/meta-wearables-dat-android/tree/main/samples/CameraAccess) y el [README oficial](https://github.com/facebook/meta-wearables-dat-android). La biblioteca WebRTC es una [distribución comunitaria de WebRTC para Android](https://github.com/webrtc-sdk/android), no un SDK Android de OpenAI.
 
-1. Clona el repositorio:
+`mwdat-speech` y `mwdat-inputs` existen en el catálogo oficial, pero no se añaden sin uso: esta versión utiliza audio de comunicación Android/WebRTC y cámara DAT. Su disponibilidad en Maven no acredita soporte de esas capacidades en unas gafas concretas.
 
-   ```bash
-   git clone https://github.com/PbtServers/PbtMetaGPT.git
-   cd PbtMetaGPT
+### Compilar
+
+1. Instala JDK 17, Android SDK Platform 36 y Build Tools 36.0.0.
+2. Crea `local.properties` con tu ruta al SDK. No se sube al repositorio:
+
+   ```properties
+   sdk.dir=C:/Android/Sdk
+   mwdat_application_id=0
+   mwdat_client_token=
    ```
 
-2. Abre el proyecto en **Android Studio** y prepara **JDK 17** y **Android SDK 36**.
-3. Genera o añade el **Gradle Wrapper** con una versión compatible; aún no está incluido en esta estructura inicial.
-4. Registra la aplicación Android siguiendo la [documentación oficial de Meta Wearables](https://developers.meta.com/wearables/).
-5. Consulta `AGENTS.md` para las instrucciones y los hitos de implementación previstos para Codex.
-6. Implementa y valida progresivamente la conexión con las gafas, el servicio de OpenAI y las pruebas en un dispositivo Android real.
+3. Para desarrollo, activa el modo de desarrollador en Meta AI. El identificador `0` solo corresponde al modo de desarrollo; para una integración registrada, usa los valores de Wearables Developer Center. Configura el esquema de retorno `pbtmetagpt` conforme al registro de la aplicación. No introduzcas secretos privados en estos valores.
+4. Ejecuta con `JAVA_HOME` apuntando a Java 17:
 
-**Nota:** esta estructura no ha sido validada como aplicación funcional para gafas. No presupongas que las funciones previstas ya están disponibles.
+   ```powershell
+   .\gradlew.bat --no-daemon testDebugUnitTest lintDebug assembleDebug
+   ```
 
-## Arquitectura prevista
+   En Linux/macOS: `./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug`.
 
-```text
-Ray-Ban Meta
-    ↕
-Aplicación PbtMetaGPT (Android)
-    ↕
-Backend de autenticación y credenciales temporales
-    ↕
-OpenAI Realtime API
+La APK, si la compilación termina correctamente, estará en `app/build/outputs/apk/debug/app-debug.apk`. No contiene ninguna clave API privada. Android Studio también puede abrir el proyecto usando JDK 17.
+
+## Backend y primera conversación
+
+Sigue [backend/README.md](backend/README.md) para configurar la clave de OpenAI **solo en el servidor**, generar un token personal y publicar el servicio mediante HTTPS. La aplicación no conecta a servidores HTTP ni sigue redirecciones de autenticación.
+
+En la aplicación:
+
+1. Introduce la dirección HTTPS del backend y el token personal de acceso. No introduzcas una clave `sk-…` de OpenAI.
+2. Autoriza el micrófono y pulsa **Iniciar conversación**. El token personal permanece solo en memoria; la dirección del backend se guarda localmente.
+3. Usa **Pausar/Reanudar** para mantener la sesión con el micrófono apagado o encendido. **Interrumpir** cancela la respuesta actual. **Finalizar** libera audio, red y contexto local.
+4. Para probar las gafas, permite Bluetooth, registra la aplicación en Meta AI y pulsa **Conectar gafas**. La aplicación solo muestra conexión confirmada tras recibir `STARTED` de DAT.
+5. Para visión, autoriza **Capturar foto con las gafas**. Si Meta AI solicita permiso, vuelve a conectar y pulsar capturar al regresar. Revisa la vista previa y confirma **Enviar y preguntar** durante una conversación activa.
+
+La cámara se cierra tras la captura o al cancelar. No se envía el flujo de vídeo. La foto se reduce antes de enviarla y la lectura de detalles pequeños puede perder precisión. Si sales de la aplicación se detienen la conversación, la captura y la sesión de gafas; volver no reactiva automáticamente los sensores.
+
+## Limitaciones y privacidad
+
+- DAT sigue en vista previa para desarrolladores. El acceso y la distribución dependen de Meta AI, cuenta, región, modelo, firmware, modo de desarrollo y autorizaciones de Meta. Comprueba los requisitos oficiales vigentes.
+- No se sustituye «Hey Meta», no se interceptan comandos del asistente de Meta y no hay escucha permanente.
+- La integración de voz utiliza las rutas Bluetooth de Android, no promete acceso directo a los micrófonos mediante `mwdat-speech`. Entrada y salida deben comprobarse por separado con hardware real. Si no hay ruta Bluetooth al iniciar, la aplicación avisa de que usará el teléfono.
+- La cámara puede fallar o pausarse al quitarse las gafas, cerrar las patillas, cambiar de aplicación, revocar permisos o perder conectividad. Un dispositivo descubierto no equivale a una capacidad verificada.
+- El contexto remoto sigue las condiciones de OpenAI; cerrar la app borra las referencias locales, no constituye una solicitud de borrado al proveedor. Audio e imágenes autorizadas se transmiten a OpenAI.
+- No se guardan fotos en la galería, audio ni conversaciones en archivos. Se deshabilitan las copias de seguridad de Android y la analítica opcional de DAT. Se protege la pantalla contra capturas del sistema.
+- ChatGPT Plus y la API de OpenAI se facturan por separado. Limitar emisiones de credenciales no garantiza un límite absoluto de gasto: configura presupuestos y supervisión en el proyecto de OpenAI.
+
+## Pruebas y CI
+
+```powershell
+node --test backend/server.test.mjs
+.\gradlew.bat testDebugUnitTest lintDebug assembleDebug
 ```
 
-La arquitectura definitiva se ajustará durante el desarrollo según las interfaces admitidas por Meta y los requisitos actuales de OpenAI.
+El flujo [android.yml](.github/workflows/android.yml) se ejecuta en cada push a `master`, en pull requests y manualmente. Publica informes y, solo cuando pasan los pasos anteriores, el artifact `PbtMetaGPT-v0.2.0-debug` durante 14 días. Las pruebas del backend usan respuestas controladas de OpenAI, sin consumir cuota; no demuestran conectividad real con el proveedor ni con las gafas.
 
-## Seguridad y privacidad
+Consulta la [matriz de validación](docs/VALIDACION.md) y la [arquitectura](docs/ARQUITECTURA.md).
 
-- Nunca incluyas una **clave API permanente de OpenAI** en el código Android, el repositorio o una APK.
-- El backend deberá autenticar a los clientes, limitar las solicitudes y emitir credenciales de corta duración cuando corresponda.
-- El uso del micrófono y la cámara debe requerir permisos y controles claros para el usuario.
-- No se debe iniciar una captura de audio o vídeo sin una acción o autorización explícita conforme a las capacidades de la plataforma.
-- No subas secretos, tokens, archivos de configuración personales ni datos de conversaciones a GitHub.
+## Fuentes oficiales
 
-## Estado y próximos pasos
-
-- [x] Crear la estructura inicial del proyecto Android y del backend.
-- [x] Documentar el desarrollo asistido por Codex en `AGENTS.md`.
-- [ ] Configurar y verificar una compilación Android reproducible.
-- [ ] Implementar el emparejamiento y la conexión con Ray-Ban Meta mediante el SDK oficial.
-- [ ] Integrar voz y respuestas mediante OpenAI Realtime API.
-- [ ] Incorporar análisis de imágenes desde la cámara, con consentimiento.
-- [ ] Implementar autenticación y gestión segura de credenciales en el backend.
-- [ ] Ejecutar pruebas reales, automatizadas y de compatibilidad.
-- [ ] Publicar una primera APK de prueba.
-
-## Documentación oficial
-
-- [Meta Wearables Device Access Toolkit para Android](https://github.com/facebook/meta-wearables-dat-android)
-- [Meta Wearables para desarrolladores](https://developers.meta.com/wearables/)
-- [Documentación de OpenAI Realtime API](https://developers.openai.com/api/docs/guides/realtime)
-
----
-
-**PbtMetaGPT** — Proyecto de **PbtServers**, desarrollado con el objetivo de conectar gafas inteligentes con asistentes de inteligencia artificial de forma abierta, práctica y segura.
+- [Meta DAT Android y muestras](https://github.com/facebook/meta-wearables-dat-android).
+- [Centro de desarrollo de Meta Wearables](https://wearables.developer.meta.com/docs/develop/dat/).
+- [OpenAI Docs: conexión Realtime con WebRTC](https://developers.openai.com/api/docs/guides/realtime-webrtc).
+- [OpenAI Docs: credenciales temporales](https://developers.openai.com/api/reference/resources/realtime/subresources/client_secrets/methods/create).
+- [OpenAI Docs: conversaciones, audio e imágenes](https://developers.openai.com/api/docs/guides/realtime-conversations).

@@ -1,29 +1,28 @@
-# Codex instructions — PbtMetaGPT
+# Instrucciones de desarrollo de PbtMetaGPT
 
-Project: Android Kotlin app for Ray-Ban Meta (Gen 1 / Gen 2) using Meta Wearables Device Access Toolkit and OpenAI Realtime.
+Aplicación Android Kotlin con Meta Wearables Device Access Toolkit y OpenAI Realtime. Mantén interfaz, documentación, errores y commits en español. El identificador es `com.pbtservers.pbtmetagpt`.
 
-## Canonical upstream references
-- Meta: https://github.com/facebook/meta-wearables-dat-android
-- Official Meta Android Codex plugin: `codex plugin marketplace add facebook/meta-wearables-dat-android` then `codex plugin add mwdat-android@mwdat-android-marketplace`
-- OpenAI Realtime: https://developers.openai.com/api/docs/guides/realtime
+## Referencias canónicas
 
-## Work priorities
-1. Follow the CURRENT Meta sample app for registration, developer mode, permission flow, device/session lifecycle and `mwdat-speech`/camera integration; do not invent APIs.
-2. Implement device discovery and user-visible connect/disconnect state with lifecycle cleanup and tests.
-3. Implement safe server-issued OpenAI ephemeral credentials. Require server-side authentication and rate limiting; never ship `OPENAI_API_KEY` to Android.
-4. Add WebRTC Realtime voice (fallback to phone mic when eyewear microphone route unavailable) and Android audio routing to glasses where supported. Verify on physical hardware.
-5. Add explicit camera capture/preview and user-confirmed visual question; do not continually upload video or auto-enable camera.
-6. Expose clear permission, connection, recording and privacy status; support interruption/cancellation and no unattended audio capture.
-7. Add CI build + tests and publish debug APK as GitHub Actions artifact after passing compilation.
+- Meta y muestras oficiales: https://github.com/facebook/meta-wearables-dat-android
+- Complemento oficial opcional de Meta: `codex plugin marketplace add facebook/meta-wearables-dat-android` y `codex plugin add mwdat-android@mwdat-android-marketplace`.
+- OpenAI Docs: https://developers.openai.com/api/docs/guides/realtime
 
-## Important limitations
-- This initial repository is a minimal starter, NOT a functional ChatGPT-glasses integration.
-- Feature availability depends on device and SDK; some camera/mic paths are experimental or restricted for publishing. Check current SDK docs.
-- ChatGPT Plus subscription and OpenAI API billing are separate.
-- Do not claim background listening/Hey Meta takeover without verifying actual toolkit capability.
-- Never commit tokens, app secrets, or signing credentials.
+## Prioridades
 
-## Validation
-- Run `./gradlew testDebugUnitTest assembleDebug` when Gradle wrapper is available.
-- Compare manifest setup with official SDK samples before claiming the DAT integration works.
-- Document each tested path (emulator, Mock Device Kit, actual Ray-Ban Meta).
+1. Contrasta las APIs con las muestras actuales de Meta: registro, modo de desarrollador, permisos, descubrimiento y ciclo de sesión/cámara. No inventes APIs ni deduzcas soporte físico de la existencia de un artefacto Maven.
+2. Mantén conexión y desconexión explícitas, estados visibles, liberación de recursos y pruebas.
+3. La clave privada de OpenAI vive solo en el servidor. Exige autenticación y límites de uso antes de emitir credenciales temporales.
+4. Usa WebRTC para voz y rutas de comunicación Android cuando estén disponibles; muestra cuándo se utiliza el teléfono. Comprueba por separado la entrada y salida de audio con hardware real antes de declarar compatibilidad.
+5. La cámara requiere consentimiento, permiso DAT y captura/vista previa explícitas. El envío a OpenAI exige una segunda confirmación. No subas vídeo ni captures permanentemente.
+6. No actives sensores al volver del segundo plano, recibir permisos o reconectar. Conserva contexto solo durante una sesión autorizada y permite interrumpir, pausar y finalizar.
+7. Publica la APK de CI como artifact únicamente después de pruebas y compilación correctas.
+
+## Límites y validación
+
+- Esta integración necesita pruebas físicas. Consulta `docs/VALIDACION.md` antes de describir funciones como verificadas.
+- No afirmes acceso a «Hey Meta», escucha en segundo plano o soporte de `mwdat-speech` sin verificar las APIs y el dispositivo.
+- ChatGPT Plus y la API de OpenAI tienen facturación independiente.
+- No subas claves, tokens, firmas privadas, configuraciones personales, imágenes ni conversaciones.
+- Usa Java 17 y ejecuta `./gradlew testDebugUnitTest lintDebug assembleDebug` y `node --test backend/server.test.mjs`.
+- Compara el manifiesto con las muestras de Meta. Registra por separado las comprobaciones automáticas, emulador, Mock Device Kit y gafas reales. Un estado simulado no acredita hardware.
