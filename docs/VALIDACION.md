@@ -6,12 +6,16 @@ Registro de trabajo del 26 de octubre de 2026. **Las pruebas automáticas y la r
 
 | Comprobación | Estado | Alcance |
 | --- | --- | --- |
-| Backend `node --test backend/server.test.mjs` | 11 pruebas superadas | Autenticación, método/ruta, contrato, caducidad, límites, errores y red simulada |
-| Gradle Wrapper con Java 17 | Descarga y configuración inicial realizadas | AGP y Kotlin resueltos; falta SDK Android local |
-| `testDebugUnitTest lintDebug assembleDebug` | Pendiente | La primera ejecución se detuvo al no encontrar Android SDK |
-| Pruebas JVM del protocolo Android | Añadidas; ejecución pendiente | HTTPS, rechazo de claves permanentes y caducadas, formato de visión y cancelación |
-| GitHub Actions y artifact APK | Pendiente de push y ejecución | El conector de GitHub devolvió 403 al intentar escribir; se probará Git directamente |
+| Backend `node --test backend/server.test.mjs` | 13 pruebas superadas, localmente y en CI | Autenticación, método/ruta, contrato, caducidad, límites por identidad/globales, concurrencia, errores y red simulada |
+| Gradle Wrapper con Java 17 | Correcto | Distribución y dependencias reales resueltas; las dependencias DAT no requieren GitHub Packages |
+| `testDebugUnitTest lintDebug assembleDebug` | Superado en GitHub Actions | SDK 36; la compilación local completa sigue necesitando instalar el SDK Android |
+| Pruebas JVM del protocolo Android | Superadas en CI | Cuatro pruebas: HTTPS, rechazo de claves permanentes y caducadas, formato de visión y cancelación |
+| GitHub Actions y artifact APK | Publicados y comprobados | Push realizado con Git; APK debug e informes descargables |
 | OpenAI con credenciales reales | No realizado | No se han usado claves reales ni consumido cuota |
+
+Primera ejecución completa correcta: commit `8cb9824affd482ba4b258fbe46f0fc98c8e1bb72`, [Actions 40370770200](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40370770200). [APK debug de esa ejecución](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40370770200/artifacts/12671509247), con retención de 14 días. Los cambios posteriores deben comprobarse en su propia ejecución de Actions; los artifacts pertenecen al commit indicado en cada ejecución.
+
+Se corrigieron durante CI la instalación del paquete Android `tools` retirado y el uso de `DeviceIdentifier` como clave tipada en los metadatos DAT. No se han suprimido errores de compilación ni de Lint para obtener el resultado.
 
 ## Pruebas manuales pendientes
 

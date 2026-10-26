@@ -146,7 +146,11 @@ class MetaGlasses(private val activity: Activity, private val scope: CoroutineSc
                                             is PhotoData.Bitmap -> data.bitmap
                                             is PhotoData.HEIC -> ImageDecoder.decodeBitmap(
                                                 ImageDecoder.createSource(data.data.duplicate().apply { rewind() })
-                                            ) { decoder, _, _ -> decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE }
+                                            ) { decoder, info, _ ->
+                                                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                                                val ratio = minOf(1f, 1280f / maxOf(info.size.width, info.size.height))
+                                                decoder.setTargetSize(maxOf(1, (info.size.width * ratio).toInt()), maxOf(1, (info.size.height * ratio).toInt()))
+                                            }
                                         }
                                     }
                                     mutable.update { it.copy(photo = bitmap) }

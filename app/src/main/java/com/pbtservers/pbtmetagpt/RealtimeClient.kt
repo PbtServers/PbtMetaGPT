@@ -223,7 +223,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                 require(send(RealtimeProtocol.event("response.create"))) { "No se pudo solicitar la respuesta hablada." }
                 onSent()
             } catch (cancelled: CancellationException) { throw cancelled
-            } catch (_: Exception) { error("No se pudo enviar la imagen. Vuelve a intentarlo o descártala.")
+            } catch (_: Exception) { if (current == generation) error("No se pudo enviar la imagen. Vuelve a intentarlo o descártala.")
             } finally { if (current == generation) mutable.update { it.copy(sendingImage = false) } }
         }
     }
@@ -233,7 +233,10 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
         repeat(4) {
             val ratio = minOf(1f, edge.toFloat() / maxOf(bitmap.width, bitmap.height))
             val scaled = Bitmap.createScaledBitmap(bitmap, maxOf(1, (bitmap.width * ratio).toInt()), maxOf(1, (bitmap.height * ratio).toInt()), true)
-            val bytes = ByteArrayOutputStream().use { out -> scaled.compress(Bitmap.CompressFormat.JPEG, 65, out); out.toByteArray() }
+            val bytes = ByteArrayOutputStream().use { out ->
+                check(scaled.compress(Bitmap.CompressFormat.JPEG, 65, out))
+                out.toByteArray()
+            }
             if (scaled !== bitmap) scaled.recycle()
             // Dejar margen por debajo de 64 KiB para el mensaje SCTP completo.
             if (bytes.size <= 42_000) return Base64.encodeToString(bytes, Base64.NO_WRAP)

@@ -1,8 +1,8 @@
-# PbtMetaGPT · v0.2.0 en desarrollo
+# PbtMetaGPT · v0.2.0
 
 Aplicación Android en Kotlin para conversar con OpenAI Realtime y explorar la cámara de las Ray-Ban Meta mediante el SDK oficial Meta Wearables Device Access Toolkit (DAT).
 
-**Esta versión incorpora las integraciones en código, pero todavía necesita validación de compilación y pruebas de extremo a extremo. No se ha probado con gafas reales. No es una versión certificada como compatible con ningún modelo de Ray-Ban Meta.** El resultado exacto de cada comprobación se registra en [VALIDACION.md](docs/VALIDACION.md).
+**Compilación debug, Android Lint y pruebas automáticas superadas en GitHub Actions. Las integraciones están implementadas en código, pero no se han probado de extremo a extremo con OpenAI real ni con gafas reales. No es una versión certificada como compatible con ningún modelo de Ray-Ban Meta.** El resultado exacto de cada comprobación se registra en [VALIDACION.md](docs/VALIDACION.md).
 
 ## Funciones implementadas en código
 
