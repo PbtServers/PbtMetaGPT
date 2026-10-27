@@ -49,6 +49,7 @@ jobs:
         run: echo 'Consulta el informe completo de compilación y pruebas.'
       - name: Verificar evidencia real y leer tiempos del informe
         id: evidencia
+        # El informe es la evidencia; una tarea omitida o en caché no acredita inferencia.
         run: |
           python3 - <<'PY'
           import os,json

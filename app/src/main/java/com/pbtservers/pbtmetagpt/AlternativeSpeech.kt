@@ -44,7 +44,7 @@ class AlternativeSpeech(private val context: Context, private val scope: Corouti
     suspend fun synthesize(profile: AssistantProfile, text: String): PcmAudio = when (profile.ttsEngine) {
         "qwen_space" -> {
             check(HostedSettings(context).qwenAuthorized) { "Falta autorización para transmitir texto al Space Qwen3-TTS." }
-            HostedHttp.qwenApi.synthesize(profile, text) { message -> scope.launch { status(message) } }
+            HostedHttp.qwenApi.synthesize(profile, text, status = { message -> scope.launch { status(message) } })
         }
         "android" -> android.synthesize(profile, text)
         "sherpa_vits" -> LocalModelClient(context).synthesize(VoicePackageStore(File(context.filesDir, "voces")), profile.ttsVoice, text, profile.speed)
