@@ -2,7 +2,7 @@
 
 Ampliación experimental de **v0.4.0**: aplicación Android pública y de código abierto para conversar con OpenAI desde el móvil y explorar Ray-Ban Meta mediante el SDK oficial DAT. Interfaz y documentación en español de España. Identificador: `com.pbtservers.pbtmetagpt`.
 
-**BYOK funciona por conexión directa: no necesitas VPS, Docker ni dominio.** Cada persona introduce su propia clave API y asume su consumo. ChatGPT Plus y la facturación de OpenAI API son independientes.
+**El modo BYOK implementa conexión directa: no necesita VPS, Docker ni dominio.** Cada persona introduce su propia clave API y asume su consumo. Su conversación real sigue pendiente de validación. ChatGPT Plus y la facturación de OpenAI API son independientes.
 
 Esta es una **compilación de prueba**, no una Release estable. Consulta [PROGRESO.md](docs/PROGRESO.md) y [VALIDACION.md](docs/VALIDACION.md) para separar código implementado, pruebas automáticas y pruebas reales pendientes. No se declara compatibilidad completa con ningún modelo de Ray-Ban Meta. La conversación con credenciales reales y la escucha física siguen pendientes de validación.
 
@@ -92,6 +92,8 @@ python tools/preparar_modelo_prueba.py
 ```
 
 En Linux/macOS usa `./gradlew`. Los scripts de runtime/fixture descargan únicamente las versiones fijadas y verifican sus hashes. La fixture no se sube a Git ni forma parte de la APK principal. Las pruebas estructurales usan datos ficticios; la prueba nativa usa un modelo LJSpeech de procedencia revisada y solo acredita PCM, sin prueba auditiva.
+
+La [CI de `fb19b89`](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40497932982) supera 43 pruebas JVM, 7 Android, 19 Node y 5 Python, incluidos importación, inferencia real aislada y eliminación de ese modelo. Los cambios posteriores necesitan su propia ejecución correcta. Estos resultados no acreditan proveedores de pago, reconocimiento acústico ni hardware físico.
 
 [Actions](.github/workflows/android.yml) prueba JVM, Python, Node, Lint, debug, contenedores, seguridad y Android/emulador. Solo publica la APK después de superar los tres trabajos. Un commit de desarrollo, una APK de prueba y una versión estable son estados distintos. Mantén el [protocolo real](docs/PRUEBAS_REALES.md) y la [arquitectura](docs/ARQUITECTURA.md) como referencias para validar el dispositivo.
 

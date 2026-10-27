@@ -2,26 +2,26 @@
 
 ## Ampliación experimental de v0.4.0 · 0.4.1-dev
 
-Actualización: 27 de octubre de 2026. Base anterior `34ef4f5`. Estado publicado: `002eb06`, [CI 40494561151](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40494561151), en curso al redactar este registro. No es una Release estable. Las cifras siguientes corresponden a la ejecución anterior `2dc94ff`, [CI 40492795452](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40492795452); no se atribuyen automáticamente al commit nuevo.
+Actualización: 27 de octubre de 2026. Base anterior `34ef4f5`. Implementación publicada y validada: **`fb19b89`**, [CI 40497932982](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40497932982), tres trabajos correctos y APK de prueba publicada. El bloque documental posterior retira el diagnóstico temporal; sus resultados deben consultarse en la CI de su propio SHA. No es una Release estable.
 
 | Comprobación | Evidencia y límite |
 | --- | --- |
-| JVM | 42 pruebas superadas: migración/perfiles, frases múltiples, ambigüedad y duplicados, paquetes y metadatos, contratos TTS, cancelación de cola/HTTP y errores sin cuerpo privado |
+| JVM | 43 pruebas superadas: migración/perfiles, frases múltiples, ambigüedad y duplicados, paquetes/metadatos, cancelación tardía de importación, contratos TTS, cola/HTTP y errores sin cuerpo privado |
 | Android Lint y compilación debug | Correctos; Java 17, SDK 36, dependencia Sherpa 2.0.1 fijada por hash |
 | Backend Node | 19 pruebas superadas; proveedor sustituido, sin llamadas de pago |
 | Herramientas Python | 5 pruebas superadas: detección de secretos y empaquetado sin sobrescritura |
 | Docker y proxy opcionales | Trabajo de CI correcto; no acredita despliegue público ni certificado real |
-| Android API 35 | 6 de 7 pruebas superadas: Keystore, persistencia, bienvenida, permisos denegados, biblioteca/perfiles y separación de credenciales |
-| Modelo Piper real en proceso aislado | **Fallida** la prueba restante: importación válida, RuntimeException en inicialización nativa, etapa 4. Se mantiene la prueba obligatoria y se investiga con una fixture pública; no se acredita inferencia |
+| Android API 35 | 7 pruebas superadas, sin fallos ni omitidas: Keystore, persistencia, bienvenida, permisos denegados, biblioteca/perfiles, separación de credenciales y modelo real |
+| Modelo Piper real en proceso aislado | Superada: importar pesos LJSpeech/Piper fijados, generar PCM no vacío/no nulo con frecuencia válida y eliminar el paquete. No reproduce ni acredita inteligibilidad, calidad, altavoces o compatibilidad con otro modelo |
 | Android TTS instalado | Adaptador integrado y contrato validado; consulta/síntesis/escucha con un proveedor real pendientes |
 | API TTS externa | HTTP binario y cancelación probados con servidor de prueba; endpoint real y audición pendientes |
 | OpenAI Realtime y Speech | Contratos implementados; sin credenciales reales en el entorno, no se han verificado conversaciones ni síntesis de pago |
 | Activación local | Comparador y estado probados; reconocimiento acústico, falsos positivos/negativos reales y batería pendientes de teléfono/modelo on-device |
 | Teléfono y Ray-Ban Meta | Sin pruebas físicas de micrófonos, altavoces, DAT ni cámara |
 
-No se publica la APK como artifact instalable si falla la prueba instrumentada. La fixture LJSpeech usa pesos reales con hash fijado, exclusivamente en la APK de pruebas. Las fixtures protobuf de las pruebas JVM solo comprueban estructura y nunca se presentan como inferencia. La generación de PCM, cuando supere su prueba, tampoco probará inteligibilidad o salida por altavoces.
+No se publica la APK como artifact instalable si falla la prueba instrumentada. La fixture LJSpeech usa pesos reales con hash fijado, exclusivamente en la APK de pruebas; el escáner rechaza su inclusión en la APK principal. Las fixtures protobuf de las pruebas JVM solo comprueban estructura y nunca se presentan como inferencia. La generación de PCM acreditada tampoco prueba inteligibilidad o salida por altavoces.
 
-Se corrigieron primero los nombres de metadatos Piper (`comment`, `n_speakers`) y el identificador de instancia Android. El diagnóstico de `002eb06` confirmó el error 13 al abrir `/proc/self/fd` en el UID aislado. El siguiente bloque sustituye esa ruta por `AssetManager` con `ResourcesProvider`/`AssetsProvider` y descriptores de lectura; su inferencia todavía debe repetirse. El diagnóstico ampliado se habilita exclusivamente para el modelo público del test en compilación debug; los modelos de usuario y la interfaz conservan errores filtrados. No se eliminan controles ni se omite la prueba para conseguir una compilación verde.
+Se corrigieron los metadatos Piper (`comment`, `n_speakers`) y el identificador de instancia Android. El diagnóstico de `002eb06` confirmó el error 13 al abrir `/proc/self/fd` en el UID aislado. La carga ahora usa un ZIP interno de assets por descriptor mediante `ResourcesProvider.loadFromApk`, sin código ni ampliación de permisos. El diagnóstico completo de `8d19640` identificó un aborto posterior en JNI al buscar una firma específica en una lambda indy de Kotlin; `fb19b89` la sustituye por un objeto de función con `@Keep` y supera la prueba. El diagnóstico ampliado fue exclusivo de la fixture pública y se retira en el cierre; la interfaz mantiene errores filtrados. No se eliminaron controles ni se omitió la prueba.
 
 Consulta [PROGRESO.md](PROGRESO.md) y la ejecución de Actions del commit que vayas a instalar. El protocolo físico ampliado está en [PRUEBAS_REALES.md](PRUEBAS_REALES.md).
 

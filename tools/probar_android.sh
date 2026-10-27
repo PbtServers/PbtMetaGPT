@@ -7,6 +7,6 @@ if bash ./gradlew --no-daemon connectedDebugAndroidTest; then
 else
   result=$?
   echo "Diagnóstico nativo de la fixture pública tras el fallo:"
-  adb logcat -d -s PbtModelo:E PbtFixture:E sherpa-onnx:V AndroidRuntime:E libc:E linker:E DEBUG:V || true
+  adb logcat -d -s PbtModelo:E sherpa-onnx:V AndroidRuntime:E libc:E linker:E DEBUG:V || true
   exit "$result"
 fi
