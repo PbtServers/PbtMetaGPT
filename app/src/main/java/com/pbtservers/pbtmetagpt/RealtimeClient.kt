@@ -106,6 +106,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
             try {
                 withTimeout(60_000) {
                     ContinuousWakeService.beforeRealtime()
+                    if (!testOnly) sessionProfile = sessionProfile?.let { AndroidVoiceEngine(appContext).resolveRapid(it) }
                     if (!testOnly && !sample && !imageOnly) {
                         val gate = (appContext as? PbtApplication)?.microphone
                         if (gate != null) {

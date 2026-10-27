@@ -12,6 +12,12 @@ import kotlin.coroutines.resumeWithException
 data class AndroidVoice(val engine: String, val name: String, val language: String)
 
 class AndroidVoiceEngine(private val context: Context) {
+    suspend fun resolveRapid(profile: AssistantProfile): AssistantProfile {
+        if (profile.voiceMode != "rapida" || profile.ttsEngine == "android") return profile
+        val local = voices().firstOrNull { it.language.substringBefore('-') == profile.language.substringBefore('-') }
+            ?: throw HostedFailure("No hay voz local instalada para este idioma. Elige una voz en Voces.")
+        return profile.copy(ttsEngine = "android", ttsVoice = local.name, ttsPackage = local.engine)
+    }
     private var retained: TextToSpeech? = null
     private var retainedPackage = ""
     private suspend fun session(packageName: String): TextToSpeech {

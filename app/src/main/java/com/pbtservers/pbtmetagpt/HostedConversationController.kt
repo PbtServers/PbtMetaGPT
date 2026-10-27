@@ -127,11 +127,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
     private suspend fun resolve(target: AssistantProfile): AssistantProfile {
         if (target.voiceMode != "rapida") return target
         resolved?.let { return it }
-        val selected = if (target.ttsEngine == "android") target else {
-            val local = android.voices().firstOrNull { it.language.substringBefore('-') == target.language.substringBefore('-') }
-                ?: throw HostedFailure("No hay voz local instalada para este idioma. El texto sigue disponible; elige una voz en Voces.")
-            target.copy(ttsEngine = "android", ttsVoice = local.name, ttsPackage = local.engine)
-        }
+        val selected = android.resolveRapid(target)
         resolved = selected
         return selected
     }

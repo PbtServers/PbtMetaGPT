@@ -1,0 +1,38 @@
+name: Inspeccionar evidencia remota sin repetir inferencia
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths: ['.github/workflows/inspeccionar-evidencia.yml']
+permissions:
+  actions: read
+  contents: read
+jobs:
+  informe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: evidencia-latencia-real
+          run-id: 40603096352
+          github-token: ${{ github.token }}
+          path: evidencia
+      - name: Leer solo resultados y tipos de error
+        id: leer
+        run: |
+          python3 - <<'PY'
+          import os,json,xml.etree.ElementTree as ET
+          from pathlib import Path
+          reports=list(Path('evidencia').rglob('qwen-latencia-real.json'))
+          summary=[]
+          for p in reports:
+              r=json.loads(p.read_text())
+              summary.append({k:r.get(k) for k in ('resultado','tipo_error','completo_ms','primer_fragmento_ms')})
+          for p in Path('evidencia').rglob('TEST-*.xml'):
+              root=ET.parse(p).getroot()
+              summary.append({'tests':root.attrib.get('tests'),'skipped':root.attrib.get('skipped'),'failures':root.attrib.get('failures'),
+                              'errors':[e.attrib.get('type','') for e in root.findall('.//failure')]})
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out: out.write('resumen='+json.dumps(summary,separators=(',',':'))[:2000]+'\n')
+          PY
+      - name: 'Evidencia anterior: ${{ steps.leer.outputs.resumen }}'
+        run: echo 'Solo metadatos; no se han solicitado nuevas síntesis.'
