@@ -2,17 +2,17 @@
 
 ## Servicios online gratuitos sin infraestructura propia · 27/10/2026
 
-**60 % de esta ampliación; experimental, sin aceptación de extremo a extremo.** No sustituye ni incrementa el 85 % histórico de otra intervención. Inicio medido: 21:54 UTC; corte de seguimiento 22:16 UTC (unos 22 minutos). La estimación comunicada de 20–35 minutos corresponde al cierre de revisión/documentación/commits e intento de publicación; no a la aceptación real, que depende de red, cuenta Free y SDK/hardware.
+**70 % de esta ampliación; experimental, sin aceptación de extremo a extremo.** No sustituye ni incrementa el 85 % histórico de otra intervención. Inicio medido: 21:54 UTC; corte de seguimiento 22:33 UTC (unos 39 minutos). La estimación comunicada de 20–35 minutos corresponde al cierre de revisión/documentación/publicación desde el mensaje de estado de las 22:06 UTC; no a la aceptación real, que depende de cuenta Free y hardware.
 
 | Subfase | Avance acreditado / peso | Pendiente |
 | --- | ---: | --- |
 | Investigación y acceso a servicios | 14/25 | Groq Free documentado; falta cuenta y conexión real. Gemini descartado para Free en EEE; Cerebras actual exige medio de pago |
-| Configuración y perfiles | 10/15 | Selección explícita Groq/OpenAI, clave Groq en Keystore separado, consentimientos y voz por perfil; instrumentadas nuevas pendientes |
-| Conversación y activación local | 10/20 | Ruta Groq por texto y dictado Vosk conectada a activación existente; generación real, tipos Android y acústica pendientes |
+| Configuración y perfiles | 13/15 | Selección Groq/OpenAI, claves separadas, consentimientos y perfiles; Keystore y persistencia correctos en API35/API36. Falta cuenta real |
+| Conversación y activación local | 12/20 | Ruta Groq por texto/Vosk compilada y políticas probadas; falta generación real y reconocimiento hablado |
 | Voces online | 13/20 | Qwen CustomVoice/Gradio: contrato y WAV real no silencioso correctos desde CI; Android y audición pendientes. RVC desactivado |
-| Integración y diseño | 8/10 | Sin fallback facturable; iconos adaptativo/mono/respaldo revisados a 48/64/96 px. Faltan teléfono/gafas |
-| Pruebas y documentación | 5/10 | 31 Python, 19 Node y 26 JVM de políticas correctas; suite Android/Lint/API35/API36/publicación pendientes |
-| **Total** | **60/100** | **Qwen probado desde Python/CI; conversación completa y Android pendientes** |
+| Integración y diseño | 9/10 | Sin fallback facturable; iconos adaptativo/mono/respaldo revisados a 48/64/96 px y recursos Android validados. Faltan teléfono/gafas |
+| Pruebas y documentación | 9/10 | Suite JVM completa, Python, Node, Lint, escaneo APK y API35/API36 correctos en CI; falta aceptación real con Groq y hardware |
+| **Total** | **70/100** | **Qwen real y ambas APIs Android probados; conversación completa y hardware pendientes** |
 
 Detalle de proveedores, restricciones, recorrido y comandos: [SERVICIOS_ONLINE.md](SERVICIOS_ONLINE.md). El nuevo modo conserva OpenAI opcional, Vosk, frases «Atento», servicio/notificación/parada, DAT, cámara con confirmación y motores existentes. Groq recibe exclusivamente texto/contexto autorizado; el dictado permanece local. Qwen exige consentimiento propio, contrato compatible y origen del archivo restringido. No hay token HF ni acceso a créditos HF de pago. RVC no importa ni sube `.pth`/`.index`; el candidato r3gm/rvc_zero limita su demo a educación/investigación y no se ha probado su API para este uso.
 
@@ -23,6 +23,10 @@ Java17/Gradle con caché local llega a configurar, pero `testDebugUnitTest lintD
 **Publicación y nueva evidencia:** `6e97bc9` (integración), `88a968a` (icono) y `a673343` (prueba remota) publicados en `origin/master` sin force. Las dos primeras CI se cancelaron por la concurrencia al llegar el siguiente commit; no cuentan como validación. [Qwen real 40593117803](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40593117803) sobre `a673343` **correcta**: el script sin mocks comprobó contrato y generó un WAV PCM16 mono con muestras no silenciosas, sin token, con Ryan/0.6B y una frase sintética española. Artifact `evidencia-qwen-real`, ID 12773909868. No se ha escuchado ese audio ni probado la ruta Android/gafas. [Android 40593117870](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40593117870) sigue en compilación/JVM/Lint al redactar; backend correcto. Se mantienen pendientes Groq real y cuotas reales: no hay clave ni se ha simulado su aceptación.
 
 Actualización 22:17 UTC: la CI Android de `a673343` ha superado compilación, JVM, Lint, Python/Node y escaneo de la APK; faltan las instrumentadas de ambas APIs. Se añade después un correctivo de la cola de muestras para conservar los mensajes públicos sanitizados de cuota Qwen, con una regresión JVM: no imprime errores originales ni cambia de voz/proveedor. El correctivo requiere su propia CI; los resultados anteriores no lo acreditan. Se mantiene 60 % hasta esa validación. El único bloqueo de credenciales para conversación completa sigue siendo Groq Free; la APK no incluye claves de desarrollador.
+
+**Validación del correctivo `e5cadba`:** [CI 40593718535](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40593718535) supera compilación Android, suite JVM completa (incluida la regresión de cuota), Android Lint, Python, Node, backend/proxy, escaneo de secretos en fuentes/APK y pruebas instrumentadas en **Android15/API35 y Android16/API36**. No se reutiliza el éxito de `a673343` para certificar este correctivo. La inferencia remota Qwen corresponde a la ejecución independiente de `a673343`; su adaptador y contrato no cambiaron después. Los resultados locales de 26 JVM se conservan como subconjunto, sin sumarlos otra vez a la suite de CI. Se eleva esta ampliación a **70 %**; Groq no se ha probado con credencial real, ni se acreditan audio físico, batería o 00R6. Siguiente aceptación: configurar cuenta Groq Free en la APK y completar el recorrido documentado con el teléfono y las gafas. No enviar claves por chat.
+
+**APK experimental publicada a las 22:32 UTC:** los cinco trabajos de esa CI han terminado correctamente. [Artifact PbtMetaGPT-v0.4.1-dev-debug](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40593718535/artifacts/12775912184), ID 12775912184, código exacto `e5cadba`. Huella SHA256 del contenedor ZIP publicada por GitHub: `75334cd47527210fdf7877f9571e630a6891da03a5f4aacc1ace6df891a67bbc` (no es el hash interno del APK). Informes API35: 12775786793; API36: 12775303925; validación: 12775242863. El commit posterior actualiza solo documentación; no cambia el código de la APK entregada. No se ha publicado una Release estable. README y seis archivos previos siguen idénticos por SHA256 y excluidos de todos estos commits.
 
 ## Permiso de red WebRTC y nuevo icono · 27/10/2026
 

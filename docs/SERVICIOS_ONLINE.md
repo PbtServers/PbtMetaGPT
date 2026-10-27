@@ -2,11 +2,13 @@
 
 Investigación del **27/10/2026**. Implementación experimental, sin conversación real de extremo a extremo acreditada. Este documento amplía la documentación existente; README.md y los seis archivos locales anteriores se conservan íntegros.
 
+[Descargar APK experimental de `e5cadba`](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40593718535/artifacts/12775912184), publicada después de superar Android15 y Android16. Puede requerir iniciar sesión en GitHub para descargar el artifact. Es una APK de prueba; faltan Groq con cuenta Free real y validación física de audio/gafas.
+
 ## Estado de esta entrega
 
 | Función | Implementación | Validación real |
 | --- | --- | --- |
-| GroqCloud Free: cuenta propia, clave cifrada, consulta de modelos, respuesta textual y contexto por sesión | Adaptador Android y pantallas añadidos | Pendiente de clave, red y compilación Android |
+| GroqCloud Free: cuenta propia, clave cifrada, consulta de modelos, respuesta textual y contexto por sesión | Adaptador y pantallas compilados; configuración/Keystore probados | Generación pendiente de clave Free real |
 | Dictado español con Vosk, tras «Atento» o botón | Captura local por turnos de hasta 20 s; reutiliza el modelo pequeño ya instalado | Pendiente de teléfono y reconocimiento hablado |
 | Voz por asistente, Android TTS instalado | Se reutiliza el motor existente; permitido en la ruta gratuita | Nueva ruta de audio sin validar físicamente |
 | Qwen3-TTS CustomVoice en Space oficial | Adaptador Gradio experimental, consentimiento, contrato y muestras explícitas | Contrato e inferencia WAV no silenciosa correctos en CI; adaptador Android y audición pendientes |
@@ -90,10 +92,10 @@ node --test backend/server.test.mjs backend/check-live.test.mjs
 python tools/comprobar_secretos.py app/build/outputs/apk/debug/app-debug.apk
 ```
 
-La CI conserva emuladores API35 y API36 y su barrera de publicación. Las nuevas pruebas instrumentadas de Keystore son reales dentro del emulador, pero **aún no se han ejecutado**. Tampoco acreditan audio o proveedores.
+La [CI 40593718535](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40593718535), commit `e5cadba`, ha superado compilación, suite JVM, Lint, escaneo de APK y emuladores **API35 y API36**, incluidas las nuevas pruebas de Keystore real. Se conserva la barrera de publicación de APK tras ambas versiones. Estas pruebas no acreditan audio físico ni generación Groq.
 
 Prueba remota independiente, sin mocks: `python tools/probar_servicios_online.py --qwen --informe diagnosticos-locales/online-proveedores.json`. Para Groq, proporcionar `GROQ_API_KEY` de forma privada en el entorno y añadir `--confirmar-plan-free --generar-groq`. No incluir una clave en argumentos, capturas, commits ni esta documentación. Los informes contienen solo resultados, tamaños y tiempos; nunca respuestas, audio o claves. Los pasos no ejecutados producen resultado no satisfactorio, sin convertirlos en éxitos.
 
-En este entorno local: sin SDK Android, ADB sin dispositivos, descarga de Sherpa bloqueada y conexiones Python rechazadas con WinError10013. Groq no ejecutado por ausencia de clave; contrato Qwen inaccesible y síntesis no ejecutada localmente. La prueba Qwen independiente sí pasó en CI como se detalla arriba. Las pruebas unitarias de cuota/formato/seguridad no sustituyen estas comprobaciones. Quedan Android15/16, Lint/compilación, generación Groq real, audición, batería y Meta00R6. **No hay Release estable ni conversación gratuita de extremo a extremo validada.**
+En este entorno local: sin SDK Android, ADB sin dispositivos, descarga de Sherpa bloqueada y conexiones Python rechazadas con WinError10013. Groq no ejecutado por ausencia de clave; contrato Qwen inaccesible y síntesis no ejecutada localmente. La prueba Qwen independiente y la compilación/Lint/pruebas Android15/16 sí pasaron en CI como se detalla arriba. Las pruebas unitarias de cuota/formato/seguridad no sustituyen estas comprobaciones. Quedan generación Groq real, prueba del recorrido completo, cuotas reales cuando se produzcan, audición, batería y Meta00R6. **No hay Release estable ni conversación gratuita de extremo a extremo validada.**
 
 Icono: recursos adaptativos blanco/azul sobre negro, variante monocroma y PNG de respaldo por densidad. Previsualización de los vectores reales revisada a 48/64/96 px en [icono-launcher.png](assets/icono-launcher.png). Falta revisión en launcher Android físico.
