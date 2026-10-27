@@ -1,5 +1,7 @@
 # Backend personal de PbtMetaGPT
 
+**Alternativa opcional desde v0.4.0.** El modo BYOK de Android conecta directamente con OpenAI y no requiere este servicio. Utiliza el backend si prefieres mantener la clave OpenAI fuera del teléfono. Activa el modo servidor en la pantalla OpenAI; el token personal del backend no es una clave OpenAI. Los perfiles se aplican después mediante `session.update` en la sesión del cliente; este servidor limita emisiones, no impone instrucciones inmutables al canal WebRTC.
+
 Desde v0.3.0 hay un [despliegue Docker Compose para Ubuntu Server](../deploy/README.md), una [prueba real de sesión](../docs/PRUEBAS_REALES.md) y códigos de error seguros para diagnóstico. La guía siguiente describe la ejecución directa en localhost; en Docker `HOST=0.0.0.0` solo abre el servicio dentro de su contenedor, sin publicar puertos.
 
 Servicio Node.js 22 para emitir credenciales temporales de OpenAI Realtime. Escucha únicamente en `127.0.0.1:8787`. No debe exponerse mediante HTTP público. La aplicación Android exige HTTPS.

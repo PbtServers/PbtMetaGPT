@@ -1,5 +1,7 @@
 # Despliegue personal en Ubuntu Server
 
+Desde v0.4.0 este despliegue es **opcional**: el modo directo BYOK funciona sin VPS, Docker ni dominio. Esta guía corresponde únicamente a la alternativa que mantiene la clave de OpenAI en el servidor.
+
 Preparación de v0.3.0. No se ha accedido a ningún servidor del usuario ni se ha emitido un certificado público durante el desarrollo. La prueba de CI valida la configuración y el tráfico HTTP interno con secretos ficticios; no acredita un despliegue real ni acceso a OpenAI.
 
 ## Requisitos

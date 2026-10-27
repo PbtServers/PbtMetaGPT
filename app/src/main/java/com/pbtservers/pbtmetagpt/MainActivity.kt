@@ -14,7 +14,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,8 +22,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -34,6 +31,11 @@ import com.meta.wearable.dat.core.types.PermissionStatus
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) {
+        val configuration = android.content.res.Configuration(newBase.resources.configuration)
+        configuration.setLocales(android.os.LocaleList.forLanguageTags("es-ES"))
+        super.attachBaseContext(newBase.createConfigurationContext(configuration))
+    }
     private var message by mutableStateOf<String?>(null)
     private lateinit var glasses: MetaGlasses
     private lateinit var voice: RealtimeClient
@@ -83,7 +85,6 @@ class MainActivity : ComponentActivity() {
         microphoneReady = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         bluetoothReady = checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
         if (bluetoothReady) glasses.initialize()
-        val preferences = getSharedPreferences("configuracion", MODE_PRIVATE)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(primary = Color(0xFF9DE9D0), onPrimary = Color(0xFF00382B),
                 secondary = Color(0xFFB6C5FF), background = Color(0xFF0D141D), surface = Color(0xFF17212E))) {

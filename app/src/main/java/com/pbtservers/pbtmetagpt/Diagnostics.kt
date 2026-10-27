@@ -9,7 +9,7 @@ enum class Check(val title: String) {
     DAT_INIT("Inicialización DAT"), DAT_REGISTRATION("Registro en Meta AI"), DAT_DEVICES("Dispositivos DAT"),
     DAT_SESSION("Sesión con las gafas"), CAMERA_PERMISSION("Permiso de cámara en Meta AI"),
     CAMERA_STREAM("Flujo de cámara DAT"), CAMERA_CAPTURE("Captura de foto DAT"),
-    BACKEND("HTTPS del backend"), CREDENTIAL("Credencial temporal de OpenAI"), SDP("Negociación SDP"),
+    BACKEND("HTTPS del backend opcional"), CREDENTIAL("Credencial temporal de OpenAI"), SDP("Negociación SDP"),
     ICE("Transporte WebRTC / ICE"), DATA_CHANNEL("Canal de eventos Realtime"), REALTIME("Confirmación de sesión OpenAI"),
     MICROPHONE("Captura de micrófono"), PLAYBACK("Reproducción de audio"), LOCAL_MIC("Prueba local de micrófono"),
     LOCAL_SPEAKER("Prueba local de altavoz"), CONTROL("Control de sesión"), PROVIDER("Errores de OpenAI"),
@@ -37,7 +37,7 @@ class Diagnostics(private val now: () -> Long = System::currentTimeMillis) {
     }
     companion object {
         fun safeCode(value: String): String = value.takeIf {
-            it.matches(Regex("[A-Za-z0-9_.-]{1,80}")) && !it.startsWith("sk-") && !it.startsWith("sk_") && !it.startsWith("ek_")
+            it.matches(Regex("[A-Za-z0-9_.-]{1,80}")) && !Regex("sk[-_]|ek_", RegexOption.IGNORE_CASE).containsMatchIn(it)
         }.orEmpty()
         fun sdkCode(error: Any): String = safeCode(if (error is Enum<*>) error.name else error.javaClass.simpleName)
     }

@@ -27,6 +27,7 @@ class KeyVault(context: Context) {
     private fun store() = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
     private fun key(): SecretKey = (store().getKey(alias, null) as? SecretKey) ?: KeyGenerator.getInstance("AES", "AndroidKeyStore").run {
         init(KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+            .setKeySize(256)
             .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
             .setRandomizedEncryptionRequired(true).build()); generateKey()
     }
@@ -41,12 +42,12 @@ class KeyVault(context: Context) {
         } finally { plain.fill(0) }
     }
     @Synchronized fun read(): String {
-        check(exists()) { "Configura tu clave API en OpenAI." }
+        if (!exists()) throw DiagnosticFailure("KEY_MISSING", "Configura tu clave API en OpenAI.")
         try {
             val secret = store().getKey(alias, null) as? SecretKey ?: error("Clave de cifrado no disponible")
             val plain = KeyCipher.decrypt(secret, Base64.decode(preferences.getString("iv", ""), Base64.NO_WRAP), Base64.decode(preferences.getString("ciphertext", ""), Base64.NO_WRAP))
             return try { plain.toString(Charsets.UTF_8) } finally { plain.fill(0) }
-        } catch (_: Exception) { throw IllegalStateException("No se puede descifrar la clave. Elimínala y vuelve a introducirla.") }
+        } catch (_: Exception) { throw DiagnosticFailure("KEY_DECRYPTION", "No se puede descifrar la clave. Elimínala y vuelve a introducirla.") }
     }
     @Synchronized fun delete() {
         check(preferences.edit().clear().commit()) { "No se pudo eliminar la clave cifrada." }

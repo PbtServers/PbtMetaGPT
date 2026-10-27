@@ -27,7 +27,7 @@ class DiagnosticsTest {
         assertTrue(diagnostics.state.value.entries.values.all { it.status == CheckStatus.PENDING })
     }
     @Test fun `no se exportan credenciales ni cuerpos externos como codigos`() {
-        for (code in listOf("sk-privada", "sk_privada", "ek_temporal", "Bearer token", "{\"error\":\"dato privado\"}")) assertEquals("", Diagnostics.safeCode(code))
+        for (code in listOf("sk-privada", "sk_privada", "ek_temporal", "error.sk-privada", "ERROR.EK_temporal", "Bearer token", "{\"error\":\"dato privado\"}")) assertEquals("", Diagnostics.safeCode(code))
         val result = RealtimeProtocol.backendFailure("""{"code":"OPENAI_AUTH","error":"sk-no-mostrar"}""", 502)
         assertEquals("OPENAI_AUTH", result.code)
         assertFalse(result.message.orEmpty().contains("sk-no-mostrar"))

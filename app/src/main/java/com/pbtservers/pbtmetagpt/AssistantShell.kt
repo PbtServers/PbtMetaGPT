@@ -8,10 +8,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.util.UUID
@@ -111,7 +113,7 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
             .onFailure { report("Importación rechazada: formato, tamaño o campos no permitidos. No se admiten credenciales.") }
     }
 
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding()) {
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding().imePadding()) {
         Text("PbtMetaGPT · 0.4.0", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(16.dp))
         if (wizard) {
             Text("Configuración inicial · ${step + 1}/${steps.size} · ${steps[step]}", modifier = Modifier.padding(horizontal = 16.dp))
@@ -160,7 +162,8 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                     if (direct) {
                         Text("Riesgo BYOK: la clave permanente se utilizará en este teléfono. Keystore protege el almacenamiento, pero no un proceso comprometido. No compartas tu clave.")
                         Text(if (keyPresent) "Hay una clave cifrada guardada. No se muestra su contenido." else "No hay clave guardada.")
-                        OutlinedTextField(keyInput, { keyInput = it }, label = { Text("Clave API personal de OpenAI") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(keyInput, { if (it.length <= 504) keyInput = it }, label = { Text("Clave API personal de OpenAI") }, visualTransformation = PasswordVisualTransformation(), singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
                         Button(onClick = {
                             stopAll()
                             runCatching { vault.save(keyInput.trim()) }.onSuccess { keyInput = ""; keyPresent = true; report("Clave cifrada guardada. Comprueba la conexión antes de conversar.") }
@@ -171,7 +174,8 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                     } else {
                         Text("Alternativa con servidor: la clave OpenAI permanece en tu backend HTTPS. El token personal del backend se conserva solo en memoria.")
                         Field("Dirección HTTPS del backend", backend) { backend = it }
-                        OutlinedTextField(token, { token = it }, label = { Text("Token personal del backend") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(token, { if (it.length <= 256) token = it }, label = { Text("Token personal del backend") }, visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), singleLine = true, modifier = Modifier.fillMaxWidth())
                     }
                     Button(onClick = { wake.stop(); if (configure(false)) voice.probeCredentials(backend, token.trim()) }, enabled = (if (direct) keyPresent else backend.isNotBlank() && token.isNotBlank()) && !vs.active && !vs.connecting) { Text("Comprobar credenciales sin audio") }
                     Text(vs.status)
@@ -197,6 +201,7 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                 }
                 "Personalidad", "Nombre del asistente", "Voz" -> {
                     Text("Los cambios se aplican en una sesión nueva. Guarda antes de probar la voz.")
+                    if (page == "Voz") Field("Indicaciones de tono, estilo y expresión", draft.tone) { draft = draft.copy(tone = it) }
                     if (page != "Voz") {
                         Field("Nombre del asistente", draft.name) { draft = draft.copy(name = it) }
                         Text("Frase: ${draft.phrase}")

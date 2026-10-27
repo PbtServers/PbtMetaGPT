@@ -1,22 +1,26 @@
 # Validación de v0.4.0
 
-Base: `f067b35`, rama `master`. Las pruebas nuevas se están ejecutando en CI; no deben darse por superadas hasta consultar la ejecución del commit publicado.
+Base: `f067b35`, rama `master`. Primera ejecución completa correcta de v0.4.0: commit `49c8f4c`, [Actions 40483523153](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40483523153). Los cambios posteriores deben consultarse en la ejecución de su propio commit; un artifact anterior no los valida.
 
 | Comprobación v0.4.0 | Estado y límite |
 | --- | --- |
 | Backend Node | 19 pruebas superadas localmente; sin llamadas reales |
-| JVM: perfiles, frases, AES-GCM, protocolos y cancelación HTTP | Añadidas; pendiente del resultado CI |
-| Android Lint y APK debug | Pendiente de CI; no hay SDK Android local instalado |
-| Keystore y persistencia en Android | Pruebas instrumentadas preparadas para emulador; pendiente de CI |
-| Patrones de secretos en fuentes y APK | Script añadido; fuentes versionadas sin coincidencias, APK pendiente |
+| JVM: perfiles, frases, AES-GCM, contratos BYOK, protocolos y cancelación HTTP | 22 pruebas superadas en CI, `49c8f4c`; sin proveedor de pago ni sensores |
+| Android Lint y APK debug | Superados en CI, `49c8f4c`; la compilación local completa se intentó y terminó por ausencia de SDK Android |
+| Keystore y persistencia en Android | 4 pruebas instrumentadas superadas en emulador Android 15/API 35, `49c8f4c`; incluye sustitución, corrupción, eliminación, perfiles, bienvenida/creación de Jarvis y denegación de micrófono |
+| Patrones de secretos en fuentes y APK | Superados en CI, `49c8f4c`; 3 pruebas Python del detector superadas también localmente |
 | BYOK → credencial temporal → WebRTC → voz | Implementado, sin clave real disponible; prueba manual pendiente |
 | Muestra de voces oficiales y velocidad | Contrato revisado; escucha real pendiente |
 | «Atento [nombre]» | Comparación textual probada automáticamente en CI; reconocimiento acústico local pendiente de teléfono/modelo instalado |
 | Micrófono y altavoz del teléfono | Sin pruebas físicas; no extrapolar desde un emulador |
 | Ray-Ban Meta: DAT, audio y cámara | Sin hardware físico; ningún modelo certificado |
-| Backend opcional y despliegue público | Conservado; contenedores en CI, HTTPS público y conexión real pendientes |
+| Backend opcional y despliegue público | Contenedores y proxy superados en CI, `49c8f4c`; HTTPS público y conexión real pendientes |
 
 Los tests de frases no miden precisión acústica ni tasas reales de falsos positivos/negativos. Los tests de AES JVM no acreditan Keystore: esa comprobación corresponde al trabajo de emulador. Las claves de las pruebas son ficticias. El escáner no garantiza detectar todos los formatos de secretos. La comprobación real de credenciales en la aplicación es una acción del usuario y no se ejecuta con claves privadas en CI.
+
+La primera ejecución (`b768b4a`) compiló correctamente, pero el escáner confundió las etiquetas PEM literales del parser mbedTLS incluido por Meta con claves privadas. Se corrigió para exigir un bloque con carga, se añadieron pruebas del detector y se mantuvo el análisis de todas las bibliotecas nativas. No se excluyó la dependencia ni se desactivó el control. La siguiente ejecución superó los tres trabajos y publicó el [artifact de `49c8f4c`](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40483523153/artifacts/12724341536).
+
+El emulador no ha realizado escucha, síntesis de pago, captura física ni reconocimiento acústico. Las cuatro pruebas terminaron con 0 fallos y 0 omitidas. La aplicación de un perfil se comprueba contra los campos confirmados por OpenAI antes de abrir el micrófono; su prueba JVM usa JSON controlado y no acredita una sesión real.
 
 Consulta [PRUEBAS_REALES.md](PRUEBAS_REALES.md) para registrar resultados manuales y [README](../README.md) para límites de rutas de audio, escucha y BYOK.
 

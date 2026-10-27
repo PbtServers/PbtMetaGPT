@@ -78,7 +78,9 @@ class LocalWakeListener(private val context: Context, private val scope: Corouti
                     .putExtra(RecognizerIntent.EXTRA_LANGUAGE, selected.language)
                     .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
                     .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-                    .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1))
+                    .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1).apply {
+                        if (android.os.Build.VERSION.SDK_INT >= 33) putStringArrayListExtra(RecognizerIntent.EXTRA_BIASING_STRINGS, arrayListOf(selected.name, selected.phrase))
+                    })
             }
             mutable.value = "Preparando escucha local · micrófono autorizado"
             loop?.cancel(); loop = scope.launch { delay(20000); if (current == generation && armed) { stop(); mutable.value = "El reconocedor no respondió a tiempo. Escucha detenida." } }

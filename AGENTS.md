@@ -26,4 +26,5 @@ Aplicación Android Kotlin con Meta Wearables Device Access Toolkit y OpenAI Rea
 - ChatGPT Plus y la API de OpenAI tienen facturación independiente.
 - No subas claves, tokens, firmas privadas, configuraciones personales, imágenes ni conversaciones.
 - Usa Java 17 y ejecuta `./gradlew testDebugUnitTest lintDebug assembleDebug` y `node --test backend/server.test.mjs`.
+- En v0.4.0 ejecuta también los tests Python y el escáner `tools/comprobar_secretos.py` sobre fuentes y APK. `connectedDebugAndroidTest` comprueba almacenamiento/Keystore, bienvenida y denegación de permiso en emulador; no acredita audio físico, reconocimiento hablado ni gafas.
 - Compara el manifiesto con las muestras de Meta. Registra por separado las comprobaciones automáticas, emulador, Mock Device Kit y gafas reales. Un estado simulado no acredita hardware.

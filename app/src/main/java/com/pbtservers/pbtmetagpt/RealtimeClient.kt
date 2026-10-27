@@ -328,6 +328,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     private suspend fun credential(baseUrl: String, accessToken: String): String {
         directKey?.let { readKey ->
             val selected = profile
+            diagnostics.record(Check.BACKEND, CheckStatus.PENDING, "Modo directo: no se utiliza un backend propio.", "DIRECT_MODE")
             diagnostics.record(Check.CREDENTIAL, CheckStatus.RUNNING, "Solicitando una credencial temporal directamente a OpenAI, sin backend propio.")
             val request = DirectCredentials.request(readKey(), selected)
             val response = http.newCall(request).awaitReply()

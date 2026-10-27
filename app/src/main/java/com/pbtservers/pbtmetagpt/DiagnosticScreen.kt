@@ -57,7 +57,7 @@ fun DiagnosticScreen(
                         Text(entry.status.label, color = if (entry.status == CheckStatus.ERROR) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
                         Text(entry.detail)
                         if (entry.code.isNotBlank()) Text("Código: ${entry.code}", style = MaterialTheme.typography.bodySmall)
-                        if (entry.time != 0L) Text("Última observación: ${DateFormat.getDateTimeInstance().format(Date(entry.time))}", style = MaterialTheme.typography.bodySmall)
+                        if (entry.time != 0L) Text("Última observación: ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM, java.util.Locale.forLanguageTag("es-ES")).format(Date(entry.time))}", style = MaterialTheme.typography.bodySmall)
                         if (entry.manual) Text("Confirmación manual del usuario", style = MaterialTheme.typography.labelMedium)
                     }
                 }

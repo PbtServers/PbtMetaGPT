@@ -41,7 +41,7 @@ Ejecuta `check-live.mjs` con el token personal en un archivo privado. Registra s
 En Android, introduce URL HTTPS y token personal en el asistente. En Diagnóstico:
 
 1. **Comprobar credencial temporal**: debe observar HTTPS y emisión efímera; SDP, ICE y sesión no quedan acreditados por ello.
-2. **Verificar Realtime sin micrófono**: debe observar SDP aceptado, transporte/canal y `SESSION_CREATED`. Cierra la sesión al confirmar. No crea pista de micrófono ni solicita respuesta.
+2. **Verificar Realtime sin micrófono**: debe observar SDP aceptado, transporte/canal, `SESSION_CREATED` y `SESSION_CONFIGURED` con el perfil confirmado. Cierra la sesión al confirmar. No crea pista de micrófono ni solicita respuesta.
 3. Prueba un token personal incorrecto y, si administras el servidor, un error de cuota/configuración controlado. Comprueba el código y que no se muestre ningún secreto. No gastes cuota repitiendo solicitudes innecesarias.
 
 ## 2. Micrófono y altavoz del teléfono
