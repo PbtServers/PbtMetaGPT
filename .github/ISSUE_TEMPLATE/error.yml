@@ -1,0 +1,24 @@
+name: Informar de un error
+description: Comunica un fallo sin compartir información privada
+title: "[Error] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: descripcion
+    attributes:
+      label: Descripción
+      description: Explica qué ocurre y qué esperabas.
+    validations:
+      required: true
+  - type: textarea
+    id: pasos
+    attributes:
+      label: Pasos para reproducir
+      description: Añade APK/commit, versión Android y pasos. Nunca incluyas claves, tokens, imágenes o conversaciones privadas.
+    validations:
+      required: true
+  - type: textarea
+    id: pruebas
+    attributes:
+      label: Validación
+      description: Indica si se ha probado en emulador, teléfono o Ray-Ban Meta reales y la versión de firmware si procede.

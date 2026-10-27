@@ -1,0 +1,19 @@
+name: Proponer una función
+description: Sugiere una mejora para PbtMetaGPT
+title: "[Mejora] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: Necesidad
+      description: ¿Qué problema quieres resolver?
+    validations:
+      required: true
+  - type: textarea
+    id: propuesta
+    attributes:
+      label: Propuesta
+      description: Describe una solución y sus limitaciones técnicas o de privacidad.
+    validations:
+      required: true
