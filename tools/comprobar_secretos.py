@@ -6,7 +6,9 @@ import sys
 import zipfile
 
 PATTERNS = [re.compile(rb"sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{24,}"),
-            re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")]
+            # Los parsers PEM (p. ej., mbedTLS de Meta) incluyen las etiquetas literales.
+            # Exigir un bloque con carga evita confundir el parser con una clave incorporada.
+            re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----\r?\n[A-Za-z0-9+/=\r\n]{64,}-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")]
 
 
 def sensitive(data):

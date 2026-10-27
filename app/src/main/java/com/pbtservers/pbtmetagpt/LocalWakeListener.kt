@@ -38,7 +38,7 @@ class LocalWakeListener(private val context: Context, private val scope: Corouti
     private fun listen() {
         if (!armed) return
         if (android.os.SystemClock.elapsedRealtime() >= deadline) { stop(); mutable.value = "Espera finalizada tras dos minutos. Activa otra ventana si la necesitas."; return }
-        val current = generation
+        val current = ++generation
         val selected = profile ?: return
         try {
             recognizer?.destroy()
@@ -53,6 +53,7 @@ class LocalWakeListener(private val context: Context, private val scope: Corouti
                     override fun onEvent(eventType: Int, params: Bundle?) = Unit
                     override fun onResults(results: Bundle?) {
                         if (generation != current || !armed) return
+                        if (android.os.SystemClock.elapsedRealtime() >= deadline) { stop(); mutable.value = "Ventana de escucha finalizada. No se inicia conversación."; return }
                         val best = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
                         if (WakePhrase.matches(best, selected.name)) {
                             stop(); mutable.value = "Frase reconocida · preparando conversación"; activated()
@@ -89,7 +90,8 @@ class LocalWakeListener(private val context: Context, private val scope: Corouti
     }
     fun stop() {
         generation++; armed = false; loop?.cancel(); loop = null
-        recognizer?.cancel(); recognizer?.destroy(); recognizer = null
+        val previous = recognizer; recognizer = null
+        runCatching { previous?.cancel() }; runCatching { previous?.destroy() }
         mutable.value = "Escucha local desactivada · micrófono liberado"
     }
 }

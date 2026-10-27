@@ -50,6 +50,8 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     private var sessionProfile: AssistantProfile? = null
     private var directKey: (() -> String)? = null
     private var configured = false
+    private var generating = false
+    private var outputPlaying = false
     fun configure(profile: AssistantProfile?, directKey: (() -> String)?) {
         check(!state.value.active && !state.value.connecting) { "Finaliza la sesión antes de cambiar su configuración." }
         this.profile = profile
@@ -59,6 +61,10 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
 
     fun start(baseUrl: String, accessToken: String, bluetooth: Boolean, testOnly: Boolean = false, sample: Boolean = false) {
         if (state.value.active || state.value.connecting) return
+        if (!testOnly && profile == null) { error("Crea y selecciona un asistente antes de conversar."); return }
+        if (!testOnly && !sample && appContext.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            error("Falta permiso de micrófono. No se ha iniciado ninguna conversación."); return
+        }
         stop()
         val current = generation
         diagnosticOnly = testOnly
@@ -205,22 +211,36 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                         if (!send(JSONObject().put("type", "session.update").put("session", settings).toString())) fail("No se pudo aplicar el perfil. No se ha activado el micrófono.")
                     } else ready()
                 }
-                "session.updated" -> ready()
+                "session.updated" -> {
+                    val selected = sessionProfile
+                    if (selected != null && !RealtimeSettings.confirms(event.optJSONObject("session"), selected))
+                        fail("OpenAI no confirmó el modelo, la voz y las instrucciones solicitadas. El micrófono permanece apagado.")
+                    else ready()
+                }
                 "response.created" -> {
+                    generating = true
                     mutable.update { it.copy(responding = true, status = if (it.paused) "En pausa · micrófono apagado" else "ChatGPT está respondiendo…") }
                     if (state.value.paused && !sampleOnly) interrupt() else peer?.setAudioPlayout(true)
                 }
                 "response.done" -> {
-                    if (sampleOnly) {
-                        // response.done puede llegar antes del último paquete RTP. Dejar terminar la salida.
-                        timeout?.cancel(); timeout = scope.launch { delay(3000); stop() }
-                    }
-                    mutable.update { it.copy(responding = false, status = if (sampleOnly) "Terminando muestra de voz…" else if (it.paused) "En pausa · micrófono apagado" else "Escuchando · micrófono encendido") }
+                    generating = false
+                    mutable.update { it.copy(responding = outputPlaying, status = if (it.paused && !sampleOnly) "En pausa · micrófono apagado" else if (outputPlaying) "Reproduciendo respuesta…" else if (sampleOnly) "Terminando muestra de voz…" else "Escuchando · micrófono encendido") }
                     if (event.optJSONObject("response")?.optString("status") == "failed") {
                         diagnostics.record(Check.PROVIDER, CheckStatus.ERROR, "OpenAI no pudo completar la respuesta.", "RESPONSE_FAILED")
                         error("OpenAI no pudo completar la respuesta. Comprueba cuota y compatibilidad del modelo.")
                     }
                 }
+                "output_audio_buffer.started" -> {
+                    outputPlaying = true
+                    mutable.update { it.copy(responding = true, status = "Reproduciendo respuesta…") }
+                }
+                "output_audio_buffer.stopped", "output_audio_buffer.cleared" -> {
+                    outputPlaying = false
+                    mutable.update { it.copy(responding = generating, status = if (sampleOnly) "Muestra terminada" else if (it.paused) "En pausa · micrófono apagado" else "Escuchando · micrófono encendido") }
+                    if (sampleOnly) { timeout?.cancel(); timeout = scope.launch { delay(500); stop() } }
+                }
+                "input_audio_buffer.speech_started" -> if (!state.value.paused) mutable.update { it.copy(status = "Escuchando tu petición…") }
+                "input_audio_buffer.speech_stopped" -> if (!state.value.paused) mutable.update { it.copy(status = "Procesando tu petición…") }
                 "response.output_audio_transcript.delta" -> mutable.update { it.copy(transcript = (it.transcript + event.optString("delta")).takeLast(4000)) }
                 "response.output_audio_transcript.done" -> mutable.update { it.copy(transcript = (it.transcript + "\n\n").takeLast(4000)) }
                 "error" -> {
@@ -266,7 +286,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     fun interrupt() {
         if (!state.value.active) return
         peer?.setAudioPlayout(false)
-        if (state.value.responding) send(RealtimeProtocol.event("response.cancel"))
+        if (generating) send(RealtimeProtocol.event("response.cancel"))
         send(RealtimeProtocol.event("output_audio_buffer.clear"))
         send(RealtimeProtocol.event("input_audio_buffer.clear"))
     }
@@ -309,20 +329,9 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
         directKey?.let { readKey ->
             val selected = profile
             diagnostics.record(Check.CREDENTIAL, CheckStatus.RUNNING, "Solicitando una credencial temporal directamente a OpenAI, sin backend propio.")
-            val key = readKey()
-            val request = Request.Builder().url("https://api.openai.com/v1/realtime/client_secrets")
-                .header("Authorization", "Bearer $key")
-                .post((selected?.let { RealtimeSettings.secretRequest(it) } ?: JSONObject()
-                    .put("expires_after", JSONObject().put("anchor", "created_at").put("seconds", 60))
-                    .put("session", JSONObject().put("type", "realtime").put("model", RealtimeSettings.model)).toString())
-                    .toRequestBody("application/json".toMediaType())).build()
+            val request = DirectCredentials.request(readKey(), selected)
             val response = http.newCall(request).awaitReply()
-            if (!response.isSuccessful) throw DiagnosticFailure("OPENAI_HTTP_${response.code}", when (response.code) {
-                401 -> "OpenAI rechazó la clave API. Sustitúyela en Configuración de OpenAI."
-                429 -> "OpenAI ha rechazado la petición por cuota o límite de uso. Revisa la facturación de la API."
-                else -> "OpenAI rechazó la credencial temporal (HTTP ${response.code}). Revisa acceso a gpt-realtime y conexión."
-            })
-            return RealtimeProtocol.secret(response.body, System.currentTimeMillis() / 1000).also {
+            return DirectCredentials.decode(response, System.currentTimeMillis() / 1000).also {
                 diagnostics.record(Check.CREDENTIAL, CheckStatus.OK, "OpenAI emitió una credencial temporal. Esto no verifica voz ni hardware.", "DIRECT_EPHEMERAL_ISSUED")
             }
         }
@@ -372,6 +381,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     private fun stopInternal(recordControl: Boolean) {
         if (recordControl && (state.value.active || state.value.connecting)) diagnostics.record(Check.CONTROL, CheckStatus.WARNING, "Cierre de sesión y liberación de audio solicitados; no se reanuda automáticamente.", "STOP_REQUESTED")
         generation++
+        generating = false; outputPlaying = false
         job?.cancel(); job = null
         timeout?.cancel(); timeout = null
         microphone?.setEnabled(false)

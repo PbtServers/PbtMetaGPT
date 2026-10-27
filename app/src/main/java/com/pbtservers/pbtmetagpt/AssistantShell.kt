@@ -58,7 +58,7 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
     }
     fun configure(requireProfile: Boolean = true): Boolean {
         if (selected == null && requireProfile) { report("Crea y guarda un asistente antes de iniciar OpenAI."); return false }
-        if (vs.active || vs.connecting) { report("Finaliza la sesión antes de cambiar la configuración."); return false }
+        if (voice.state.value.active || voice.state.value.connecting) { report("Finaliza la sesión antes de cambiar la configuración."); return false }
         voice.configure(selected, if (direct) ({ vault.read() }) else null)
         preferences.edit().putBoolean("directo", direct).putString("backend", backend).apply()
         return true
@@ -126,10 +126,19 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
             }
         } else Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf("Inicio", "Conversación", "Asistentes", "Personalidad", "Voz", "Activación por voz", "OpenAI", "Dispositivos", "Diagnóstico", "Privacidad").forEach { destination ->
-                FilterChip(selected = page == destination, onClick = { returnToWake = false; consent = false; stopAll(); page = destination; if (destination == "Personalidad" || destination == "Voz") draft = selected ?: AssistantProfile() }, label = { Text(destination) })
+                FilterChip(selected = page == destination, onClick = {
+                    returnToWake = false; consent = false
+                    if (destination in listOf("Inicio", "Conversación", "Dispositivos")) wake.stop() else stopAll()
+                    page = destination; if (destination == "Personalidad" || destination == "Voz") draft = selected ?: AssistantProfile()
+                }, label = { Text(destination) })
             }
         }
         Text(wakeStatus, modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.primary)
+        selected?.let { Text("${it.name} · ${it.voice} · ${it.phrase}", modifier = Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelLarge) }
+        if (vs.active || vs.connecting || wake.armed) {
+            Text(vs.status, modifier = Modifier.padding(horizontal = 16.dp))
+            TextButton(onClick = { returnToWake = false; consent = false; stopAll() }) { Text("Desactivar escucha y cerrar sesión") }
+        }
         if (page in listOf("Inicio", "Conversación", "Dispositivos", "Diagnóstico")) {
             legacy(page, configured, backend, token, bluetooth, { bluetooth = it }, start)
         } else Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {

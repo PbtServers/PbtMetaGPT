@@ -16,3 +16,5 @@ diagnosticos-locales/
 *.apk
 *.aab
 .DS_Store
+__pycache__/
+*.pyc

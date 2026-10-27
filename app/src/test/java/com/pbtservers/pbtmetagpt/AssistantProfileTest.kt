@@ -72,4 +72,15 @@ class AssistantProfileTest {
         assertFalse(failure.message.orEmpty().contains(secret))
         assertFalse(runCatching { RealtimeProtocol.endpoint("https://dominio.es/$secret?[]") }.exceptionOrNull()?.message.orEmpty().contains(secret))
     }
+    @Test fun `no habilita audio cuando servidor confirma otro perfil o voz`() {
+        val profile = AssistantProfile(name = "Jarvis", voice = "cedar", speed = 0.9)
+        val applied = RealtimeSettings.session(profile)
+        assertTrue(RealtimeSettings.confirms(applied, profile))
+        assertFalse(RealtimeSettings.confirms(null, profile))
+        assertFalse(RealtimeSettings.confirms(applied, profile.copy(name = "Alex")))
+        assertFalse(RealtimeSettings.confirms(applied, profile.copy(voice = "marin")))
+        assertFalse(RealtimeSettings.confirms(applied, profile.copy(speed = 1.0)))
+        applied.put("model", "otro-modelo")
+        assertFalse(RealtimeSettings.confirms(applied, profile))
+    }
 }

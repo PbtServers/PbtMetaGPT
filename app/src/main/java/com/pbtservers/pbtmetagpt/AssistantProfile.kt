@@ -55,8 +55,11 @@ data class AssistantProfile(
                 j.optString("personality"), j.optString("tone"), j.optBoolean("formal"), j.optString("humor"), j.optString("vocabulary"),
                 j.optString("instructions"), j.getString("voice"), j.getString("language"), j.optBoolean("detailed"), j.optDouble("speed", 1.0)).validated()
         }
-        fun export(profiles: List<AssistantProfile>): String = JSONObject().put("version", 1)
-            .put("profiles", JSONArray().apply { profiles.forEach { put(it.validated().json()) } }).toString(2)
+        fun export(profiles: List<AssistantProfile>): String {
+            val text = JSONObject().put("version", 1).put("profiles", JSONArray().apply { profiles.forEach { put(it.validated().json()) } }).toString(2)
+            require(text.toByteArray(Charsets.UTF_8).size <= 262144) { "Los perfiles superan los 256 KiB. Reduce las instrucciones o el número de perfiles." }
+            return text
+        }
         fun import(text: String): List<AssistantProfile> {
             require(text.length <= 262144) { "El archivo supera los 256 KiB." }
             val root = JSONObject(text)
@@ -85,6 +88,14 @@ object RealtimeSettings {
     fun secretRequest(profile: AssistantProfile): String = JSONObject()
         .put("expires_after", JSONObject().put("anchor", "created_at").put("seconds", 60))
         .put("session", session(profile)).toString()
+    fun confirms(session: JSONObject?, profile: AssistantProfile): Boolean {
+        if (session == null) return false
+        val output = session.optJSONObject("audio")?.optJSONObject("output") ?: return false
+        val model = session.optString("model")
+        return (model == this.model || model.startsWith("${this.model}-")) &&
+            session.optString("instructions") == profile.prompt() && output.optString("voice") == profile.voice &&
+            kotlin.math.abs(output.optDouble("speed", Double.NaN) - profile.speed) < 0.001
+    }
 }
 
 object WakePhrase {
