@@ -35,6 +35,8 @@ jobs:
         run: node --test backend/*.test.mjs
       - name: Compilar, analizar y probar Android
         run: bash ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+      - name: Comprobar ausencia de claves privadas en fuentes y APK
+        run: python3 tools/comprobar_secretos.py app/build/outputs/apk/debug/app-debug.apk
       - name: Publicar informes
         if: always()
         uses: actions/upload-artifact@v4
@@ -43,10 +45,48 @@ jobs:
           path: |
             app/build/reports/
             app/build/test-results/
-      - name: Publicar APK debug
+  emulador:
+    name: Android Keystore y persistencia en emulador
+    needs: [validar, contenedores]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Habilitar KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Probar Android Keystore real del emulador sin claves ni llamadas reales
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: bash ./gradlew --no-daemon connectedDebugAndroidTest
+      - name: Publicar informe del emulador
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: PbtMetaGPT-v0.3.0-debug
+          name: informes-emulador
+          path: app/build/reports/androidTests/
+      - name: Verificar APK final sin claves privadas
+        run: python3 tools/comprobar_secretos.py app/build/outputs/apk/debug/app-debug.apk
+      - name: Publicar APK debug tras todas las comprobaciones
+        uses: actions/upload-artifact@v4
+        with:
+          name: PbtMetaGPT-v0.4.0-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14

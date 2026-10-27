@@ -29,7 +29,7 @@ class Diagnostics(private val now: () -> Long = System::currentTimeMillis) {
     }
     fun reset() { mutable.value = DiagnosticState() }
     fun report(): String = buildString {
-        appendLine("PbtMetaGPT 0.3.0 · informe de diagnóstico")
+        appendLine("PbtMetaGPT 0.4.0 · informe de diagnóstico")
         appendLine("Los estados observados no certifican compatibilidad física. Hora en milisegundos UTC.")
         state.value.entries.values.forEach { appendLine("${it.check.title}: ${it.status.label} | ${it.detail} | ${it.code} | ${it.time} | ${if (it.manual) "confirmación manual" else "observación del sistema"}") }
         appendLine("Últimos eventos:")

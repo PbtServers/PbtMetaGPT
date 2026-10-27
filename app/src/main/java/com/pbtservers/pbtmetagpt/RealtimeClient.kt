@@ -45,13 +45,26 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     private var timeout: Job? = null
     private var generation = 0
     private var diagnosticOnly = false
+    private var sampleOnly = false
+    private var profile: AssistantProfile? = null
+    private var sessionProfile: AssistantProfile? = null
+    private var directKey: (() -> String)? = null
+    private var configured = false
+    fun configure(profile: AssistantProfile?, directKey: (() -> String)?) {
+        check(!state.value.active && !state.value.connecting) { "Finaliza la sesión antes de cambiar su configuración." }
+        this.profile = profile
+        this.directKey = directKey
+    }
     private val route = AudioRoute(appContext) { message -> scope.launch { stop(); error(message) } }
 
-    fun start(baseUrl: String, accessToken: String, bluetooth: Boolean, testOnly: Boolean = false) {
+    fun start(baseUrl: String, accessToken: String, bluetooth: Boolean, testOnly: Boolean = false, sample: Boolean = false) {
         if (state.value.active || state.value.connecting) return
         stop()
         val current = generation
         diagnosticOnly = testOnly
+        sampleOnly = sample
+        configured = false
+        sessionProfile = profile
         for (check in listOf(Check.SDP, Check.ICE, Check.DATA_CHANNEL, Check.REALTIME)) diagnostics.record(check, CheckStatus.PENDING, "Pendiente en este intento.")
         mutable.value = VoiceState(connecting = true, status = "Autorizando la conversación…")
         job = scope.launch {
@@ -61,7 +74,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     val secret = credential(baseUrl, accessToken)
                     ensureActive()
                     stage = Check.ROUTE
-                    val routeLabel = if (testOnly) "Prueba sin micrófono" else route.start(bluetooth)
+                    val routeLabel = if (testOnly) "Prueba sin micrófono" else route.start(bluetooth, speaker = !bluetooth)
                     if (!testOnly) diagnostics.record(Check.ROUTE, CheckStatus.WARNING, "Ruta de comunicación solicitada a Android. La selección no acredita micrófono o altavoz de las gafas.")
                     mutable.update { it.copy(route = routeLabel, status = "Conectando con OpenAI…") }
                     PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions.builder(appContext).createInitializationOptions())
@@ -95,7 +108,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     ) ?: throw IllegalStateException("No se pudo preparar WebRTC.")
                     peer = connection
                     connection.setAudioRecording(false)
-                    if (testOnly) {
+                    if (testOnly || sample) {
                         connection.addTransceiver(MediaStreamTrack.MediaType.MEDIA_TYPE_AUDIO,
                             RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.RECV_ONLY))
                     } else {
@@ -185,22 +198,26 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
             val event = JSONObject(text)
             when (event.optString("type")) {
                 "session.created" -> {
-                    timeout?.cancel()
                     diagnostics.record(Check.REALTIME, CheckStatus.OK, "OpenAI ha enviado session.created por el canal real. Esto no acredita audio ni gafas.", "SESSION_CREATED")
-                    if (diagnosticOnly) { stop(); return }
-                    peer?.setAudioRecording(true)
-                    microphone?.setEnabled(true)
-                    mutable.update { it.copy(connecting = false, active = true, status = "Escuchando · micrófono encendido", route = it.route + "\n" + route.actualRoute()) }
+                    val selected = sessionProfile
+                    if (selected != null) {
+                        val settings = RealtimeSettings.session(selected).apply { remove("model") }
+                        if (!send(JSONObject().put("type", "session.update").put("session", settings).toString())) fail("No se pudo aplicar el perfil. No se ha activado el micrófono.")
+                    } else ready()
                 }
+                "session.updated" -> ready()
                 "response.created" -> {
                     mutable.update { it.copy(responding = true, status = if (it.paused) "En pausa · micrófono apagado" else "ChatGPT está respondiendo…") }
-                    if (state.value.paused) interrupt() else peer?.setAudioPlayout(true)
+                    if (state.value.paused && !sampleOnly) interrupt() else peer?.setAudioPlayout(true)
                 }
                 "response.done" -> {
-                    mutable.update { it.copy(responding = false, status = if (it.paused) "En pausa · micrófono apagado" else "Escuchando · micrófono encendido") }
+                    if (sampleOnly) {
+                        // response.done puede llegar antes del último paquete RTP. Dejar terminar la salida.
+                        timeout?.cancel(); timeout = scope.launch { delay(3000); stop() }
+                    }
+                    mutable.update { it.copy(responding = false, status = if (sampleOnly) "Terminando muestra de voz…" else if (it.paused) "En pausa · micrófono apagado" else "Escuchando · micrófono encendido") }
                     if (event.optJSONObject("response")?.optString("status") == "failed") {
-                        val code = event.optJSONObject("response")?.optJSONObject("status_details")?.optJSONObject("error")?.optString("code").orEmpty()
-                        diagnostics.record(Check.PROVIDER, CheckStatus.ERROR, "OpenAI ha comunicado que la respuesta falló. No se guarda el cuerpo del error.", Diagnostics.safeCode(code))
+                        diagnostics.record(Check.PROVIDER, CheckStatus.ERROR, "OpenAI no pudo completar la respuesta.", "RESPONSE_FAILED")
                         error("OpenAI no pudo completar la respuesta. Comprueba cuota y compatibilidad del modelo.")
                     }
                 }
@@ -208,10 +225,29 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                 "response.output_audio_transcript.done" -> mutable.update { it.copy(transcript = (it.transcript + "\n\n").takeLast(4000)) }
                 "error" -> {
                     diagnostics.record(Check.PROVIDER, CheckStatus.ERROR, "OpenAI rechazó una operación. El cuerpo original no se guarda.", Diagnostics.safeCode(event.optJSONObject("error")?.optString("code").orEmpty()))
-                    mutable.update { it.copy(responding = false) }; error("OpenAI rechazó una operación de la sesión. Consulta Diagnóstico.")
+                    if (!configured) fail("OpenAI rechazó la configuración. El micrófono sigue apagado.")
+                    else { mutable.update { it.copy(responding = false) }; error("OpenAI rechazó una operación de la sesión. Consulta Diagnóstico.") }
                 }
             }
-        } catch (_: Exception) { error("Se recibió un evento de conversación no válido.") }
+        } catch (_: Exception) { fail("Se recibió un evento de conversación no válido.") }
+    }
+
+    private fun ready() {
+        if (configured) return
+        configured = true
+        timeout?.cancel()
+        diagnostics.record(Check.REALTIME, CheckStatus.OK, "Sesión y configuración confirmadas por OpenAI; audio pendiente de validación humana.", "SESSION_CONFIGURED")
+        if (diagnosticOnly) { stop(); return }
+        if (sampleOnly) {
+            mutable.update { it.copy(connecting = false, active = true, paused = true, status = "Muestra de voz · micrófono apagado") }
+            send(JSONObject().put("type", "response.create").put("response", JSONObject()
+                .put("instructions", "Di únicamente: Hola. Esta es una muestra de mi voz, lista para ayudarte.")).toString())
+            timeout = scope.launch { delay(30000); stop() }
+        } else {
+                    peer?.setAudioRecording(true)
+                    microphone?.setEnabled(true)
+                    mutable.update { it.copy(connecting = false, active = true, status = "Escuchando · micrófono encendido", route = it.route + "\n" + route.actualRoute()) }
+        }
     }
 
     private fun send(json: String): Boolean = channel?.let {
@@ -219,7 +255,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     } ?: false
 
     fun pauseOrResume() {
-        if (!state.value.active) return
+        if (!state.value.active || sampleOnly) return
         val pause = !state.value.paused
         microphone?.setEnabled(!pause)
         peer?.setAudioRecording(!pause)
@@ -270,6 +306,26 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     }
 
     private suspend fun credential(baseUrl: String, accessToken: String): String {
+        directKey?.let { readKey ->
+            val selected = profile
+            diagnostics.record(Check.CREDENTIAL, CheckStatus.RUNNING, "Solicitando una credencial temporal directamente a OpenAI, sin backend propio.")
+            val key = readKey()
+            val request = Request.Builder().url("https://api.openai.com/v1/realtime/client_secrets")
+                .header("Authorization", "Bearer $key")
+                .post((selected?.let { RealtimeSettings.secretRequest(it) } ?: JSONObject()
+                    .put("expires_after", JSONObject().put("anchor", "created_at").put("seconds", 60))
+                    .put("session", JSONObject().put("type", "realtime").put("model", RealtimeSettings.model)).toString())
+                    .toRequestBody("application/json".toMediaType())).build()
+            val response = http.newCall(request).awaitReply()
+            if (!response.isSuccessful) throw DiagnosticFailure("OPENAI_HTTP_${response.code}", when (response.code) {
+                401 -> "OpenAI rechazó la clave API. Sustitúyela en Configuración de OpenAI."
+                429 -> "OpenAI ha rechazado la petición por cuota o límite de uso. Revisa la facturación de la API."
+                else -> "OpenAI rechazó la credencial temporal (HTTP ${response.code}). Revisa acceso a gpt-realtime y conexión."
+            })
+            return RealtimeProtocol.secret(response.body, System.currentTimeMillis() / 1000).also {
+                diagnostics.record(Check.CREDENTIAL, CheckStatus.OK, "OpenAI emitió una credencial temporal. Esto no verifica voz ni hardware.", "DIRECT_EPHEMERAL_ISSUED")
+            }
+        }
         val endpoint = RealtimeProtocol.endpoint(baseUrl)
         require(Regex("[A-Za-z0-9_-]{32,256}").matches(accessToken) && !Regex("^sk[-_].*").matches(accessToken)) { "Introduce el token personal del backend, nunca una clave de OpenAI." }
         diagnostics.record(Check.BACKEND, CheckStatus.RUNNING, "Conectando por HTTPS sin redirecciones.")
@@ -288,11 +344,11 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
         if (state.value.active || state.value.connecting) return
         stop()
         val current = generation
-        mutable.value = VoiceState(connecting = true, status = "Comprobando backend sin activar audio…")
+        mutable.value = VoiceState(connecting = true, status = "Comprobando credenciales sin activar audio…")
         job = scope.launch {
-            try { credential(baseUrl, accessToken) }
+            try { credential(baseUrl, accessToken); if (current == generation) error("Comprobación correcta: credencial temporal recibida. Todavía falta comprobar WebRTC y el audio.") }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (problem: Exception) { if (current == generation) { recordFailure(problem); error("Falló la comprobación. Consulta el diagnóstico del backend.") } }
+            catch (problem: Exception) { if (current == generation) { recordFailure(problem); error(if (problem is DiagnosticFailure) problem.message.orEmpty() else "Falló la comprobación. Consulta Diagnóstico; no se muestran cuerpos de error ni credenciales.") } }
             finally { if (current == generation) stop() }
         }
     }

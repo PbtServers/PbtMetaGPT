@@ -22,7 +22,7 @@ object RealtimeProtocol {
         return DiagnosticFailure(if (known) code else "BACKEND_HTTP_$status", description)
     }
     fun endpoint(value: String): String {
-        val uri = URI(value.trim())
+        val uri = try { URI(value.trim()) } catch (_: Exception) { throw IllegalArgumentException("Introduce una dirección HTTPS válida sin credenciales.") }
         require(uri.scheme == "https" && !uri.host.isNullOrBlank() && uri.userInfo == null && uri.fragment == null && uri.query == null) {
             "Introduce una dirección HTTPS válida para tu backend, sin credenciales ni parámetros."
         }
@@ -30,11 +30,13 @@ object RealtimeProtocol {
     }
 
     fun secret(body: String, nowSeconds: Long): String {
-        val json = JSONObject(body)
-        val value = json.getString("value")
-        require(value.startsWith("ek_") && value.length > 8) { "El backend no devolvió una credencial temporal válida." }
-        require(json.getLong("expires_at") > nowSeconds + 5) { "La credencial temporal ha caducado. Vuelve a iniciar la sesión." }
-        return value
+        try {
+            val json = JSONObject(body)
+            val value = json.getString("value")
+            require(value.matches(Regex("ek_[A-Za-z0-9_-]{6,2048}")))
+            require(json.getLong("expires_at") > nowSeconds + 5)
+            return value
+        } catch (_: Exception) { throw DiagnosticFailure("OPENAI_INVALID_SECRET", "No se recibió una credencial temporal válida y vigente. Vuelve a iniciar la sesión.") }
     }
 
     fun event(type: String) = JSONObject().put("type", type).toString()

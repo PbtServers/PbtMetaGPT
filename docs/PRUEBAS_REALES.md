@@ -1,4 +1,34 @@
-# Protocolo de pruebas reales · v0.3.0
+# Protocolo de pruebas reales · v0.4.0
+
+## Primera aceptación sin backend ni gafas
+
+No marques estos pasos como superados por haber compilado o ejecutado pruebas automáticas. Registra fecha, commit/APK, teléfono, versión Android, motor de reconocimiento e idioma instalado, resultado y código filtrado. No adjuntes claves, audio, conversaciones o imágenes personales.
+
+1. Instalar sin datos previos. Completar bienvenida y aviso BYOK. Crear una clave de proyecto limitada e introducirla en OpenAI; verificar que nunca se muestra en claro ni aparece en informes.
+2. Comprobar credenciales sin audio. Distinguir 401 (clave), 429 (cuota/límite), error de red, credencial emitida y WebRTC confirmado. Probar modo avión y cancelación de conexión; no deben aparecer cuerpos originales del proveedor.
+3. Crear Personalizado llamado Jarvis, guardar personalidad, trato, humor, idioma y voz. Cerrar/reabrir: el perfil y la clave cifrada deben persistir, sin sensores encendidos.
+4. Sin URL de backend y sin Bluetooth, iniciar conversación. Confirmar escucha inteligible del micrófono del móvil y respuesta por su altavoz. Hacer segunda pregunta sobre lo anterior; pausar, reanudar, interrumpir y finalizar. Repetir con permiso denegado/revocado.
+5. Reproducir muestra de voz guardada: no debe activarse el micrófono. Probar cancelación durante conexión y reproducción. Cambiar voz/velocidad, guardar y reconectar; comprobar coherencia en toda la sesión.
+6. Exportar perfiles e inspeccionar solo campos permitidos. Importar, duplicar y renombrar a Alex: debe cambiar la frase. Rechazar JSON con campos de clave/token, versión desconocida, exceso de tamaño o valores no soportados.
+7. Sustituir la clave: se cierra la sesión y la siguiente usa la nueva. Eliminarla: no puede conectar hasta guardar otra. Revocar la clave en OpenAI, comprobar el error y no confundir borrar localmente con revocar remotamente.
+
+## Activación local: pruebas acústicas pendientes
+
+1. Instalar el modelo de idioma del motor Android. Probar sin Internet únicamente la detección local (la conversación posterior sí requiere Internet). Si no hay motor on-device o modelo instalado, exigir error visible y control manual, sin fallback remoto.
+2. Con app visible y Bluetooth apagado, autorizar escucha, activar una ventana y decir «Atento Jarvis». Esperar «Escuchando» antes de la petición. Verificar que el audio de detección no aparece en transcripciones ni se envía a OpenAI.
+3. Ensayar 20 frases correctas y 20 distractores con distintos ruidos/distancias. Registrar conteos reales de aciertos, rechazos y activaciones indebidas, sin grabar audio. Probar nombres cortos y desconocidos. La tolerancia de una letra puede confundir nombres parecidos; no es identificación de usuario.
+4. Confirmar huecos entre reinicios, finalización tras dos minutos/límite de errores, liberación del micrófono al activar WebRTC y nuevas preguntas sin repetir la frase. Al finalizar la sesión, comprobar nueva ventana local con consentimiento aún vigente.
+5. Navegar, bloquear pantalla, cambiar de aplicación, revocar permiso y desactivar explícitamente: debe detenerse la escucha. Regresar no debe reactivarla. Comprobar que ningún callback tardío abre una sesión.
+6. Probar confirmación sonora activada/desactivada. Ensayar reproducción de la frase por terceros/altavoz: puede activar el detector, por lo que no es autenticación ni autorización para cámara.
+7. Repetir con Bluetooth solo para observar la ruta real del reconocedor. No atribuirla a las gafas por el resultado de otra prueba de micrófono. No se promete selección de ruta ni escucha permanente mediante DAT.
+
+## Alternativa de servidor
+
+Desactivar modo directo, configurar HTTPS/token y repetir emisión, WebRTC y conversación con un perfil de voz distinto al predeterminado del backend. Comprobar autenticación, expiración, límites y cambio de modo tras finalizar. La CLI del backend comprueba su propio protocolo, no audio Android.
+
+## Hardware Meta: pendiente
+
+Conservar y ejecutar el protocolo detallado siguiente. Registrar entrada y salida por separado; DAT conectado no prueba audio. Para cámara mantener ambas confirmaciones y verificar que nunca captura al volver de Meta AI ni envía sin autorización.
 
 No marques una prueba como superada sin observarla en el dispositivo indicado. Conserva fecha, commit/APK, Android, Meta AI, modelo de gafas y firmware en un registro privado. Si compartes una incidencia, usa únicamente el informe filtrado de Diagnóstico y elimina información personal. Las observaciones de la aplicación tienen hora; un resultado antiguo no demuestra el estado actual.
 

@@ -12,10 +12,11 @@ Aplicación Android Kotlin con Meta Wearables Device Access Toolkit y OpenAI Rea
 
 1. Contrasta las APIs con las muestras actuales de Meta: registro, modo de desarrollador, permisos, descubrimiento y ciclo de sesión/cámara. No inventes APIs ni deduzcas soporte físico de la existencia de un artefacto Maven.
 2. Mantén conexión y desconexión explícitas, estados visibles, liberación de recursos y pruebas.
-3. La clave privada de OpenAI vive solo en el servidor. Exige autenticación y límites de uso antes de emitir credenciales temporales.
+3. v0.4.0 admite BYOK por petición expresa del usuario: clave personal cifrada con AES-GCM y Android Keystore, advertencia explícita del riesgo de un cliente móvil, sin logs, copias ni exportación de credenciales. Conserva el backend como alternativa más segura, con autenticación y límites. Nunca incluyas claves de desarrollador en la APK, repositorio o CI.
 4. Usa WebRTC para voz y rutas de comunicación Android cuando estén disponibles; muestra cuándo se utiliza el teléfono. Comprueba por separado la entrada y salida de audio con hardware real antes de declarar compatibilidad.
 5. La cámara requiere consentimiento, permiso DAT y captura/vista previa explícitas. El envío a OpenAI exige una segunda confirmación. No subas vídeo ni captures permanentemente.
 6. No actives sensores al volver del segundo plano, recibir permisos o reconectar. Conserva contexto solo durante una sesión autorizada y permite interrumpir, pausar y finalizar.
+   La espera local puede reanudarse al finalizar una sesión iniciada por palabra de activación mientras se mantenga el consentimiento y la app visible. Navegar o salir revoca esa escucha; nunca se reanuda al volver a primer plano. Usa exclusivamente `createOnDeviceSpeechRecognizer`, sin fallback remoto; no prometas soporte de nombres o rutas no comprobados.
 7. Publica la APK de CI como artifact únicamente después de pruebas y compilación correctas.
 
 ## Límites y validación

@@ -1,42 +1,34 @@
-# Arquitectura de v0.3.0
+# Arquitectura de v0.4.0
 
-La base de v0.2.0 se conserva. Se añaden `Diagnostics` (estados por etapa e historial acotado en memoria), `DiagnosticScreen` (observación y controles explícitos), `LocalAudioDiagnostics` (captura breve de nivel/ruta y tono) y comprobación WebRTC solo de recepción en `RealtimeClient`. El backend admite secretos montados, códigos de error filtrados y salud sin contactar con el proveedor. `deploy/compose.yml` añade Caddy HTTPS y aislamiento del puerto del backend. `check-live.mjs` verifica de forma separada una sesión por WebSocket; no se usa para afirmar que el audio Android funciona.
-
-La lectura de los cuerpos HTTPS de credenciales y SDP se realiza en el callback de red de OkHttp, antes de reanudar la interfaz, manteniendo la cancelación activa hasta cerrar el cuerpo. No se hacen lecturas de sockets en el hilo principal.
+Base: `f067b35` (v0.3.0). Se conservan los controladores DAT, cámara y diagnósticos. La clave OpenAI puede residir en el teléfono por elección BYOK expresa; el servidor permanece opcional.
 
 ```mermaid
-flowchart LR
-    G[Gafas Meta] <-->|Registro, sesión y cámara DAT| A[Aplicación Android]
-    G <-->|Ruta de comunicación Bluetooth, si disponible| A
-    A -->|HTTPS y token personal| B[Backend autenticado]
-    B -->|Clave privada, solo servidor| O[OpenAI: credencial temporal]
-    O --> B
-    B -->|Credencial efímera de 60 segundos| A
-    A <-->|WebRTC: audio y eventos de sesión| R[OpenAI Realtime]
-    A -->|Foto solo tras confirmar envío| R
+flowchart TD
+    U[Usuario: acción y consentimiento] --> A[AssistantShell: perfil seleccionado]
+    A --> K[KeyVault: Android Keystore y AES-GCM]
+    K -->|HTTPS: clave personal| S[OpenAI: client_secrets]
+    A -->|Alternativa: token opaco| B[Backend HTTPS autenticado]
+    B --> S
+    S -->|Credencial temporal| R[RealtimeClient: WebRTC /realtime/calls]
+    A -->|Instrucciones, voz, velocidad| R
+    R -->|session.updated antes de captura| M[Audio Android: teléfono o Bluetooth]
+    U --> W[LocalWakeListener: motor on-device]
+    W -->|Frase final reconocida; destruir reconocedor| A
+    U --> D[MetaGlasses: registro y sesión DAT]
+    D --> C[Captura puntual y vista previa]
+    C -->|Segunda confirmación| R
 ```
 
-## Responsabilidades
+`AssistantProfile` valida el esquema JSON y genera instrucciones; `ProfileStore` conserva la lista y selección en preferencias privadas. La importación asigna identificadores nuevos y rechaza campos extra, archivos grandes, voces/velocidades inválidas y patrones de claves. Nunca serializa `KeyVault`. Los perfiles no son secretos cifrados: los campos personales se deben tratar con cuidado.
 
-- `MainActivity`: interfaz Compose, consentimiento, permisos Android y contrato de permisos de Meta. Al pasar a segundo plano cierra voz y gafas; nunca reanuda sensores al volver.
-- `MetaGlasses`: registro mediante Meta AI, flujos de dispositivos y metadatos, `AutoDeviceSelector`, `DeviceSession`, errores, timeout de conexión y captura única. La cámara se adjunta únicamente tras recibir `STARTED`, se espera `STREAMING` antes de capturar y se libera mediante `use` incluso al cancelar.
-- `AudioRoute`: solicita foco transitorio, selecciona un dispositivo de comunicación Android y restaura la configuración anterior al cerrar. Si desaparece la ruta Bluetooth seleccionada se detiene la conversación; no cambia silenciosamente al micrófono del teléfono durante una sesión.
-- `RealtimeClient`: credencial temporal, oferta/respuesta SDP, pista de audio y canal `oai-events`. Usa un contador de sesión para descartar callbacks antiguos tras cancelar o cerrar. Las peticiones HTTP se cancelan junto con sus corrutinas. Pausar desactiva la grabación con `PeerConnection.setAudioRecording(false)`, la pista del micrófono y limpia las colas; finalizar libera los recursos nativos. Los errores nativos de entrada/salida detienen la sesión.
-- `RealtimeProtocol`: validación de URL y credenciales, eventos GA e imagen como mensaje de usuario dentro de la misma conversación.
-- `backend/server.mjs`: hashes de tokens personales, límites por identidad/globales, acceso a OpenAI con timeout y respuesta mínima sin caché. No recibe audio ni fotos.
+`KeyVault` cifra con AES-GCM/128 bits de etiqueta, IV aleatorio, AAD versionada y alias de Android Keystore. No se guarda la clave personal en texto claro. Sustituir escribe una nueva envoltura autenticada; eliminar borra preferencias y alias. Una clave inválida/corrupta no se sustituye silenciosamente por una vacía. Las matrices temporales se limpian cuando es posible; los objetos String y las cabeceras HTTP pueden permanecer en memoria hasta que el recolector las libere. No hay garantía de borrado físico de memoria o flash.
 
-## Decisiones y límites
+El modo directo solicita credenciales temporales de 60 segundos usando la clave BYOK exclusivamente en `https://api.openai.com/v1/realtime/client_secrets`. WebRTC solo recibe el secreto efímero. El modo servidor conserva el contrato anterior. Ambos usan el perfil seleccionado y confirman `session.updated` antes de habilitar audio. La muestra de voz negocia solo recepción, no añade pista de micrófono y tiene timeout. Una sesión mantiene voz/contexto hasta su cierre; los cambios de perfil requieren reconectar.
 
-La aplicación y el backend mantienen la clave privada fuera de la APK. El token personal del backend se introduce en cada nueva instancia de la pantalla; no se escribe en preferencias. La única preferencia persistente es la dirección del backend. Cambiar de orientación recrea la actividad y termina la conversación deliberadamente; no hay servicio en primer plano ni escucha en segundo plano.
+`LocalWakeListener` solo crea el reconocedor on-device. Mantiene audio y resultados fuera del estado persistente, diagnósticos y red de la aplicación. Compara únicamente el mejor resultado final y una frase completa. No hay modelos de palabra clave propios, servicio de fondo ni fallback a un reconocedor remoto. El motor del sistema controla la ruta; no se atribuye a DAT. Ventanas de dos minutos, pausas de rearme, timeout de callbacks y límite de errores evitan espera infinita. La generación invalida callbacks antiguos después de detener/cambiar el perfil. El reconocedor se cancela y destruye antes de conectar el audio Realtime.
 
-El contexto pertenece a una conexión Realtime. Se mantiene durante la pausa, sin reabrir otra sesión por cada frase. No se restaura después de finalizar o perder la red. Las transcripciones visibles se limitan a los últimos 4000 caracteres y no alteran el contexto conservado por OpenAI.
+Solo una sesión iniciada por voz puede rearmar localmente al terminar, manteniendo consentimiento y visibilidad. Salir, navegar o desactivar revoca esa continuidad. En segundo plano se cierran reconocedor, WebRTC, pruebas locales y cámara; volver no inicia sensores. No existe foreground service porque no se ofrece escucha en segundo plano.
 
-El audio usa WebRTC nativo con las rutas de Android. DAT se utiliza para la conexión y cámara; no se usa `mwdat-speech`. No se presupone compatibilidad de micrófonos porque exista un artefacto en Maven. La preferencia Bluetooth selecciona la primera ruta de comunicación Bluetooth disponible e informa del nombre; si hay varios auriculares deben desconectarse los que no se quieran utilizar. Antes de iniciar, si falta Bluetooth, se muestra que se utilizará el teléfono.
+`Diagnostics` registra únicamente descripciones propias y códigos filtrados. Se distinguen emisión de credenciales, configuración de sesión y eventos nativos; ninguno acredita inteligibilidad ni gafas. `LocalAudioDiagnostics` usa un capturador distinto del reconocedor local y consulta su ruta específica. No se extrapola esa ruta a otro motor.
 
-La foto solo se transmite tras una segunda confirmación y una sesión Realtime activa. Se codifica en JPEG con un lado máximo inicial de 512 píxeles, reduciéndose más si hace falta para mantener el mensaje bajo 64 KiB. La reducción puede impedir leer texto pequeño. El flujo de vídeo DAT necesario para la captura es local y breve; no se transmite como vídeo a OpenAI.
-
-## Referencias contrastadas
-
-Meta DAT Android, revisión `f4371bc9f90249d51eb07d7f8a61e8d829294f16`, muestras CameraAccess y reglas de registro/sesión, consultadas el 26 de octubre de 2026. La configuración usa las versiones del catálogo oficial de la muestra. La publicación en Maven Central y la existencia de `mwdat-speech`/`mwdat-inputs` se verificaron en el README oficial; no se deduce de ello soporte físico.
-
-OpenAI Docs: flujo WebRTC GA, `POST /v1/realtime/client_secrets`, `POST /v1/realtime/calls`, `conversation.item.create`, `response.create`, `response.cancel`, `input_audio_buffer.clear`, `output_audio_buffer.clear` y eventos `response.output_audio_transcript.*`. No se usa la cabecera beta ni `/realtime/sessions`.
+Las pruebas JVM comprueban contratos, cifrado y comparación de frases. El emulador comprueba el proveedor real Android Keystore y almacenamiento. CI usa secretos ficticios y proveedores sustituidos; los protocolos físicos permanecen independientes. Consulta [VALIDACION.md](VALIDACION.md).

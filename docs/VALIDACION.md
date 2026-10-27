@@ -1,4 +1,26 @@
-# Validación de v0.3.0
+# Validación de v0.4.0
+
+Base: `f067b35`, rama `master`. Las pruebas nuevas se están ejecutando en CI; no deben darse por superadas hasta consultar la ejecución del commit publicado.
+
+| Comprobación v0.4.0 | Estado y límite |
+| --- | --- |
+| Backend Node | 19 pruebas superadas localmente; sin llamadas reales |
+| JVM: perfiles, frases, AES-GCM, protocolos y cancelación HTTP | Añadidas; pendiente del resultado CI |
+| Android Lint y APK debug | Pendiente de CI; no hay SDK Android local instalado |
+| Keystore y persistencia en Android | Pruebas instrumentadas preparadas para emulador; pendiente de CI |
+| Patrones de secretos en fuentes y APK | Script añadido; fuentes versionadas sin coincidencias, APK pendiente |
+| BYOK → credencial temporal → WebRTC → voz | Implementado, sin clave real disponible; prueba manual pendiente |
+| Muestra de voces oficiales y velocidad | Contrato revisado; escucha real pendiente |
+| «Atento [nombre]» | Comparación textual probada automáticamente en CI; reconocimiento acústico local pendiente de teléfono/modelo instalado |
+| Micrófono y altavoz del teléfono | Sin pruebas físicas; no extrapolar desde un emulador |
+| Ray-Ban Meta: DAT, audio y cámara | Sin hardware físico; ningún modelo certificado |
+| Backend opcional y despliegue público | Conservado; contenedores en CI, HTTPS público y conexión real pendientes |
+
+Los tests de frases no miden precisión acústica ni tasas reales de falsos positivos/negativos. Los tests de AES JVM no acreditan Keystore: esa comprobación corresponde al trabajo de emulador. Las claves de las pruebas son ficticias. El escáner no garantiza detectar todos los formatos de secretos. La comprobación real de credenciales en la aplicación es una acción del usuario y no se ejecuta con claves privadas en CI.
+
+Consulta [PRUEBAS_REALES.md](PRUEBAS_REALES.md) para registrar resultados manuales y [README](../README.md) para límites de rutas de audio, escucha y BYOK.
+
+## Historial de v0.3.0
 
 Registro de trabajo del 26 de octubre de 2026. **Las pruebas automáticas y la revisión de muestras no sustituyen las pruebas con gafas reales.**
 

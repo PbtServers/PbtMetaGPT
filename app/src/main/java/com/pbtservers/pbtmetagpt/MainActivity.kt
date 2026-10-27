@@ -39,6 +39,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var voice: RealtimeClient
     private val diagnostics = Diagnostics()
     private lateinit var localAudio: LocalAudioDiagnostics
+    private lateinit var wake: LocalWakeListener
+    private lateinit var vault: KeyVault
+    private var wakeStart: () -> Unit = {}
     private var microphoneReady by mutableStateOf(false)
     private var bluetoothReady by mutableStateOf(false)
     private var foreground = false
@@ -68,6 +71,8 @@ class MainActivity : ComponentActivity() {
         glasses = MetaGlasses(this, lifecycleScope, { message = it }, diagnostics)
         voice = RealtimeClient(this, lifecycleScope, { message = it }, diagnostics)
         localAudio = LocalAudioDiagnostics(this, lifecycleScope, diagnostics)
+        vault = KeyVault(this)
+        wake = LocalWakeListener(this, lifecycleScope) { if (foreground) wakeStart() }
         lifecycleScope.launch {
             var previouslyConnected = false
             glasses.state.collect { state ->
@@ -84,27 +89,25 @@ class MainActivity : ComponentActivity() {
                 secondary = Color(0xFFB6C5FF), background = Color(0xFF0D141D), surface = Color(0xFF17212E))) {
                 val gs by glasses.state.collectAsStateWithLifecycle()
                 val vs by voice.state.collectAsStateWithLifecycle()
-                var backend by remember { mutableStateOf(preferences.getString("backend", "").orEmpty()) }
-                var token by remember { mutableStateOf("") }
-                var bluetooth by remember { mutableStateOf(false) }
                 var captureConsent by remember { mutableStateOf(false) }
                 var sendConsent by remember { mutableStateOf(false) }
-                var diagnosticsOpen by remember { mutableStateOf(false) }
                 val localBusy by localAudio.busy.collectAsStateWithLifecycle()
-                if (diagnosticsOpen) DiagnosticScreen(diagnostics, voice, localAudio,
-                    configured = backend.isNotBlank() && token.isNotBlank(), backend = backend, token = token, bluetooth = bluetooth,
+                AssistantShell(this, vault, voice, wake, microphoneReady,
+                    requestMic = { microphonePermission.launch(Manifest.permission.RECORD_AUDIO) },
+                    stopAll = { wake.stop(); voice.stop(); localAudio.stop() }, report = { message = it }, bindWakeStart = { wakeStart = it }) { page, configured, backend, token, bluetooth, setBluetooth, start ->
+                if (page == "Diagnóstico") DiagnosticScreen(diagnostics, voice, localAudio,
+                    configured = configured, backend = backend, token = token, bluetooth = bluetooth,
                     microphoneReady = microphoneReady, refresh = ::refreshDiagnostics,
                     requestMic = { microphonePermission.launch(Manifest.permission.RECORD_AUDIO) },
-                    checkCamera = ::checkCameraPermission, onBack = { diagnosticsOpen = false })
+                    checkCamera = ::checkCameraPermission, onBack = { message = "Selecciona Inicio u otra pantalla en la barra superior." })
                 else Surface(Modifier.fillMaxSize()) {
                     Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF152B38), Color(0xFF0D141D))))
                         .safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                         Text("PBT / ASISTENTE PERSONAL", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
                         Text("Tu voz.\nOtra perspectiva.", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-                        Text("PbtMetaGPT · 0.3.0", style = MaterialTheme.typography.titleMedium)
-                        OutlinedButton(onClick = { refreshDiagnostics(); diagnosticsOpen = true }) { Text("Abrir diagnóstico y pruebas") }
+                        Text(page, style = MaterialTheme.typography.titleMedium)
                         Text("Habla con ChatGPT y comparte una foto cuando tú decidas. Integración con gafas pendiente de validación física.")
-                        Panel("01 · Tus gafas", "Ray-Ban Meta") {
+                        if (page == "Inicio" || page == "Dispositivos") Panel("01 · Tus gafas", "Ray-Ban Meta") {
                             Text(gs.status, color = MaterialTheme.colorScheme.primary)
                             Text(if (gs.registered) "Aplicación registrada en Meta AI" else "Aplicación sin registrar en Meta AI")
                             Text(if (gs.devices.isEmpty()) "No hay dispositivos DAT disponibles." else "Dispositivos detectados por DAT: ${gs.devices.size}")
@@ -119,26 +122,21 @@ class MainActivity : ComponentActivity() {
                             }
                             Text("Necesitas Meta AI, gafas emparejadas y modo de desarrollador o una aplicación autorizada por Meta.", style = MaterialTheme.typography.bodySmall)
                         }
-                        Panel("02 · Conversación", "Habla con ChatGPT") {
+                        if (page == "Inicio" || page == "Conversación") Panel("02 · Conversación", "Habla con ChatGPT") {
                             Text(vs.status, color = MaterialTheme.colorScheme.primary)
                             Text(vs.route, style = MaterialTheme.typography.bodySmall)
                             if (!vs.active && !vs.connecting) {
-                                OutlinedTextField(backend, { backend = it }, label = { Text("Dirección HTTPS de tu backend") }, singleLine = true,
-                                    modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
-                                OutlinedTextField(token, { token = it }, label = { Text("Token personal del backend") }, singleLine = true,
-                                    modifier = Modifier.fillMaxWidth(), visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
-                                Text("No introduzcas una clave API de OpenAI. El token personal solo se conserva en memoria.", style = MaterialTheme.typography.bodySmall)
+                                Text("Selecciona tu asistente y configura la conexión en OpenAI. El modo directo no necesita backend.")
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text("Preferir audio Bluetooth", modifier = Modifier.weight(1f).padding(top = 12.dp))
-                                    Switch(checked = bluetooth, onCheckedChange = { bluetooth = it })
+                                    Switch(checked = bluetooth, onCheckedChange = setBluetooth)
                                 }
                                 Text("Sin ruta Bluetooth de comunicación se utilizará el teléfono. Comprueba la ruta indicada; el audio de las gafas depende del firmware y de Android.", style = MaterialTheme.typography.bodySmall)
                                 if (!microphoneReady) Button(onClick = { microphonePermission.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Permitir micrófono") }
                                 else Button(onClick = {
-                                    preferences.edit().putString("backend", backend).apply()
                                     if (bluetooth && !bluetoothReady) bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
-                                    else voice.start(backend, token.trim(), bluetooth)
-                                }, enabled = backend.isNotBlank() && token.isNotBlank() && !localBusy) { Text("Iniciar conversación") }
+                                    else start()
+                                }, enabled = configured && !localBusy) { Text("Iniciar conversación") }
                             }
                             if (vs.active) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -150,7 +148,7 @@ class MainActivity : ComponentActivity() {
                             if (vs.transcript.isNotBlank()) Text(vs.transcript, style = MaterialTheme.typography.bodyLarge)
                             Text("La pausa conserva el contexto. Finalizar o salir cierra la sesión. No hay escucha en segundo plano.", style = MaterialTheme.typography.bodySmall)
                         }
-                        Panel("03 · Visión", "¿Qué estoy viendo?") {
+                        if (page == "Inicio" || page == "Dispositivos") Panel("03 · Visión", "¿Qué estoy viendo?") {
                             Text(if (gs.capturing) "Cámara activa · capturando una foto…" else "Cámara apagada", color = MaterialTheme.colorScheme.primary)
                             Text("La captura se muestra aquí antes de enviarla. No se sube vídeo ni se guardan fotos en la galería.")
                             Button(onClick = { captureConsent = true }, enabled = gs.connected && !gs.capturing && gs.photo == null) { Text("Capturar foto con las gafas") }
@@ -167,6 +165,7 @@ class MainActivity : ComponentActivity() {
                         Text("Privacidad bajo tu control", style = MaterialTheme.typography.titleMedium)
                         Text("El audio y las fotos que autorices se envían a OpenAI. La suscripción ChatGPT y la facturación de la API son independientes. Versión pendiente de pruebas con gafas reales.", style = MaterialTheme.typography.bodySmall)
                     }
+                }
                 }
                 if (captureConsent) AlertDialog(onDismissRequest = { captureConsent = false }, title = { Text("Autorizar captura") },
                     text = { Text("Se abrirá brevemente la cámara de las gafas para una única foto. Revísala antes de autorizar su envío a OpenAI.") },
@@ -219,7 +218,7 @@ class MainActivity : ComponentActivity() {
         }.onFailure { diagnostics.record(Check.ROUTE, CheckStatus.WARNING, "Android no permite consultar las rutas en este momento.", "ROUTE_QUERY") }
     }
     override fun onStart() { super.onStart(); foreground = true; refreshDiagnostics() }
-    override fun onStop() { foreground = false; localAudio.stop(); voice.stop(); glasses.stopCapture(); glasses.disconnect(); super.onStop() }
+    override fun onStop() { foreground = false; wake.stop(); localAudio.stop(); voice.stop(); glasses.stopCapture(); glasses.disconnect(); super.onStop() }
 }
 
 @Composable

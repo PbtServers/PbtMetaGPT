@@ -28,15 +28,15 @@ fun DiagnosticScreen(
     val idle = !vs.active && !vs.connecting && !busy
     Surface(Modifier.fillMaxSize()) {
         Column(Modifier.safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("Diagnóstico · 0.3.0", style = MaterialTheme.typography.headlineMedium)
+            Text("Diagnóstico · 0.4.0", style = MaterialTheme.typography.headlineMedium)
             Text("Los resultados muestran observaciones reales. Una etapa observada no certifica las gafas ni sustituye una prueba física. Las fechas pertenecen al último intento de cada comprobación.")
             Button(onClick = { audio.stop(); onBack() }) { Text("Volver al asistente") }
             OutlinedButton(onClick = refresh) { Text("Actualizar permisos, Bluetooth y rutas") }
             OutlinedButton(onClick = checkCamera) { Text("Consultar permiso de cámara DAT") }
-            if (!configured) Text("Introduce la dirección HTTPS y el token personal en el asistente para probar OpenAI.")
+            if (!configured) Text("Guarda un asistente y configura la clave personal o el servidor alternativo en OpenAI.")
             Button(onClick = { consent = "credencial" }, enabled = idle && configured) { Text("Comprobar credencial temporal") }
             Button(onClick = { consent = "realtime" }, enabled = idle && configured) { Text("Verificar Realtime sin micrófono") }
-            Text("Las comprobaciones de OpenAI son reales y pueden consumir cuota. La primera solo valida la emisión de una credencial. La segunda negocia WebRTC y espera session.created, sin capturar voz ni solicitar respuestas.")
+            Text("Las comprobaciones de OpenAI son reales y pueden consumir cuota. La primera solo valida la emisión de una credencial. La segunda negocia WebRTC y confirma la configuración del perfil, sin capturar voz ni solicitar respuestas.")
             if (!microphoneReady) OutlinedButton(onClick = requestMic) { Text("Permitir micrófono para la prueba local") }
             Button(onClick = { consent = "microfono" }, enabled = idle && microphoneReady) { Text("Probar micrófono durante 3 segundos") }
             Button(onClick = { consent = "altavoz" }, enabled = idle) { Text("Reproducir tono de prueba") }
@@ -69,7 +69,7 @@ fun DiagnosticScreen(
             "microfono" -> "Se capturarán unos 3 segundos de audio para medir el nivel y consultar la ruta. Habla ahora al dispositivo que quieras probar. No se guarda ni envía audio."
             "altavoz" -> "Se reproducirá un tono suave durante un segundo por la ruta elegida. Comprueba el volumen antes de comenzar y confirma después dónde lo has oído."
             "realtime" -> "Se emitirá una credencial y se negociará una conexión real con OpenAI. No se activa el micrófono ni se solicita una respuesta. Puede consumir cuota."
-            else -> "El backend emitirá una credencial temporal real. No se mostrará ni guardará. No se activan micrófono ni cámara."
+            else -> "Se solicitará una credencial temporal real a OpenAI mediante el modo configurado. No se mostrará ni guardará. No se activan micrófono ni cámara."
         }
         AlertDialog(onDismissRequest = { consent = null }, title = { Text("Autorizar comprobación") }, text = { Text(description) },
             confirmButton = { TextButton(onClick = {
