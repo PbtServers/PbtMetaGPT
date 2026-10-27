@@ -34,13 +34,16 @@ def package_voice(model, tokens, lexicon, output, *, name, language, license_nam
         raise ValueError("La salida no puede sobrescribir un archivo de entrada.")
     if output.exists():
         raise ValueError("La salida ya existe; elige otro nombre para conservar tu copia.")
+    created = False
     try:
         with zipfile.ZipFile(output, "x", zipfile.ZIP_DEFLATED) as archive:
+            created = True
             archive.writestr("voz.json", json.dumps(metadata, ensure_ascii=False, indent=2))
             for target, path in paths.items():
                 archive.write(path, target)
     except Exception:
-        output.unlink(missing_ok=True)
+        if created:
+            output.unlink(missing_ok=True)
         raise
 
 

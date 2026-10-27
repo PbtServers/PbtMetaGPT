@@ -32,8 +32,9 @@ class LocalWakeListener(private val context: Context, private val scope: Corouti
     fun available() = SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
     fun start(selected: AssistantProfile) = start(listOf(selected))
     fun test(selected: AssistantProfile, phrase: ActivationPhrase) {
-        start(selected.copy(activationPhrases = listOf(phrase.copy(enabled = true, primary = true))))
-        testing = true
+        if (!phrase.enabled) { stop(); mutable.value = "La frase está desactivada. Actívala para probarla."; return }
+        start(selected.copy(activationPhrases = listOf(phrase.copy(primary = true))))
+        testing = armed
     }
     fun start(profiles: List<AssistantProfile>) {
         stop()

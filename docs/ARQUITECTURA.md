@@ -1,34 +1,62 @@
-# Arquitectura de v0.4.0
+# Arquitectura · ampliación experimental 0.4.1-dev
 
-Base: `f067b35` (v0.3.0). Se conservan los controladores DAT, cámara y diagnósticos. La clave OpenAI puede residir en el teléfono por elección BYOK expresa; el servidor permanece opcional.
+Base de v0.4.0: `34ef4f5`. El identificador sigue siendo `com.pbtservers.pbtmetagpt`. La ampliación incorpora perfiles v2, frases múltiples y síntesis separada; no constituye certificación de audio o gafas.
 
 ```mermaid
 flowchart TD
-    U[Usuario: acción y consentimiento] --> A[AssistantShell: perfil seleccionado]
-    A --> K[KeyVault: Android Keystore y AES-GCM]
-    K -->|HTTPS: clave personal| S[OpenAI: client_secrets]
-    A -->|Alternativa: token opaco| B[Backend HTTPS autenticado]
-    B --> S
-    S -->|Credencial temporal| R[RealtimeClient: WebRTC /realtime/calls]
-    A -->|Instrucciones, voz, velocidad| R
-    R -->|session.updated antes de captura| M[Audio Android: teléfono o Bluetooth]
-    U --> W[LocalWakeListener: motor on-device]
-    W -->|Frase final reconocida; destruir reconocedor| A
-    U --> D[MetaGlasses: registro y sesión DAT]
-    D --> C[Captura puntual y vista previa]
-    C -->|Segunda confirmación| R
+    U[Acción y consentimiento del usuario] --> W[SpeechRecognizer on-device, solo app visible]
+    W --> G[ActivationGate: frase final inequívoca y una sola activación]
+    G --> P[Perfil: nombre, avatar, instrucciones, frases y voz]
+    U --> P
+    P --> K[KeyVault OpenAI: AES-GCM / Keystore]
+    K -->|HTTPS oficial| E[OpenAI: secreto temporal]
+    P -->|Alternativa opcional| B[Backend autenticado HTTPS]
+    B --> E
+    E --> R[RealtimeClient: WebRTC, contexto y session.updated]
+    R --> N[Salida nativa: audio OpenAI]
+    R -->|Solo texto para otros motores| Q[SpeechTaskQueue: cancelar/invalidate/vaciar]
+    Q --> A[Android TTS local instalado]
+    Q --> S[OpenAI Speech transitorio]
+    Q --> X[API TTS autorizada, credencial separada]
+    Q --> M[Modelo Piper en proceso aislado]
+    A --> C[PCM16 mono / PcmPlayer]
+    S --> C
+    X --> C
+    M --> C
+    N --> O[Ruta Android: teléfono o Bluetooth solicitado]
+    C --> O
+    U --> D[DAT: registro/sesión y captura puntual]
+    D -->|Vista previa y segunda confirmación| R
 ```
 
-`AssistantProfile` valida el esquema JSON y genera instrucciones; `ProfileStore` conserva la lista y selección en preferencias privadas. La importación asigna identificadores nuevos y rechaza campos extra, archivos grandes, voces/velocidades inválidas y patrones de claves. Nunca serializa `KeyVault`. Los perfiles no son secretos cifrados: los campos personales se deben tratar con cuidado.
+## Datos y activación
 
-`KeyVault` cifra con AES-GCM/128 bits de etiqueta, IV aleatorio, AAD versionada y alias de Android Keystore. No se guarda la clave personal en texto claro. Sustituir escribe una nueva envoltura autenticada; eliminar borra preferencias y alias. Una clave inválida/corrupta no se sustituye silenciosamente por una vacía. Las matrices temporales se limpian cuando es posible; los objetos String y las cabeceras HTTP pueden permanecer en memoria hasta que el recolector las libere. No hay garantía de borrado físico de memoria o flash.
+`AssistantProfile` v2 conserva datos anteriores y añade frases, avatar textual, confirmación, bienvenida, duración y selección de síntesis. Se importan esquemas v1/v2 con campos permitidos, valores acotados y sin almacenes de secretos; el conjunto tiene un presupuesto de 256 KiB. Los modelos se exportan como referencia local, nunca como pesos ni código. El contexto de conversación solo vive en la conexión remota y memoria de sesión.
 
-El modo directo solicita credenciales temporales de 60 segundos usando la clave BYOK exclusivamente en `https://api.openai.com/v1/realtime/client_secrets`. WebRTC solo recibe el secreto efímero. El modo servidor conserva el contrato anterior. Ambos usan el perfil seleccionado y confirman `session.updated` antes de habilitar audio. La muestra de voz negocia solo recepción, no añade pista de micrófono y tiene timeout. Una sesión mantiene voz/contexto hasta su cierre; los cambios de perfil requieren reconectar.
+`ActivationPhrase` almacena texto, nombre automático, estado y principal. `PhraseMatcher` normaliza texto latino, evalúa coincidencias exactas primero y aplica tolerancia textual opcional conservadora. Ante varios perfiles candidatos se rechaza, sin desempatar por orden. `ActivationGate` consume una sola coincidencia y generaciones invalidadas impiden callbacks tardíos. No es autenticación ni detector acústico propio.
 
-`LocalWakeListener` solo crea el reconocedor on-device. Mantiene audio y resultados fuera del estado persistente, diagnósticos y red de la aplicación. Compara únicamente el mejor resultado final y una frase completa. No hay modelos de palabra clave propios, servicio de fondo ni fallback a un reconocedor remoto. El motor del sistema controla la ruta; no se atribuye a DAT. Ventanas de dos minutos, pausas de rearme, timeout de callbacks y límite de errores evitan espera infinita. La generación invalida callbacks antiguos después de detener/cambiar el perfil. El reconocedor se cancela y destruye antes de conectar el audio Realtime.
+`LocalWakeListener` solo crea el reconocedor on-device; nunca fallback remoto. Una ventana de dos minutos, timeout, rearme con pausas y límite de errores acotan recursos. No guarda audio/resultados ni abre Realtime para detectar frases. El sistema selecciona la ruta del reconocedor. Se comparan todas las frases activas del grupo de idioma; solo las sugerencias Binder se acotan a 32 Ki caracteres. No hay entrenamiento por frase, sensibilidad acústica expuesta ni servicio de fondo.
 
-Solo una sesión iniciada por voz puede rearmar localmente al terminar, manteniendo consentimiento y visibilidad. Salir, navegar o desactivar revoca esa continuidad. En segundo plano se cierran reconocedor, WebRTC, pruebas locales y cámara; volver no inicia sensores. No existe foreground service porque no se ofrece escucha en segundo plano.
+## Conversación y síntesis
 
-`Diagnostics` registra únicamente descripciones propias y códigos filtrados. Se distinguen emisión de credenciales, configuración de sesión y eventos nativos; ninguno acredita inteligibilidad ni gafas. `LocalAudioDiagnostics` usa un capturador distinto del reconocedor local y consulta su ruta específica. No se extrapola esa ruta a otro motor.
+`RealtimeSettings` configura `output_modalities` según motor y valida lo confirmado antes de abrir el micrófono. Nativo exige audio y voz/velocidad solicitadas. Alternativo exige texto, deshabilita playout y pista remota de audio, y sintetiza únicamente respuestas completadas no canceladas. No se cambian voces silenciosamente ante errores.
 
-Las pruebas JVM comprueban contratos, cifrado y comparación de frases. El emulador comprueba el proveedor real Android Keystore y almacenamiento. CI usa secretos ficticios y proveedores sustituidos; los protocolos físicos permanecen independientes. Consulta [VALIDACION.md](VALIDACION.md).
+`AlternativeSpeech` prepara el adaptador antes de solicitar credenciales y sintetiza mediante Android, Speech, API o `LocalModelClient`. `SpeechTaskQueue` coordina un trabajo cancelable, generación y reproductor único; descarta resultados que llegan después de detener o sustituir un trabajo. La prueba con sintetizador sustituido acredita esa coordinación, no la calidad acústica de un motor.
+
+Los adaptadores entregan `PcmAudio` al reproductor común. La API externa tiene contrato estricto JSON/PCM16 mono, HTTPS, Content-Type y frecuencia declarada, con cuerpo limitado y HTTP cancelable. Android TTS usa voces declaradas locales/instaladas y WAV temporal privado; solo se acepta WAV PCM16 mono, se borra al cerrar/cancelar y se limpian restos al arrancar. La síntesis alternativa pausa captura mientras genera/reproduce para evitar realimentación; la interrupción manual permite escuchar si no está pausado. El texto completo sigue en el contexto aunque no se escuche entero.
+
+## Modelos de usuario
+
+`VoicePackageStore` acepta cuatro archivos fijos de datos. Limita descompresión, rechaza duplicados/rutas/código, verifica CRC/hashes y metadatos protobuf VITS/Piper conforme al runtime, y publica atómicamente. `PronunciationLexicon` exige palabras y símbolos cubiertos; no inventa G2P. El manifiesto declara motor/versión, RAM/idioma, autorización, licencia y procedencia. Una revisión estructural no garantiza ejecución ni derechos.
+
+`ModelVoiceService` es un servicio no exportado con UID aislado y una instancia por petición. Solo recibe modelo/símbolos por descriptores de lectura, pronunciaciones y un pipe PCM. Copia datos a memfd propios para no abrir permisos de archivos privados de otro UID. No recibe claves o acceso a datos de la app. El runtime proviene de un AAR oficial con SHA-256 fijado, nunca del paquete.
+
+Se acotan RAM/ABI, tamaño de modelo/diccionario, pronunciaciones Binder, salida PCM, tiempo y segmentos de inferencia. Los fallos de JNI/modelo se confinan al proceso; cancelación ordena su cierre. Los diagnósticos solo contienen etapas/tipos filtrados, no mensajes originales. CI puede mostrar logs nativos de su fixture pública sin claves reales; no se activa registro de conversaciones de usuarios.
+
+## Seguridad y ciclo de vida
+
+`KeyVault` separa alias/almacenes para OpenAI y API TTS. AES-256-GCM usa IV aleatorio y AAD; Keystore guarda claves no exportables por su API. Los Strings/cabeceras existen temporalmente en memoria: no hay garantía contra proceso comprometido. La credencial personal solo se transmite al host oficial; los proveedores externos requieren autorización y token propio. Revocar autorización impide nuevas síntesis; borrar local no revoca remotamente una clave.
+
+Salir detiene reconocedor, HTTP/WebRTC, pruebas, reproducción, síntesis y cámara. Volver no reactiva sensores. La ventana local puede rearmarse al finalizar una sesión iniciada por voz, con consentimiento y visibilidad vigentes. DAT/cámara conservan registro/sesión explícitos y dos consentimientos; ninguna activación enciende la cámara.
+
+Los informes no incluyen claves, URL personales, nombres de dispositivos, transcripciones, modelos privados ni imágenes. Los tests estructurales ficticios y la fixture real de inferencia se documentan por separado en [VALIDACION.md](VALIDACION.md). Las pruebas físicas siguen [PRUEBAS_REALES.md](PRUEBAS_REALES.md).

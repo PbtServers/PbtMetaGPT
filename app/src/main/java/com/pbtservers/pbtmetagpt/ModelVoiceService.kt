@@ -84,6 +84,8 @@ class ModelVoiceService : Service() {
                 } catch (problem: Throwable) {
                     val type = Diagnostics.sdkCode(problem)
                     android.util.Log.e("PbtModelo", "Etapa $stage; tipo $type; mensaje original omitido")
+                    // Exclusivo de la prueba con modelo público fijado: nunca se activa desde la interfaz ni para modelos del usuario.
+                    if (BuildConfig.DEBUG && data.getBoolean("public_fixture_diagnostics")) android.util.Log.e("PbtFixture", problem.message.orEmpty().take(3000))
                     runCatching { reply.send(Message.obtain(null, 4).apply { arg1 = stage; this.data = Bundle().apply { putString("type", type) } }) }
                 }
                 finally {

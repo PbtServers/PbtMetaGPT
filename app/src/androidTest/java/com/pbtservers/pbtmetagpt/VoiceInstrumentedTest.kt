@@ -17,7 +17,7 @@ class VoiceInstrumentedTest {
         val assets = InstrumentationRegistry.getInstrumentation().context.assets
         try {
             val pack = withContext(Dispatchers.IO) { assets.open("modelo-prueba.zip").use { store.install(it) } }
-            val audio = withContext(Dispatchers.Main) { LocalModelClient(context).synthesize(store, pack.id, pack.sampleText, 1.0) }
+            val audio = withContext(Dispatchers.Main) { LocalModelClient(context, publicFixtureDiagnostics = true).synthesize(store, pack.id, pack.sampleText, 1.0) }
             assertTrue(audio.sampleRate in 8000..48000)
             assertTrue(audio.bytes.size > audio.sampleRate / 5)
             assertTrue(audio.bytes.any { it.toInt() != 0 })

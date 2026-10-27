@@ -1,4 +1,23 @@
-# Protocolo de pruebas reales · v0.4.0
+# Protocolo de pruebas reales · ampliación 0.4.1-dev
+
+## Pruebas adicionales de voces y activación múltiple
+
+**Pendientes de teléfono/gafas.** Las comprobaciones de CI, incluidas muestras PCM de un modelo real, no acreditan inteligibilidad ni rutas físicas. Anota commit/APK, fecha, Android, motor y versión, idioma instalado, voz/modelo y licencia/procedencia, firmware y resultados. No subas claves, archivos privados, conversaciones ni grabaciones.
+
+1. Crear dos personajes distintos con avatar, formalidad, bienvenida, duración y motor/voz independientes. Añadir «Atento» con nombre automático, «Escucha» con nombre y una frase sin nombre añadido. Elegir principal, desactivar otra, eliminar/editar y reiniciar. Renombrar: solo las frases automáticas deben cambiar. Exportar/importar y reasociar modelos locales en otro dispositivo sin copiar credenciales.
+2. Con consentimiento local, probar cada frase mediante su botón de micrófono sin abrir OpenAI. Alternar coincidencia exacta/tolerante y comprobar por separado textos y sonidos. Sin motor local/idioma instalado, exigir error y control manual, nunca reconocimiento remoto.
+3. Escuchar varios asistentes del mismo idioma, comprobar selección inequívoca y rechazo de una frase compartida. Repetir resultados parciales/distractores/nombres similares, entradas rápidas y callbacks tardíos: no deben abrir sesiones duplicadas. Probar frases de una palabra con ruido/televisión; pueden activarse accidentalmente y no autorizan cámara ni identifican a la persona.
+4. Navegar, bloquear pantalla, salir, denegar/revocar micrófono y desactivar: debe cerrar escucha y no reanudarse al regresar. Medir huecos de rearme, batería y los límites de ventana/error. No atribuir la ruta del reconocedor a DAT ni a la prueba de otro capturador.
+5. Native Realtime: con clave real limitada, iniciar sesión y confirmar voz/contexto, bienvenida opcional, interrupción y fin por duración. La muestra no debe abrir micrófono. Cambiar voz requiere reconectar.
+6. Android TTS: instalar un proveedor local autorizado y su idioma, consultar voces, seleccionar una que se declare local e instalada y guardar. Probar velocidad/tono aceptados, muestra, error de proveedor y limpieza del WAV temporal al detener/cerrar. Confirmar físicamente la voz y ruta; una voz que declara no necesitar red no prueba las prácticas de privacidad del proveedor.
+7. Modelo local: preparar un paquete propio/autorizado con la herramienta documentada. Importar, revisar requisitos reales, probar su texto cubierto por diccionario y confirmar pronunciación. Palabra no cubierta: error explícito, sin inventar pronunciación ni cambiar de motor. Un modelo que agota recursos o falla debe cerrar su proceso aislado; la app debe seguir respondiendo.
+8. Rechazar ZIP truncado, CRC/hash incorrectos, directorios/rutas, duplicados, ejecutables, metadatos desconocidos, licencia/procedencia ausentes, ONNX no compatible y diccionario/símbolos inconsistentes. Probar equipo sin RAM/ABI adecuados. Eliminar el modelo libera sus archivos y deja una referencia que exige seleccionar otra voz; no descargar ni instalar código del paquete.
+9. API TTS externa: usar un endpoint propio autorizado que cumpla JSON/PCM16 mono little-endian, frecuencia y Content-Type documentados. Comprobar autorización, token separado, HTTPS, errores 401/429, respuesta JSON/WAV incompatible y cancelación. Verificar en el servidor que nunca recibe la clave OpenAI de la app. Revocar autorización debe impedir nuevos envíos hasta guardarla otra vez.
+10. Ruta alternativa completa: OpenAI recibe audio autorizado y produce solo texto; comprobar que no se oye salida nativa junto al TTS. Durante síntesis/reproducción alternativa, verificar micrófono apagado. Interrumpir mientras conecta, genera, espera API o reproduce: no debe sonar audio tardío. Reanudar preguntas en la misma sesión conserva contexto; el texto completo puede seguir en el contexto aunque se interrumpa su lectura.
+11. Comparar latencia/recursos entre nativo y alternativo y respuestas largas. Los límites de texto/PCM/tiempo deben informar del error; no suprimir datos ni presentar silencio como éxito. Comprobar fecha de retirada de Speech: al llegar se deshabilita y debe elegirse otro motor.
+12. Repetir entrada y salida con Ray-Ban Meta por separado. Comprobar TTS, conversación, pausa, desconexión y ruta del teléfono como alternativa. Mantener las dos confirmaciones de cámara; ninguna frase o bienvenida activa imágenes automáticamente.
+
+El resto del protocolo conserva las pruebas de BYOK, servidor, DAT y cámara. Una validación correcta solo se refiere a la combinación concreta probada.
 
 ## Primera aceptación sin backend ni gafas
 

@@ -11,7 +11,7 @@ import kotlin.coroutines.resumeWithException
 
 data class PcmAudio(val bytes: ByteArray, val sampleRate: Int)
 
-class LocalModelClient(private val context: Context) {
+class LocalModelClient(private val context: Context, private val publicFixtureDiagnostics: Boolean = false) {
     fun checkHardware(pack: VoicePackage) {
         val info = ActivityManager.MemoryInfo().also { context.getSystemService(ActivityManager::class.java).getMemoryInfo(it) }
         if (!Build.SUPPORTED_ABIS.any { it in setOf("arm64-v8a", "x86_64") } || info.totalMem / 1048576 < pack.minRamMb || info.lowMemory)
@@ -42,7 +42,7 @@ class LocalModelClient(private val context: Context) {
                     remote = Messenger(binder)
                     remote!!.send(Message.obtain(null, 1).apply {
                         replyTo = reply
-                        data = Bundle().apply { putParcelable("model", model); putParcelable("tokens", tokens); putParcelable("audio", pipe[1]); putIntArray("phonemes", phonemes); putFloat("speed", speed.toFloat()) }
+                        data = Bundle().apply { putParcelable("model", model); putParcelable("tokens", tokens); putParcelable("audio", pipe[1]); putIntArray("phonemes", phonemes); putFloat("speed", speed.toFloat()); putBoolean("public_fixture_diagnostics", publicFixtureDiagnostics && BuildConfig.DEBUG) }
                     })
                     // Binder duplicó los descriptores. Cerrar el escritor local permite detectar EOF real.
                     pipe[1].close()

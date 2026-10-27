@@ -57,7 +57,7 @@ fun VoiceLibraryScreen(context: Context, profile: AssistantProfile, change: (Ass
         FilterChip(selected = profile.ttsEngine == id, enabled = id != "openai_tts" || VoiceSynthesisContract.speechAvailable(), onClick = { stop(); change(profile.copy(ttsEngine = id, ttsVoice = "", ttsPackage = "", pitch = 1.0,
             voice = if (id != "openai_tts" && profile.voice !in RealtimeSettings.voices) "marin" else profile.voice)) }, label = { Text(title) })
     }
-    Text("Motor del perfil: ${profile.ttsEngine}. Guarda y abre una sesión nueva para aplicar los cambios.")
+    Text("Motor del perfil: ${VoiceSynthesisContract.label(profile.ttsEngine)}. Guarda y abre una sesión nueva para aplicar los cambios.")
     if (profile.ttsEngine in listOf("realtime", "openai_tts")) {
         Text("Voces oficiales")
         (if (profile.ttsEngine == "openai_tts") RealtimeSettings.speechVoices else RealtimeSettings.voices).forEach { id -> FilterChip(selected = profile.voice == id, onClick = { change(profile.copy(voice = id)) }, label = { Text(id) }) }

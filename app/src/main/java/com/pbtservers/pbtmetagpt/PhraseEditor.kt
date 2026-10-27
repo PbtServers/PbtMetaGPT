@@ -10,9 +10,17 @@ import androidx.compose.ui.unit.dp
 fun PhraseEditor(profile: AssistantProfile, change: (AssistantProfile) -> Unit, test: (ActivationPhrase) -> Unit, stop: () -> Unit) {
     var consent by remember { mutableStateOf(false) }
     var heard by remember { mutableStateOf("") }
+    var page by remember(profile.id) { mutableIntStateOf(0) }
+    val last = ((profile.activationPhrases.size - 1).coerceAtLeast(0)) / 10
+    val shown = page.coerceAtMost(last)
     Text("Frases de activación", style = MaterialTheme.typography.titleLarge)
     Text("No hay un límite de número de frases. El conjunto de perfiles debe caber en los 256 KiB del formato de almacenamiento/importación. Cada frase admite 160 caracteres para mantener acotada la ventana de reconocimiento.")
-    profile.activationPhrases.forEach { phrase -> key(phrase.id) {
+    Text("Página ${shown + 1}/${last + 1} · ${profile.activationPhrases.size} frases en total. La paginación solo limita lo dibujado, no la detección.")
+    Row {
+        TextButton(onClick = { page = shown - 1 }, enabled = shown > 0) { Text("Página anterior") }
+        TextButton(onClick = { page = shown + 1 }, enabled = shown < last) { Text("Página siguiente") }
+    }
+    profile.activationPhrases.drop(shown * 10).take(10).forEach { phrase -> key(phrase.id) {
         fun update(value: ActivationPhrase) = change(profile.copy(activationPhrases = profile.activationPhrases.map { if (it.id == phrase.id) value else it }))
         Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(phrase.text, { if (it.length <= 160) update(phrase.copy(text = it)) }, label = { Text("Texto de la frase") }, modifier = Modifier.fillMaxWidth())
@@ -21,10 +29,10 @@ fun PhraseEditor(profile: AssistantProfile, change: (AssistantProfile) -> Unit, 
             Row { Checkbox(phrase.enabled, { update(phrase.copy(enabled = it)) }); Text("Frase activada") }
             Row { RadioButton(phrase.primary, { change(profile.copy(activationPhrases = profile.activationPhrases.map { it.copy(primary = it.id == phrase.id) })) }); Text("Frase principal") }
             TextButton(onClick = { change(profile.copy(activationPhrases = profile.activationPhrases.filterNot { it.id == phrase.id })) }) { Text("Eliminar frase") }
-            OutlinedButton(onClick = { test(phrase) }, enabled = consent && phrase.rendered(profile.name).isNotBlank()) { Text("Probar esta frase con micrófono") }
+            OutlinedButton(onClick = { test(phrase) }, enabled = consent && phrase.enabled && phrase.rendered(profile.name).isNotBlank()) { Text("Probar esta frase con micrófono") }
         } }
     } }
-    Button(onClick = { change(profile.copy(activationPhrases = profile.activationPhrases + ActivationPhrase(text = "", appendName = false))) }) { Text("Añadir frase") }
+    Button(onClick = { page = profile.activationPhrases.size / 10; change(profile.copy(activationPhrases = profile.activationPhrases + ActivationPhrase(text = "", appendName = false))) }) { Text("Añadir frase") }
     Row { Checkbox(profile.tolerantActivation, { change(profile.copy(tolerantActivation = it)) }); Text("Tolerar una diferencia textual en la última palabra larga") }
     Text("Esto no ajusta sensibilidad acústica. Las frases de una sola palabra y las parecidas aumentan el riesgo de activaciones accidentales. El motor Android no expone un umbral de sensibilidad.")
     OutlinedTextField(heard, { heard = it.take(160) }, label = { Text("Comprobar comparación escrita (sin micrófono)") }, modifier = Modifier.fillMaxWidth())
