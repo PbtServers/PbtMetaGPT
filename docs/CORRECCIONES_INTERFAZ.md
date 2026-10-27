@@ -102,6 +102,8 @@ Pendientes físicos: reproducción de voces y ambos cierres, registro/cancelaci�
 
 ## Archivos de esta intervención
 
+Corrección posterior de CI: en `8f06bf6`, los tests de gafas trataban incorrectamente `DeviceIdentifier` como si fuera un `String`. El parche envuelve las tres fixtures con `DeviceIdentifier(...)` y corrige la comparación del identificador, conservando casos y aserciones. La clase de producción no se cambia. La [CI 40536110246](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40536110246) falló al compilar las pruebas JVM; no acredita emulador ni APK. El nuevo resultado debe comprobarse en la ejecución del commit correctivo. El porcentaje permanece en 60 % hasta obtener nuevas verificaciones satisfactorias.
+
 Implementación local `d57101d` y cierre documental posterior. Los seis archivos locales preexistentes se conservan fuera de estos commits.
 
 - `README.md`

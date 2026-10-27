@@ -17,9 +17,17 @@ Tarea independiente del **85 % funcional** documentado abajo. Base `654d06d`; RE
 
 Commit local de implementación: **`d57101d`**. Añadidas 17 pruebas JVM y 13 Android (pendientes de ejecución), además de actualizar el recorrido del Setup existente y añadir cuatro contratos Python ejecutados. Análisis sintáctico: 59 archivos Kotlin sin errores, sin comprobar tipos. Fotografía: la condición antigua exigía una sesión Realtime activa aunque la clave estuviera comprobada; ahora permite confirmar y abrir una sesión de imagen con micrófono apagado, conservando el bitmap en memoria.
 
-Se localizó Java 17 en `G:\Programas\zulu-17`; Gradle termina con **SDK location not found**. Descarga de Sherpa bloqueada por red; servidor ADB no disponible por restricciones del entorno. No se declaran JVM, Lint, compilación ni instrumentadas superadas. Git no puede conectar a GitHub y el conector rechaza escritura con **HTTP 403 / Resource not accessible by integration**. No hay push, ejecución CI ni APK de esta intervención. No se reutiliza el resultado de un SHA anterior.
+Se localizó Java 17 en `G:\Programas\zulu-17`; Gradle termina con **SDK location not found**. Descarga de Sherpa bloqueada por red; servidor ADB no disponible por restricciones del entorno. En el turno inicial, Git no podía conectar a GitHub y el conector rechazaba escritura con **HTTP 403 / Resource not accessible by integration**; entonces no había push ni CI de esta intervención. La ejecución posterior se registra a continuación. No se reutiliza el resultado de un SHA anterior.
 
 Cambios documentales locales preexistentes conservados y excluidos de los commits. README: una línea genérica ampliada a Meta Wearables y dos párrafos breves (Setup/familias); apartados, tablas, badges y advertencias conservados. No hay pruebas físicas nuevas ni Release estable. Próximo paso: disponer de SDK/runtime y acceso de publicación, ejecutar el conjunto Android y analizar Logcat de los dos cierres en 00R6 antes de declararlos resueltos. El protocolo y las causas confirmadas/pendientes están en el documento de correcciones.
+
+### Corrección de tipos en las pruebas DAT
+
+`8f06bf6` ya figura publicado en `origin/master`. La [ejecución 40536110246](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40536110246) confirma compilación Kotlin de producción y backend/contenedores correctos, pero falla en `:app:compileDebugUnitTestKotlin`: tres fixtures de `GlassesDeviceTest` pasaban `String` en lugar de `DeviceIdentifier`. No se ejecutó el emulador ni se publicó la APK.
+
+El parche usa `DeviceIdentifier(...)` en las tres construcciones y compara el identificador con otro valor del mismo tipo. Conserva los tres tests y todas las aserciones: `META_GLASSES`/00R6 sin deducir modelo, recorrido de todos los tipos DAT y bloqueo por firmware/enlace pendientes. No modifica `GlassesDevice` ni el README.
+
+Verificación local del parche: 9 Python correctas, 59 archivos Kotlin sin errores sintácticos, escáner de secretos correcto y seis archivos preexistentes idénticos a sus copias originales. Gradle con Java 17 sigue bloqueado por SDK ausente. La sintaxis no acredita compatibilidad de tipos con el SDK: queda pendiente la nueva CI completa. **Se mantiene el 60 %**, sin sumar de nuevo verificaciones anteriores.
 
 Última actualización: **27 de octubre de 2026, 11:49 UTC**. Objetivo: ampliación de **v0.4.0**. Número de compilación experimental **0.4.1-dev**, código 5. No se ha creado una Release estable.
 
