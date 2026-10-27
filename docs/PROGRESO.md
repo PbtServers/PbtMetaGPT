@@ -138,3 +138,9 @@ Al reanudar: leer README, AGENTS y este archivo, comprobar `git status`, `origin
 Se ha reestructurado el README para separar introducción, instalación, estados verificables, uso, DAT, privacidad, arquitectura y desarrollo. El detalle anterior se conserva en `docs/GUIA_TECNICA.md`. Se han preparado `CONTRIBUTING.md`, `docs/DESARROLLO.md`, plantillas de incidencias y la guía de capturas reales. No se han añadido capturas ficticias ni modificado la aplicación Android.
 
 **El porcentaje funcional permanece en el 85 % documentado**: mejorar el README no valida conversación con API real ni hardware Ray-Ban Meta. La validación CI de cualquier commit de documentación deberá comprobarse por su SHA.
+
+## Seguimiento del escáner tras c043114
+
+Progreso de estabilización **35 %**, separado del 85 % funcional histórico. La ejecución 40561936117 conserva cinco hallazgos idénticos de 30 bytes en distintas cadenas de `classes4.dex`, sin atribución a constantes o dependencias. No se ha demostrado si son secretos: el bloqueo continúa y no se añade una excepción.
+
+Se amplía exclusivamente la atribución segura a nombres, tipos, anotaciones y depuración DEX; 25 pruebas Python correctas, incluidas cinco regresiones nuevas. No se modifica la lógica Android ni los patrones de detección. README intacto y seis archivos previos conservados byte a byte. La siguiente evidencia necesaria es el informe ampliado del DEX real; Android 15/16 y APK nueva siguen pendientes. Véase `docs/DIAGNOSTICO_ESCANER.md`.

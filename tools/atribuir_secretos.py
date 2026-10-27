@@ -50,6 +50,23 @@ class DexIndex:
             raise ValueError("DEX_CLASSES")
         self.classes = set()
         self.static_references = {}
+        self.metadata_references = {}
+        self.types = [self.u32(types + n * 4) for n in range(type_count)]
+        for n, string_id in enumerate(self.types):
+            self.record_metadata(string_id, {"uso": "descriptor_tipo", "indice_tipo": n})
+        for label, header in (("nombre_campo", 80), ("nombre_metodo", 88)):
+            count, offset = self.u32(header), self.u32(header + 4)
+            if offset + count * 8 > len(data):
+                raise ValueError("DEX_MEMBERS")
+            for n in range(count):
+                owner = int.from_bytes(data[offset + n * 8:offset + n * 8 + 2], "little")
+                self.record_metadata(self.u32(offset + n * 8 + 4), {
+                    "uso": label, "clase": self.type_label(owner), "indice_miembro": n})
+        proto_count, protos = self.u32(72), self.u32(76)
+        if protos + proto_count * 12 > len(data):
+            raise ValueError("DEX_PROTOS")
+        for n in range(proto_count):
+            self.record_metadata(self.u32(protos + n * 12), {"uso": "shorty_prototipo", "indice_prototipo": n})
         for n in range(class_count):
             type_id = self.u32(classes + n * 32)
             if type_id >= type_count:
@@ -60,11 +77,125 @@ class DexIndex:
             start, end = self.strings[string_id]
             descriptor = data[start:end].decode("utf-8", errors="replace")
             self.classes.add(descriptor)
+            source = self.u32(classes + n * 32 + 16)
+            if source != 0xffffffff:
+                self.record_metadata(source, {"uso": "archivo_fuente", "clase": safe_label(descriptor)})
+            annotations = self.u32(classes + n * 32 + 20)
+            if annotations:
+                self.annotation_directory(annotations, descriptor)
+            class_data = self.u32(classes + n * 32 + 24)
+            if class_data:
+                self.class_debug_info(class_data, descriptor)
             values = self.u32(classes + n * 32 + 28)
             if values:
                 count, cursor = self.uleb(values)
                 for _ in range(count):
                     cursor = self.encoded_value(cursor, descriptor, 0)
+
+    def record_metadata(self, index, reference):
+        if index >= len(self.strings):
+            raise ValueError("DEX_METADATA_STRING")
+        values = self.metadata_references.setdefault(index, [])
+        if reference not in values:
+            values.append(reference)
+
+    def type_label(self, index):
+        if index >= len(self.types) or self.types[index] >= len(self.strings):
+            raise ValueError("DEX_METADATA_TYPE")
+        start, end = self.strings[self.types[index]]
+        return safe_label(self.data[start:end].decode("utf-8", errors="replace"))
+
+    def annotation_set(self, offset, descriptor):
+        if not offset:
+            return
+        count = self.u32(offset)
+        if offset + 4 + count * 4 > len(self.data):
+            raise ValueError("DEX_ANNOTATIONS")
+        for n in range(count):
+            cursor = self.u32(offset + 4 + n * 4) + 1  # annotation_item.visibility
+            annotation_type, cursor = self.uleb(cursor)
+            annotation = self.type_label(annotation_type)
+            size, cursor = self.uleb(cursor)
+            for _ in range(size):
+                name, cursor = self.uleb(cursor)
+                if name >= len(self.strings):
+                    raise ValueError("DEX_ANNOTATION_NAME")
+                start, end = self.strings[name]
+                metadata = {"uso": "valor_anotacion", "clase": safe_label(descriptor),
+                            "anotacion": annotation,
+                            "elemento": safe_label(self.data[start:end].decode("utf-8", errors="replace"))}
+                self.record_metadata(name, {**metadata, "uso": "nombre_elemento_anotacion"})
+                cursor = self.encoded_value(cursor, descriptor, 0, metadata)
+
+    def annotation_directory(self, offset, descriptor):
+        self.annotation_set(self.u32(offset), descriptor)
+        fields, methods, parameters = (self.u32(offset + n) for n in (4, 8, 12))
+        cursor = offset + 16
+        if cursor + (fields + methods + parameters) * 8 > len(self.data):
+            raise ValueError("DEX_ANNOTATION_DIRECTORY")
+        for _ in range(fields + methods):
+            self.annotation_set(self.u32(cursor + 4), descriptor)
+            cursor += 8
+        for _ in range(parameters):
+            ref_list = self.u32(cursor + 4)
+            count = self.u32(ref_list)
+            if ref_list + 4 + count * 4 > len(self.data):
+                raise ValueError("DEX_PARAMETER_ANNOTATIONS")
+            for n in range(count):
+                self.annotation_set(self.u32(ref_list + 4 + n * 4), descriptor)
+            cursor += 8
+
+    def class_debug_info(self, cursor, descriptor):
+        sizes = []
+        for _ in range(4):
+            size, cursor = self.uleb(cursor)
+            sizes.append(size)
+        for _ in range(sizes[0] + sizes[1]):
+            _, cursor = self.uleb(cursor)  # field_idx_diff
+            _, cursor = self.uleb(cursor)  # access_flags
+        for size in sizes[2:]:
+            method = 0
+            for _ in range(size):
+                delta, cursor = self.uleb(cursor)
+                method += delta
+                _, cursor = self.uleb(cursor)  # access_flags
+                code, cursor = self.uleb(cursor)
+                if method >= self.u32(88):
+                    raise ValueError("DEX_DEBUG_METHOD")
+                if code:
+                    debug = self.u32(code + 8)
+                    if debug:
+                        self.debug_info(debug, descriptor, method)
+
+    def debug_info(self, cursor, descriptor, method):
+        _, cursor = self.uleb(cursor)  # line_start
+        count, cursor = self.uleb(cursor)
+
+        def name(position, role):
+            index, position = self.uleb(position)  # uleb128p1: cero significa NO_INDEX.
+            if index:
+                self.record_metadata(index - 1, {"uso": role, "clase": safe_label(descriptor),
+                                                "indice_metodo": method})
+            return position
+
+        for _ in range(count):
+            cursor = name(cursor, "nombre_parametro_debug")
+        while cursor < len(self.data):
+            opcode = self.data[cursor]; cursor += 1
+            if opcode == 0:  # DBG_END_SEQUENCE
+                return
+            if opcode in (1, 2, 5, 6):
+                _, cursor = self.uleb(cursor)  # advance PC/line, end/restart local
+            elif opcode in (3, 4):
+                _, cursor = self.uleb(cursor)  # register_num
+                cursor = name(cursor, "nombre_variable_debug")
+                _, cursor = self.uleb(cursor)  # type_idx, ya recogido en type_ids
+                if opcode == 4:
+                    cursor = name(cursor, "firma_variable_debug")
+            elif opcode == 9:
+                cursor = name(cursor, "archivo_fuente_debug")
+            # DBG_SET_PROLOGUE_END, EPILOGUE_BEGIN y opcodes especiales no llevan operandos.
+        raise ValueError("DEX_DEBUG_END")
 
     def u32(self, offset):
         if offset < 0 or offset + 4 > len(self.data):
@@ -85,7 +216,7 @@ class DexIndex:
                 return value, cursor
         raise ValueError("DEX_ULEB")
 
-    def encoded_value(self, cursor, descriptor, depth):
+    def encoded_value(self, cursor, descriptor, depth, metadata=None):
         if cursor >= len(self.data) or depth > 32:
             raise ValueError("DEX_VALUE")
         header = self.data[cursor]; cursor += 1
@@ -93,13 +224,13 @@ class DexIndex:
         if kind == 0x1c:  # VALUE_ARRAY
             count, cursor = self.uleb(cursor)
             for _ in range(count):
-                cursor = self.encoded_value(cursor, descriptor, depth + 1)
+                cursor = self.encoded_value(cursor, descriptor, depth + 1, metadata)
         elif kind == 0x1d:  # VALUE_ANNOTATION
             _, cursor = self.uleb(cursor)
             count, cursor = self.uleb(cursor)
             for _ in range(count):
                 _, cursor = self.uleb(cursor)
-                cursor = self.encoded_value(cursor, descriptor, depth + 1)
+                cursor = self.encoded_value(cursor, descriptor, depth + 1, metadata)
         elif kind not in (0x1e, 0x1f):  # NULL y BOOLEAN no llevan bytes adicionales.
             if cursor + size > len(self.data):
                 raise ValueError("DEX_VALUE")
@@ -107,7 +238,10 @@ class DexIndex:
                 index = int.from_bytes(self.data[cursor:cursor + size], "little")
                 if index >= len(self.strings):
                     raise ValueError("DEX_VALUE_STRING")
-                self.static_references.setdefault(index, set()).add(safe_label(descriptor))
+                if metadata is None:
+                    self.static_references.setdefault(index, set()).add(safe_label(descriptor))
+                else:
+                    self.record_metadata(index, metadata)
             cursor += size
         return cursor
 
@@ -185,6 +319,14 @@ def attribute_dex(data, findings, patterns, cache=None, dexdump=None):
     for finding in findings:
         finding["indices_string_dex"] = index.locate(finding["offset"], finding["offset"] + finding["longitud"])
         finding["clases_valores_estaticos"] = sorted({c for n in finding["indices_string_dex"] for c in index.static_references.get(n, [])})
+        finding["metadatos_dex"] = []
+        for n in finding["indices_string_dex"]:
+            start, end = index.strings[n]
+            finding["metadatos_dex"].append({
+                "indice_string": n, "longitud_contenedor": end - start,
+                "offset_en_contenedor": finding["offset"] - start,
+                "sha256_contenedor": hashlib.sha256(data[start:end]).hexdigest(),
+                "referencias": index.metadata_references.get(n, [])})
         numbers.update(finding["indices_string_dex"])
     origins = library_matches(cache, index.classes, {f["sha256"] for f in findings}, patterns)
     for finding in findings:

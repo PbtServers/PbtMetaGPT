@@ -38,6 +38,14 @@ README sin modificar y seis archivos locales conservados byte a byte. Progreso g
 
 El intento local con Java17 de JVM/Lint/APK/instrumentadas termina en `SDK location not found`; la preparación de Sherpa no puede descargar por restricciones de red. No se ha reconstruido aquí el DEX que falló en GitHub.
 
+## Seguimiento de c043114: atribución de metadatos pendiente
+
+La ejecución [40561936117](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40561936117) detecta cinco coincidencias del patrón OpenAI, de 30 bytes y con la misma huella, en los índices 58649, 58651, 58653, 58655 y 58657. No encuentra referencias estáticas, `const-string` ni coincidencias en las clases examinadas de dependencias. Esa ausencia **no demuestra que sean falsos positivos**. No se dispone del DEX original ni se ha identificado su clase responsable.
+
+La atribución ahora consulta también `type_ids`, `field_ids`, `method_ids`, prototipos, archivos fuente, anotaciones de clases/campos/métodos/parámetros y nombres/firmas del programa `debug_info_item`. Añade longitud y huella de la cadena contenedora y posición relativa del candidato; no exporta su contenido. Los nombres sospechosos siguen sustituyéndose por huellas. Esto permite investigar referencias que el análisis anterior no cubría, sin modificar la aceptación de fuentes o APK.
+
+**25 pruebas Python superadas**: se conservan las 20 anteriores y se añaden cinco regresiones de metadatos, anotaciones, depuración, cinco subcadenas iguales y metadatos corruptos. Son fixtures estructurales, no la reproducción del APK rechazado. Patrones de seguridad intactos, ninguna excepción por huella o por `classes4.dex`. Origen exacto, clasificación, corrección definitiva, Android 15/16 y publicación de APK siguen pendientes de obtener y analizar la atribución del DEX real. Progreso de estabilización: **35 %**.
+
 ## Referencias primarias
 
 - [Formato DEX oficial: tablas, strings y valores codificados](https://source.android.com/docs/core/runtime/dex-format).

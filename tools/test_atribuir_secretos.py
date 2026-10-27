@@ -30,6 +30,68 @@ def dex_fixture(candidate, static=False):
     return bytes(data)
 
 
+def metadata_fixture(candidate, role):
+    """Metadatos estructurales sintéticos; nunca constituyen evidencia del APK real."""
+    strings = [b"Lpruebas/Origen;", candidate, b"Lpruebas/Anotacion;", b"valor"]
+    data = bytearray(180)
+    data[:8] = b"dex\n039\0"
+    for offset, value in [(36, 112), (40, 0x12345678), (56, 4), (60, 112),
+                          (64, 2), (68, 128), (96, 1), (100, 148)]:
+        struct.pack_into("<I", data, offset, value)
+    struct.pack_into("<II", data, 128, 0, 2)
+    struct.pack_into("<I", data, 148 + 16, 0xffffffff)
+    for n, value in enumerate(strings):
+        struct.pack_into("<I", data, 112 + n * 4, len(data))
+        # Todas las cadenas de estas fixtures tienen menos de 128 bytes.
+        data += bytes([len(value)]) + value + b"\0"
+    if role in ("nombre_metodo", "nombre_campo"):
+        header = 88 if role == "nombre_metodo" else 80
+        struct.pack_into("<II", data, header, 1, 136)
+        struct.pack_into("<HHI", data, 136, 0, 0, 1)
+    elif role == "archivo_fuente":
+        struct.pack_into("<I", data, 148 + 16, 1)
+    elif role == "descriptor_tipo":
+        struct.pack_into("<I", data, 132, 1)
+    elif role == "valor_anotacion":
+        while len(data) % 4:
+            data += b"\0"
+        directory = len(data)
+        struct.pack_into("<I", data, 148 + 20, directory)
+        data += struct.pack("<IIII", directory + 16, 0, 0, 0)
+        data += struct.pack("<II", 1, directory + 24)
+        data += b"\x01\x01\x01\x03\x1c\x01\x17\x01"
+        # visibility=runtime, annotation type=1, element name=3,
+        # VALUE_ARRAY de un VALUE_STRING que apunta a candidate.
+    elif role.endswith("_debug"):
+        struct.pack_into("<II", data, 88, 1, 136)
+        struct.pack_into("<HHI", data, 136, 0, 0, 3)
+        while len(data) % 4:
+            data += b"\0"
+        code = len(data)
+        data += struct.pack("<HHHHII", 1, 1, 0, 0, code + 16, 0)
+        data += b"\x01"  # line_start
+        if role == "nombre_parametro_debug":
+            data += b"\x01\x02\x00"  # Un parámetro, string_id+1=2, END_SEQUENCE.
+        elif role == "nombre_variable_debug":
+            data += b"\x00\x03\x00\x02\x00\x00"
+        elif role == "firma_variable_debug":
+            data += b"\x00\x04\x00\x00\x00\x02\x00"
+        elif role == "archivo_fuente_debug":
+            data += b"\x00\x09\x02\x00"
+        else:
+            raise AssertionError(role)
+        struct.pack_into("<I", data, 148 + 24, len(data))
+        data += b"\x00\x00\x01\x00\x00\x00"  # counts, method diff, flags
+        while code >= 128:
+            data += bytes([(code & 127) | 128])
+            code >>= 7
+        data += bytes([code])
+    else:
+        raise AssertionError(role)
+    struct.pack_into("<I", data, 32, len(data))
+    return bytes(data)
+
+
 class AtribucionSecretosTest(unittest.TestCase):
     def setUp(self):
         self.candidate = b"sk-" + b"x" * 40
@@ -76,6 +138,71 @@ class AtribucionSecretosTest(unittest.TestCase):
         attribute_dex(data, findings, PATTERNS)
         self.assertEqual(["Lpruebas/Origen;"], findings[0]["clases_valores_estaticos"])
         self.assertTrue(sensitive(data))
+
+    def test_identifica_nombres_tipos_y_fuentes_sin_const_string(self):
+        for role in ("nombre_metodo", "nombre_campo", "archivo_fuente", "descriptor_tipo"):
+            with self.subTest(role=role):
+                data = metadata_fixture(self.candidate, role)
+                findings = describe_matches(data)
+                attribute_dex(data, findings, PATTERNS)
+                metadata, = findings[0]["metadatos_dex"]
+                self.assertEqual(role, metadata["referencias"][0]["uso"])
+                self.assertEqual(0, metadata["offset_en_contenedor"])
+                self.assertEqual(len(self.candidate), metadata["longitud_contenedor"])
+                self.assertEqual(hashlib.sha256(self.candidate).hexdigest(), metadata["sha256_contenedor"])
+                self.assertNotIn(self.candidate.decode(), json.dumps(findings))
+                self.assertTrue(sensitive(data))
+
+    def test_atribuye_anotacion_y_array_sin_confundir_con_valor_estatico(self):
+        data = metadata_fixture(self.candidate, "valor_anotacion")
+        findings = describe_matches(data)
+        attribute_dex(data, findings, PATTERNS)
+        reference, = findings[0]["metadatos_dex"][0]["referencias"]
+        self.assertEqual({"uso": "valor_anotacion", "clase": "Lpruebas/Origen;",
+                          "anotacion": "Lpruebas/Anotacion;", "elemento": "valor"}, reference)
+        self.assertEqual([], findings[0]["clases_valores_estaticos"])
+        self.assertNotIn(self.candidate.decode(), json.dumps(findings))
+        self.assertTrue(sensitive(data))
+
+    def test_atribuye_parametros_variables_firmas_y_archivos_debug(self):
+        for role in ("nombre_parametro_debug", "nombre_variable_debug", "firma_variable_debug", "archivo_fuente_debug"):
+            with self.subTest(role=role):
+                data = metadata_fixture(self.candidate, role)
+                findings = describe_matches(data)
+                attribute_dex(data, findings, PATTERNS)
+                reference, = findings[0]["metadatos_dex"][0]["referencias"]
+                self.assertEqual({"uso": role, "clase": "Lpruebas/Origen;", "indice_metodo": 0}, reference)
+                self.assertNotIn(self.candidate.decode(), json.dumps(findings))
+                self.assertTrue(sensitive(data))
+
+    def test_cinco_subcadenas_identicas_no_son_una_excepcion(self):
+        candidate = b"sk-" + b"y" * 27
+        fingerprints, containers = set(), set()
+        for n in range(5):
+            data = metadata_fixture(b"prefijo" + bytes([65 + n]) + candidate + b"$sufijo", "nombre_metodo")
+            findings = describe_matches(data)
+            attribute_dex(data, findings, PATTERNS)
+            finding, = findings
+            self.assertEqual(30, finding["longitud"])
+            metadata, = finding["metadatos_dex"]
+            self.assertEqual(8, metadata["offset_en_contenedor"])
+            self.assertEqual("Lpruebas/Origen;", metadata["referencias"][0]["clase"])
+            fingerprints.add(finding["sha256"])
+            containers.add(metadata["sha256_contenedor"])
+            self.assertTrue(sensitive(data))
+            self.assertNotIn(candidate.decode(), json.dumps(findings))
+        self.assertEqual(1, len(fingerprints))
+        self.assertEqual(5, len(containers))
+
+    def test_metadatos_corruptos_no_eliminan_el_rechazo(self):
+        for role, offset in (("nombre_metodo", 136 + 4), ("valor_anotacion", 148 + 20)):
+            with self.subTest(role=role):
+                data = bytearray(metadata_fixture(self.candidate, role))
+                struct.pack_into("<I", data, offset, 0x7fffffff)
+                findings = describe_matches(data)
+                self.assertEqual("DEX_NO_INTERPRETADO", attribute_dex(bytes(data), findings, PATTERNS)["estado"])
+                self.assertTrue(findings)
+                self.assertTrue(sensitive(data))
 
     def test_atribuye_huella_a_jar_y_aar_solo_si_la_clase_esta_en_dex(self):
         with tempfile.TemporaryDirectory() as root:
