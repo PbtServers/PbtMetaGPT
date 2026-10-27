@@ -67,7 +67,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
                     processing.value = false
                     trace.mark(VoiceStage.TOTAL); timing.value = trace.snapshot()
                     runCatching { LatencyStore(context).record(trace.snapshot()) }
-                    mutable.update { it.copy(connecting = false, responding = false) }
+                    mutable.update { it.copy(connecting = false, responding = false, active = if (fromWake && !it.failed) false else it.active) }
                     if (voiceFailure.value == null && !mutable.value.failed) {
                         phaseValue.value = ConversationPhase.READY
                         mutable.update { it.copy(status = "Listo", active = if (fromWake) false else it.active) }

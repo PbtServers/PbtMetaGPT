@@ -10,6 +10,8 @@ permissions:
 jobs:
   informe:
     runs-on: ubuntu-latest
+    outputs:
+      resumen: ${{ steps.leer.outputs.resumen }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -36,3 +38,9 @@ jobs:
           PY
       - name: 'Evidencia anterior: ${{ steps.leer.outputs.resumen }}'
         run: echo 'Solo metadatos; no se han solicitado nuevas síntesis.'
+  resultado:
+    needs: informe
+    name: 'Resultado sin nueva inferencia: ${{ needs.informe.outputs.resumen }}'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Metadatos del informe real anterior.'

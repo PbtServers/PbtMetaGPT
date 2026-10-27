@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
                 Text("Cambiar", color = MaterialTheme.colorScheme.primary)
             }
         }
-        Text(when { voice.failed -> "Error"; voice.responding -> "Hablando"; voice.connecting -> "Pensando"; else -> "Listo" }, style = MaterialTheme.typography.titleLarge)
+        Text(when { voice.failed -> "Error"; voice.status == "Escuchando" -> "Escuchando"; voice.responding -> "Hablando"; voice.connecting -> "Pensando"; else -> "Listo" }, style = MaterialTheme.typography.titleLarge)
         Button(onClick = { if (voice.active || voice.connecting) navigate("Conversación") else start() }, enabled = configured,
             modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp), shape = MaterialTheme.shapes.extraLarge) {
             Text("Hablar", style = MaterialTheme.typography.headlineMedium)

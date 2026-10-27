@@ -18,6 +18,7 @@ class QwenLivePerformanceTest {
         val profile = AssistantProfile(name = "Prueba", ttsEngine = "qwen_space", ttsVoice = "Ryan", ttsPackage = "0.6B", voiceMode = "natural")
         val report = JSONObject().put("tipo", "INFERENCIA_REAL_SIN_MOCKS").put("limite", "PCM disponible no equivale a sonido físico. Dos peticiones, sin demostrar superioridad general; GPU/cachés y cola pueden variar.")
         val output = File("build/reports/qwen-latencia-real.json").apply { parentFile.mkdirs() }
+        var stage = "COMPLETO"
         try {
             val baseline = QwenSpaceApi(OkHttpClient.Builder().retryOnConnectionFailure(false).followRedirects(false).followSslRedirects(false).callTimeout(90, TimeUnit.SECONDS).build())
             val before = VoiceLatency()
@@ -25,6 +26,7 @@ class QwenLivePerformanceTest {
             before.mark(VoiceStage.TOTAL)
             assertTrue(old.bytes.any { it.toInt() != 0 })
             report.put("completo_ms", JSONObject(before.snapshot().mapKeys { it.key.name }))
+            stage = "PRIMER_FRAGMENTO"
             val after = VoiceLatency()
             val early = HostedHttp.qwenApi.synthesize(profile, first, {}, after)
             after.mark(VoiceStage.TOTAL)
@@ -34,7 +36,8 @@ class QwenLivePerformanceTest {
             val firstMs = after.snapshot().getValue(VoiceStage.TOTAL)
             System.getenv("GITHUB_OUTPUT")?.let { File(it).appendText("completo_ms=$oldMs\nfragmento_ms=$firstMs\n") }
         } catch (problem: Exception) {
-            report.put("resultado", "NO_COMPLETADO").put("tipo_error", problem.javaClass.simpleName)
+            report.put("resultado", "NO_COMPLETADO").put("tipo_error", problem.javaClass.simpleName).put("etapa", stage)
+                .put("mensaje_publico", (problem as? HostedFailure)?.publicMessage ?: "No se completó la inferencia real.")
             throw AssertionError("No se completó la comparación remota; consulta el informe sin contenido.")
         } finally { output.writeText(report.toString(2)) }
         Unit

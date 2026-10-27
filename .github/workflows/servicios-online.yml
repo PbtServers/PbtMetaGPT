@@ -14,6 +14,8 @@ jobs:
     name: Comparación real Qwen sin mocks ni token
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      resumen: ${{ steps.metadatos.outputs.resumen }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -64,6 +66,19 @@ jobs:
           PY
       - name: 'PCM disponible: completo ${{ steps.evidencia.outputs.completo_ms }} ms; primer fragmento ${{ steps.evidencia.outputs.fragmento_ms }} ms'
         run: echo "La métrica mide disponibilidad PCM, no sonido físico ni Bluetooth."
+      - name: Leer metadatos incluso si el proveedor rechaza la prueba
+        if: always()
+        id: metadatos
+        run: |
+          python3 - <<'PY'
+          import os,json
+          from pathlib import Path
+          p=Path('app/build/reports/qwen-latencia-real.json')
+          r=json.loads(p.read_text()) if p.exists() else {'resultado':'SIN_INFORME_REAL'}
+          keys=('resultado','etapa','tipo_error','mensaje_publico','completo_ms','primer_fragmento_ms')
+          summary=json.dumps({k:r[k] for k in keys if k in r},ensure_ascii=True,separators=(',',':'))
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out: out.write('resumen='+summary+'\n')
+          PY
       - name: Conservar resultado incluso si cuota o servicio rechazan la prueba
         if: always()
         uses: actions/upload-artifact@v4
@@ -72,3 +87,10 @@ jobs:
           path: |
             app/build/reports/qwen-latencia-real.json
             app/build/test-results/testDebugUnitTest/
+  resultado:
+    if: always()
+    needs: qwen-real
+    name: 'Resultado real Qwen: ${{ needs.qwen-real.outputs.resumen }}'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'PCM disponible no equivale a sonido físico. No se realizan reintentos.'

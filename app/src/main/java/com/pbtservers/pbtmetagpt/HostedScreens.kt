@@ -112,6 +112,7 @@ import kotlinx.coroutines.*
         Text(profile?.name ?: "Conversación", style = MaterialTheme.typography.headlineMedium)
         Text("GroqCloud · ${phase.label}", style = MaterialTheme.typography.labelLarge)
         Text(engine, style = MaterialTheme.typography.bodySmall)
+        if (busy && state.status !in listOf("Pensando", "Hablando", "Escuchando")) Text(state.status, style = MaterialTheme.typography.bodySmall)
         androidx.compose.foundation.lazy.LazyColumn(state = list, modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(messages.size, key = { messages[it].id }) { index ->
                 val message = messages[index]
