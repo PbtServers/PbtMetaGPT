@@ -2,23 +2,27 @@
 
 ## Servicios online gratuitos sin infraestructura propia · 27/10/2026
 
-**55 % de esta ampliación; experimental, sin aceptación de extremo a extremo.** No sustituye ni incrementa el 85 % histórico de otra intervención. Inicio medido: 21:54 UTC; corte de revisión 22:10 UTC (unos 16 minutos). La estimación comunicada de 20–35 minutos corresponde al cierre de revisión/documentación/commits e intento de publicación; no a la aceptación real, que depende de red, cuenta Free y SDK/hardware.
+**60 % de esta ampliación; experimental, sin aceptación de extremo a extremo.** No sustituye ni incrementa el 85 % histórico de otra intervención. Inicio medido: 21:54 UTC; corte de seguimiento 22:16 UTC (unos 22 minutos). La estimación comunicada de 20–35 minutos corresponde al cierre de revisión/documentación/commits e intento de publicación; no a la aceptación real, que depende de red, cuenta Free y SDK/hardware.
 
 | Subfase | Avance acreditado / peso | Pendiente |
 | --- | ---: | --- |
 | Investigación y acceso a servicios | 14/25 | Groq Free documentado; falta cuenta y conexión real. Gemini descartado para Free en EEE; Cerebras actual exige medio de pago |
 | Configuración y perfiles | 10/15 | Selección explícita Groq/OpenAI, clave Groq en Keystore separado, consentimientos y voz por perfil; instrumentadas nuevas pendientes |
 | Conversación y activación local | 10/20 | Ruta Groq por texto y dictado Vosk conectada a activación existente; generación real, tipos Android y acústica pendientes |
-| Voces online | 8/20 | Qwen CustomVoice/Gradio experimental, nueve voces y dos tamaños; contrato vivo y audio sin validar. RVC desactivado |
+| Voces online | 13/20 | Qwen CustomVoice/Gradio: contrato y WAV real no silencioso correctos desde CI; Android y audición pendientes. RVC desactivado |
 | Integración y diseño | 8/10 | Sin fallback facturable; iconos adaptativo/mono/respaldo revisados a 48/64/96 px. Faltan teléfono/gafas |
 | Pruebas y documentación | 5/10 | 31 Python, 19 Node y 26 JVM de políticas correctas; suite Android/Lint/API35/API36/publicación pendientes |
-| **Total** | **55/100** | **No hay conversación gratuita ni TTS remoto declarados operativos** |
+| **Total** | **60/100** | **Qwen probado desde Python/CI; conversación completa y Android pendientes** |
 
 Detalle de proveedores, restricciones, recorrido y comandos: [SERVICIOS_ONLINE.md](SERVICIOS_ONLINE.md). El nuevo modo conserva OpenAI opcional, Vosk, frases «Atento», servicio/notificación/parada, DAT, cámara con confirmación y motores existentes. Groq recibe exclusivamente texto/contexto autorizado; el dictado permanece local. Qwen exige consentimiento propio, contrato compatible y origen del archivo restringido. No hay token HF ni acceso a créditos HF de pago. RVC no importa ni sube `.pth`/`.index`; el candidato r3gm/rvc_zero limita su demo a educación/investigación y no se ha probado su API para este uso.
 
 **Evidencias de esta intervención:** 87 archivos Kotlin sin errores sintácticos (no comprueba tipos); 26 JVM ejecutadas directamente con Kotlin/JUnit de Gradle (7 nuevas de cuota/modelo/seguridad y 19 de políticas/diario); 31 Python y 19 Node correctas. Se añaden 6 contratos JVM Qwen y 2 instrumentadas Android de aislamiento Keystore/consentimiento, pendientes de suite Android. Prueba remota sin mocks ejecutada: Groq **no ejecutado** por falta de clave; API Qwen **bloqueada** por red (`URLError`, WinError10013), síntesis **no ejecutada**. No se han provocado cuotas por abuso. No se reutilizan resultados de CI anterior.
 
 Java17/Gradle con caché local llega a configurar, pero `testDebugUnitTest lintDebug assembleDebug` falla por **SDK location not found**. Preparación de Sherpa y modelo de pruebas fallan por red bloqueada. ADB no tiene dispositivos; instrumentadas Android15/16 y escaneo de APK no se pueden acreditar. La CI conserva ambas APIs y la publicación condicionada; no se ha creado una Release estable ni APK nueva local. README.md y los seis archivos locales anteriores se comprueban por SHA256 y quedan fuera de los commits. El resultado de publicación se registrará tras el intento de push, sin force.
+
+**Publicación y nueva evidencia:** `6e97bc9` (integración), `88a968a` (icono) y `a673343` (prueba remota) publicados en `origin/master` sin force. Las dos primeras CI se cancelaron por la concurrencia al llegar el siguiente commit; no cuentan como validación. [Qwen real 40593117803](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40593117803) sobre `a673343` **correcta**: el script sin mocks comprobó contrato y generó un WAV PCM16 mono con muestras no silenciosas, sin token, con Ryan/0.6B y una frase sintética española. Artifact `evidencia-qwen-real`, ID 12773909868. No se ha escuchado ese audio ni probado la ruta Android/gafas. [Android 40593117870](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40593117870) sigue en compilación/JVM/Lint al redactar; backend correcto. Se mantienen pendientes Groq real y cuotas reales: no hay clave ni se ha simulado su aceptación.
+
+Actualización 22:17 UTC: la CI Android de `a673343` ha superado compilación, JVM, Lint, Python/Node y escaneo de la APK; faltan las instrumentadas de ambas APIs. Se añade después un correctivo de la cola de muestras para conservar los mensajes públicos sanitizados de cuota Qwen, con una regresión JVM: no imprime errores originales ni cambia de voz/proveedor. El correctivo requiere su propia CI; los resultados anteriores no lo acreditan. Se mantiene 60 % hasta esa validación. El único bloqueo de credenciales para conversación completa sigue siendo Groq Free; la APK no incluye claves de desarrollador.
 
 ## Permiso de red WebRTC y nuevo icono · 27/10/2026
 

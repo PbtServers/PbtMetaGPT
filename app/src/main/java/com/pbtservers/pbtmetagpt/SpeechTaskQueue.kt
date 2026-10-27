@@ -24,7 +24,11 @@ internal class SpeechTaskQueue(private val scope: CoroutineScope,
                 status("Reproduciendo voz alternativa · micrófono apagado")
                 play(audio)
             } catch (cancel: CancellationException) { throw cancel }
-            catch (problem: Exception) { if (current == generation) error(if (problem is DiagnosticFailure) problem.message.orEmpty() else "No se pudo sintetizar o reproducir con el motor elegido. Revisa su configuración, modelo, diccionario, permisos y cuota. No se ha cambiado de voz automáticamente.") }
+            catch (problem: Exception) { if (current == generation) error(when (problem) {
+                is HostedFailure -> problem.publicMessage
+                is DiagnosticFailure -> problem.message.orEmpty()
+                else -> "No se pudo sintetizar o reproducir con el motor elegido. Revisa su configuración, modelo, diccionario, permisos y cuota. No se ha cambiado de voz automáticamente."
+            }) }
             finally { if (current == generation) { job = null; finished() } }
         }
     }

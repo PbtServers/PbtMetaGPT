@@ -9,7 +9,7 @@ Investigación del **27/10/2026**. Implementación experimental, sin conversaci�
 | GroqCloud Free: cuenta propia, clave cifrada, consulta de modelos, respuesta textual y contexto por sesión | Adaptador Android y pantallas añadidos | Pendiente de clave, red y compilación Android |
 | Dictado español con Vosk, tras «Atento» o botón | Captura local por turnos de hasta 20 s; reutiliza el modelo pequeño ya instalado | Pendiente de teléfono y reconocimiento hablado |
 | Voz por asistente, Android TTS instalado | Se reutiliza el motor existente; permitido en la ruta gratuita | Nueva ruta de audio sin validar físicamente |
-| Qwen3-TTS CustomVoice en Space oficial | Adaptador Gradio experimental, consentimiento, contrato y muestras explícitas | API activa y generación sin verificar; red bloqueada |
+| Qwen3-TTS CustomVoice en Space oficial | Adaptador Gradio experimental, consentimiento, contrato y muestras explícitas | Contrato e inferencia WAV no silenciosa correctos en CI; adaptador Android y audición pendientes |
 | RVC con modelos personales | No disponible; sin importación ni subida de modelos | No hay proveedor apto y probado en esta investigación |
 | Otros Spaces y segundo proveedor LLM gratuito | No hay selector genérico ni segundo adaptador integrado | Pendientes; no se presentan como utilizables |
 | OpenAI API | Integración anterior conservada y seleccionable de forma separada | No se usa como fallback del modo gratuito |
@@ -48,7 +48,7 @@ El router `openrouter/free` selecciona modelos gratuitos; requiere cuenta y clav
 
 ## Qwen3-TTS online
 
-Se ha revisado el código público del [Space oficial Qwen/Qwen3-TTS](https://huggingface.co/spaces/Qwen/Qwen3-TTS/tree/main). La página de archivos indicaba Running on Zero; **esto no acredita que una llamada Android pueda generar audio ahora**. Las consultas directas de su API no han podido completarse en este entorno.
+Se ha revisado el código público del [Space oficial Qwen/Qwen3-TTS](https://huggingface.co/spaces/Qwen/Qwen3-TTS/tree/main). La página de archivos indicaba Running on Zero. Las consultas locales quedaron bloqueadas, pero la [prueba remota CI 40593117803](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40593117803), commit `a673343`, terminó correctamente: contrato CustomVoice y generación de un WAV PCM16 mono con muestras no silenciosas, usando una frase sintética en español, Ryan y 0.6B. Informe en artifact `evidencia-qwen-real` (ID 12773909868). Esto acredita una llamada real desde el runner Python, **no el adaptador Android, calidad auditiva ni gafas**. No hay medición extraída del artifact ni se inventa latencia.
 
 El código declara CustomVoice 0.6B/1.7B y las voces Aiden, Dylan, Eric, Ono_anna, Ryan, Serena, Sohee, Uncle_fu y Vivian. Idiomas: Auto, chino, inglés, japonés, coreano, francés, alemán, español, portugués y ruso. **Catalán no documentado**. El servicio también contiene funciones de diseño y clonación; este adaptador implementa exclusivamente CustomVoice y no promete las demás. [Código fuente del Space](https://huggingface.co/spaces/Qwen/Qwen3-TTS/blob/main/app.py).
 
@@ -94,6 +94,6 @@ La CI conserva emuladores API35 y API36 y su barrera de publicación. Las nuevas
 
 Prueba remota independiente, sin mocks: `python tools/probar_servicios_online.py --qwen --informe diagnosticos-locales/online-proveedores.json`. Para Groq, proporcionar `GROQ_API_KEY` de forma privada en el entorno y añadir `--confirmar-plan-free --generar-groq`. No incluir una clave en argumentos, capturas, commits ni esta documentación. Los informes contienen solo resultados, tamaños y tiempos; nunca respuestas, audio o claves. Los pasos no ejecutados producen resultado no satisfactorio, sin convertirlos en éxitos.
 
-En este entorno: sin SDK Android, ADB sin dispositivos, descarga de Sherpa bloqueada y conexiones Python rechazadas con WinError10013. Groq no ejecutado por ausencia de clave; contrato Qwen inaccesible y síntesis no ejecutada. Las pruebas unitarias de cuota/formato/seguridad no sustituyen estas comprobaciones. Quedan Android15/16, Lint/compilación, proveedor real, audición, batería y Meta00R6. **No hay Release estable ni conversación gratuita validada.**
+En este entorno local: sin SDK Android, ADB sin dispositivos, descarga de Sherpa bloqueada y conexiones Python rechazadas con WinError10013. Groq no ejecutado por ausencia de clave; contrato Qwen inaccesible y síntesis no ejecutada localmente. La prueba Qwen independiente sí pasó en CI como se detalla arriba. Las pruebas unitarias de cuota/formato/seguridad no sustituyen estas comprobaciones. Quedan Android15/16, Lint/compilación, generación Groq real, audición, batería y Meta00R6. **No hay Release estable ni conversación gratuita de extremo a extremo validada.**
 
 Icono: recursos adaptativos blanco/azul sobre negro, variante monocroma y PNG de respaldo por densidad. Previsualización de los vectores reales revisada a 48/64/96 px en [icono-launcher.png](assets/icono-launcher.png). Falta revisión en launcher Android físico.

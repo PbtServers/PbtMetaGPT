@@ -6,6 +6,17 @@ import org.junit.Test
 
 class SpeechTaskQueueTest {
     private val profile = AssistantProfile(name = "Jarvis", ttsEngine = "android")
+    @Test fun `cuota remota muestra mensaje publico sanitizado sin cambiar motor`() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        var message = ""; var rendered = 0
+        val queue = SpeechTaskQueue(scope, { _, _ -> rendered++; throw HostedPolicy.failure(429, "12") },
+            { fail("No debe reproducir sin audio") }, {}, {}, { message = it })
+        try {
+            queue.speak(profile, "hola")
+            assertEquals(1, rendered)
+            assertEquals(HostedPolicy.failure(429, "12").publicMessage, message)
+        } finally { scope.cancel() }
+    }
     @Test fun `interrumpir descarta audio tardio incluso de motor que no coopera`() = runBlocking {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         val pending = CompletableDeferred<PcmAudio>(); var played = 0; var completed = 0; var flushed = 0
