@@ -29,6 +29,14 @@ El parche usa `DeviceIdentifier(...)` en las tres construcciones y compara el id
 
 Verificación local del parche: 9 Python correctas, 59 archivos Kotlin sin errores sintácticos, escáner de secretos correcto y seis archivos preexistentes idénticos a sus copias originales. Gradle con Java 17 sigue bloqueado por SDK ausente. La sintaxis no acredita compatibilidad de tipos con el SDK: queda pendiente la nueva CI completa. **Se mantiene el 60 %**, sin sumar de nuevo verificaciones anteriores.
 
+### Corrección de sincronización y desplazamiento del Setup
+
+La [ejecución 40538057814](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40538057814) de `1fdbe8b` supera compilación, JVM, Lint y backend; el emulador ejecuta 20 pruebas: 18 correctas y dos fallidas en `SetupInstrumentedTest`. La APK final sigue retenida por ese fallo.
+
+El test de todas las voces intentaba `performScrollTo()` sobre «Voz», situado en la barra inferior fija, sin ancestro desplazable. Ahora exige que el destino sea visible y lo pulsa; mantiene el desplazamiento dentro del formulario, todas las voces y las aserciones de selección y guardado. El test de restauración verifica selección y borrador guardado antes de pasar de la sincronización Compose a `ActivityScenario.recreate()`, conservando las comprobaciones posteriores.
+
+También se corrige un riesgo de producción: `ON_STOP` leía un `Triple` de `rememberUpdatedState` que solo se renovaba al recomponer. Una selección seguida inmediatamente de salida podía guardar la voz anterior. El observador lee ahora los `MutableState` actuales de etapa, borrador y finalización. Una nueva regresión pausa el reloj Compose, ejecuta la acción semántica de selección y detiene la actividad antes del siguiente frame; comprueba disco y restauración posterior. No añade esperas arbitrarias ni cambia la semántica de los chips. Quedan 21 pruebas instrumentadas previstas, pendientes de la nueva ejecución completa. **El porcentaje se mantiene en 60 %** hasta validar el correctivo; los resultados de `1fdbe8b` no certifican este parche.
+
 Última actualización: **27 de octubre de 2026, 11:49 UTC**. Objetivo: ampliación de **v0.4.0**. Número de compilación experimental **0.4.1-dev**, código 5. No se ha creado una Release estable.
 
 - Progreso general ponderado: **85 %**; incluye implementación y pruebas automáticas, con descuento explícito de validación real pendiente.

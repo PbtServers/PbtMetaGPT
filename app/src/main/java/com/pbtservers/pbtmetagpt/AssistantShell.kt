@@ -55,13 +55,13 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
     var returnToWake by remember { mutableStateOf(false) }
     var hadSession by remember { mutableStateOf(false) }
     var pendingStart by remember { mutableStateOf(false) }
-    val latestSetup by rememberUpdatedState(Triple(wizard, step, draft))
     val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(owner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
-                val (inSetup, currentStep, currentDraft) = latestSetup
-                if (inSetup) try { setup.save(currentStep, currentDraft) }
+                // Leer los MutableState actuales: una selección puede preceder a
+                // ON_STOP sin que haya ocurrido todavía otra recomposición.
+                if (wizard) try { setup.save(step, draft) }
                 catch (_: IllegalArgumentException) { report("El borrador contiene un patrón de credencial y no se ha guardado. Utiliza el campo OpenAI para las claves.") }
                 catch (_: IllegalStateException) { report("No se pudo guardar el último cambio del Setup. Comprueba el almacenamiento.") }
                 returnToWake = false; consent = false; hadSession = false; keyInput = ""; token = ""

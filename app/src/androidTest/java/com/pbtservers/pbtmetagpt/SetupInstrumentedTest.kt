@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -103,7 +105,11 @@ class SetupInstrumentedTest {
             compose.onNodeWithText("Nombre del asistente").performScrollTo().performTextInput("Luna")
             // El avance valida y guarda el perfil, sin exigir una sesión ni una clave real.
             compose.onNodeWithText("Continuar").performClick()
-            compose.onNodeWithText("cedar").performScrollTo().performClick()
+            compose.onNodeWithText("cedar").performScrollTo().performClick().assertIsSelected()
+            compose.runOnIdle {
+                assertEquals(3, SetupStore(context).step)
+                assertEquals("cedar", SetupStore(context).draft()?.voice)
+            }
             scenario.recreate()
             compose.onNodeWithText("Configuración inicial · 4/5 · Voz").assertIsDisplayed()
             compose.onNodeWithText("cedar").performScrollTo().assertIsSelected()
@@ -127,7 +133,8 @@ class SetupInstrumentedTest {
         ProfileStore(context).save(listOf(profile), profile.id)
         context.getSharedPreferences("configuracion", 0).edit().putBoolean("bienvenida", true).commit()
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            compose.onNode(hasText("Voz") and hasClickAction()).performScrollTo().performClick()
+            // La barra inferior es fija: su destino no pertenece al formulario desplazable.
+            compose.onNode(hasText("Voz") and hasClickAction()).assertIsDisplayed().performClick()
             RealtimeSettings.voices.forEach { voice ->
                 compose.onNodeWithText(voice).performScrollTo().performClick().assertIsSelected()
                 compose.onNodeWithText("Guardar motor y voz en el asistente").performScrollTo().performClick()
@@ -136,6 +143,30 @@ class SetupInstrumentedTest {
             }
             scenario.recreate()
             assertEquals(RealtimeSettings.voices.last(), ProfileStore(context).load().single().voice)
+        }
+    }
+
+    @Test fun detenerAntesDeRecomponerConservaLaUltimaVozDelSetup() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            compose.onNodeWithText("Comenzar").performClick()
+            compose.onNodeWithText("Continuar").performClick()
+            compose.onNodeWithText("Nombre del asistente").performScrollTo().performTextInput("Luna")
+            compose.onNodeWithText("Continuar").performClick()
+            compose.onNodeWithText("marin").performScrollTo().assertIsSelected()
+            compose.onNodeWithText("cedar").performScrollTo()
+            compose.mainClock.autoAdvance = false
+            try {
+                // Ejecutar la acción accesible y detener Android antes del siguiente frame
+                // de Compose: el guardado no debe depender de recomponer la pantalla.
+                compose.onNodeWithText("cedar").performSemanticsAction(SemanticsActions.OnClick) { click -> click() }
+                scenario.moveToState(Lifecycle.State.CREATED)
+                assertEquals(3, SetupStore(context).step)
+                assertEquals("cedar", SetupStore(context).draft()?.voice)
+            } finally { compose.mainClock.autoAdvance = true }
+            scenario.moveToState(Lifecycle.State.RESUMED)
+            scenario.recreate()
+            compose.onNodeWithText("Configuración inicial · 4/5 · Voz").assertIsDisplayed()
+            compose.onNodeWithText("cedar").performScrollTo().assertIsSelected()
         }
     }
 
