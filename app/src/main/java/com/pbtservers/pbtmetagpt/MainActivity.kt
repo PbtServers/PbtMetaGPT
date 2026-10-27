@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var localAudio: LocalAudioDiagnostics
     private lateinit var wake: LocalWakeListener
     private lateinit var vault: KeyVault
-    private var wakeStart: () -> Unit = {}
+    private var wakeStart: (AssistantProfile) -> Unit = {}
     private var microphoneReady by mutableStateOf(false)
     private var bluetoothReady by mutableStateOf(false)
     private var foreground = false
@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
         voice = RealtimeClient(this, lifecycleScope, { message = it }, diagnostics)
         localAudio = LocalAudioDiagnostics(this, lifecycleScope, diagnostics)
         vault = KeyVault(this)
-        wake = LocalWakeListener(this, lifecycleScope) { if (foreground) wakeStart() }
+        wake = LocalWakeListener(this, lifecycleScope) { if (foreground) wakeStart(it) }
         lifecycleScope.launch {
             var previouslyConnected = false
             glasses.state.collect { state ->

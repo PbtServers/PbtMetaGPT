@@ -43,6 +43,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     private var microphone: AudioTrack? = null
     private var job: Job? = null
     private var timeout: Job? = null
+    private var sessionLimit: Job? = null
     private var generation = 0
     private var diagnosticOnly = false
     private var sampleOnly = false
@@ -62,6 +63,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     fun start(baseUrl: String, accessToken: String, bluetooth: Boolean, testOnly: Boolean = false, sample: Boolean = false) {
         if (state.value.active || state.value.connecting) return
         if (!testOnly && profile == null) { error("Crea y selecciona un asistente antes de conversar."); return }
+        if (profile?.ttsEngine != null && profile?.ttsEngine != "realtime") { error("Los motores alternativos aún están desactivados en este avance de desarrollo."); return }
         if (!testOnly && !sample && appContext.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             error("Falta permiso de micrófono. No se ha iniciado ninguna conversación."); return
         }
@@ -267,6 +269,11 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     peer?.setAudioRecording(true)
                     microphone?.setEnabled(true)
                     mutable.update { it.copy(connecting = false, active = true, status = "Escuchando · micrófono encendido", route = it.route + "\n" + route.actualRoute()) }
+            sessionProfile?.let { selected ->
+                sessionLimit = scope.launch { delay(selected.sessionMinutes * 60_000L); stop(); error("La sesión ha terminado por su límite de duración configurado.") }
+                if (selected.welcomeMessage.isNotBlank()) send(JSONObject().put("type", "response.create").put("response", JSONObject()
+                    .put("instructions", "Saluda al usuario con este mensaje: ${selected.welcomeMessage}")).toString())
+            }
         }
     }
 
@@ -385,6 +392,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
         generating = false; outputPlaying = false
         job?.cancel(); job = null
         timeout?.cancel(); timeout = null
+        sessionLimit?.cancel(); sessionLimit = null
         microphone?.setEnabled(false)
         peer?.setAudioRecording(false)
         channel?.unregisterObserver(); channel?.close(); channel?.dispose(); channel = null

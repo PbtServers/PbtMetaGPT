@@ -88,7 +88,7 @@ jobs:
       - name: Publicar APK debug tras todas las comprobaciones
         uses: actions/upload-artifact@v4
         with:
-          name: PbtMetaGPT-v0.4.0-debug
+          name: PbtMetaGPT-v0.4.1-dev-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14

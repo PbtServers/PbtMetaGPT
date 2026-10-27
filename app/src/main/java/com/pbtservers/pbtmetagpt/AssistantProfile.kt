@@ -20,8 +20,18 @@ data class AssistantProfile(
     val language: String = "es-ES",
     val detailed: Boolean = false,
     val speed: Double = 1.0,
+    val activationPhrases: List<ActivationPhrase> = listOf(ActivationPhrase(id = "principal", primary = true)),
+    val tolerantActivation: Boolean = false,
+    val avatar: String = "",
+    val confirmationSound: Boolean = false,
+    val welcomeMessage: String = "",
+    val sessionMinutes: Int = 10,
+    val ttsEngine: String = "realtime",
+    val ttsVoice: String = "",
+    val ttsPackage: String = "",
+    val pitch: Double = 1.0,
 ) {
-    val phrase get() = "Atento ${name.trim()}"
+    val phrase get() = (activationPhrases.firstOrNull { it.primary && it.enabled } ?: activationPhrases.firstOrNull { it.enabled })?.rendered(name) ?: "Sin frases activas"
     fun validated(): AssistantProfile {
         require(name.trim().length in 2..40 && name.trim().any(Char::isLetter) && name.all { it.isLetterOrDigit() || it == ' ' || it == '-' }) { "El nombre debe tener entre 2 y 40 letras, números, espacios o guiones." }
         require(listOf(userName, description, personality, tone, humor, vocabulary, instructions).all { it.length <= 4000 }) { "Cada campo admite hasta 4000 caracteres." }
@@ -29,6 +39,12 @@ data class AssistantProfile(
         require(voice in RealtimeSettings.voices && speed.isFinite() && speed in 0.25..1.5) { "Voz o velocidad no compatible con gpt-realtime." }
         require(language.matches(Regex("[a-z]{2,3}(-[A-Za-z]{2,8})?"))) { "Usa un idioma como es-ES." }
         require(id.length in 1..80) { "Identificador de perfil no válido." }
+        require(activationPhrases.map { it.id }.distinct().size == activationPhrases.size && activationPhrases.count { it.primary } <= 1) { "Las frases deben tener identificadores únicos y una sola principal." }
+        activationPhrases.forEach { it.validate(name) }
+        require(avatar.length <= 16 && welcomeMessage.length <= 1000 && !SecretPatterns.contains(welcomeMessage)) { "Avatar o bienvenida no válidos; no incluyas secretos." }
+        require(sessionMinutes in 1..60) { "La sesión admite entre 1 y 60 minutos para limitar consumo y recursos." }
+        require(ttsEngine in setOf("realtime", "android", "openai_tts", "external", "sherpa_vits")) { "Motor de voz no compatible." }
+        require(ttsVoice.length <= 200 && ttsPackage.length <= 200 && !SecretPatterns.contains(ttsVoice + ttsPackage) && pitch.isFinite() && pitch in 0.5..2.0) { "Ajustes de síntesis no válidos." }
         return copy(name = name.trim())
     }
     fun prompt(): String = """
@@ -46,24 +62,32 @@ data class AssistantProfile(
         .put("description", description).put("personality", personality).put("tone", tone).put("formal", formal)
         .put("humor", humor).put("vocabulary", vocabulary).put("instructions", instructions).put("voice", voice)
         .put("language", language).put("detailed", detailed).put("speed", speed)
+        .put("activationPhrases", JSONArray().apply { activationPhrases.forEach { put(it.json()) } })
+        .put("tolerantActivation", tolerantActivation).put("avatar", avatar).put("confirmationSound", confirmationSound)
+        .put("welcomeMessage", welcomeMessage).put("sessionMinutes", sessionMinutes).put("ttsEngine", ttsEngine)
+        .put("ttsVoice", ttsVoice).put("ttsPackage", ttsPackage).put("pitch", pitch)
 
     companion object {
-        private val fields = setOf("id", "name", "userName", "description", "personality", "tone", "formal", "humor", "vocabulary", "instructions", "voice", "language", "detailed", "speed")
+        private val fields = setOf("id", "name", "userName", "description", "personality", "tone", "formal", "humor", "vocabulary", "instructions", "voice", "language", "detailed", "speed", "activationPhrases", "tolerantActivation", "avatar", "confirmationSound", "welcomeMessage", "sessionMinutes", "ttsEngine", "ttsVoice", "ttsPackage", "pitch")
         fun parse(j: JSONObject): AssistantProfile {
             require(j.keys().asSequence().all { it in fields }) { "El perfil contiene campos desconocidos. No se admiten credenciales." }
             return AssistantProfile(j.getString("id"), j.getString("name"), j.optString("userName"), j.optString("description"),
                 j.optString("personality"), j.optString("tone"), j.optBoolean("formal"), j.optString("humor"), j.optString("vocabulary"),
-                j.optString("instructions"), j.getString("voice"), j.getString("language"), j.optBoolean("detailed"), j.optDouble("speed", 1.0)).validated()
+                j.optString("instructions"), j.getString("voice"), j.getString("language"), j.optBoolean("detailed"), j.optDouble("speed", 1.0),
+                activationPhrases = if (j.has("activationPhrases")) j.getJSONArray("activationPhrases").let { a -> (0 until a.length()).map { ActivationPhrase.parse(a.getJSONObject(it)) } } else listOf(ActivationPhrase(id = "principal", primary = true)),
+                tolerantActivation = j.optBoolean("tolerantActivation"), avatar = j.optString("avatar"), confirmationSound = j.optBoolean("confirmationSound"),
+                welcomeMessage = j.optString("welcomeMessage"), sessionMinutes = j.optInt("sessionMinutes", 10), ttsEngine = j.optString("ttsEngine", "realtime"),
+                ttsVoice = j.optString("ttsVoice"), ttsPackage = j.optString("ttsPackage"), pitch = j.optDouble("pitch", 1.0)).validated()
         }
         fun export(profiles: List<AssistantProfile>): String {
-            val text = JSONObject().put("version", 1).put("profiles", JSONArray().apply { profiles.forEach { put(it.validated().json()) } }).toString(2)
+            val text = JSONObject().put("version", 2).put("profiles", JSONArray().apply { profiles.forEach { put(it.validated().json()) } }).toString(2)
             require(text.toByteArray(Charsets.UTF_8).size <= 262144) { "Los perfiles superan los 256 KiB. Reduce las instrucciones o el número de perfiles." }
             return text
         }
         fun import(text: String): List<AssistantProfile> {
             require(text.length <= 262144) { "El archivo supera los 256 KiB." }
             val root = JSONObject(text)
-            require(root.keys().asSequence().toSet() == setOf("version", "profiles") && root.getInt("version") == 1) { "Formato de perfiles no compatible." }
+            require(root.keys().asSequence().toSet() == setOf("version", "profiles") && root.getInt("version") in 1..2) { "Formato de perfiles no compatible." }
             val list = root.getJSONArray("profiles")
             require(list.length() in 1..50) { "Importa entre 1 y 50 perfiles." }
             return (0 until list.length()).map { parse(list.getJSONObject(it)) }

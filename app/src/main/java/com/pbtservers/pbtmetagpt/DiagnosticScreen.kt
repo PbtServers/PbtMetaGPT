@@ -28,7 +28,7 @@ fun DiagnosticScreen(
     val idle = !vs.active && !vs.connecting && !busy
     Surface(Modifier.fillMaxSize()) {
         Column(Modifier.safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("Diagnóstico · 0.4.0", style = MaterialTheme.typography.headlineMedium)
+            Text("Diagnóstico · ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.headlineMedium)
             Text("Los resultados muestran observaciones reales. Una etapa observada no certifica las gafas ni sustituye una prueba física. Las fechas pertenecen al último intento de cada comprobación.")
             Button(onClick = { audio.stop(); onBack() }) { Text("Volver al asistente") }
             OutlinedButton(onClick = refresh) { Text("Actualizar permisos, Bluetooth y rutas") }
