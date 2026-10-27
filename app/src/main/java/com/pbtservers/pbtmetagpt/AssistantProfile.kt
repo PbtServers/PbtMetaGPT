@@ -105,7 +105,7 @@ object RealtimeSettings {
     const val model = "gpt-realtime"
     val voices = listOf("marin", "cedar", "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse")
     fun session(profile: AssistantProfile): JSONObject = JSONObject().put("type", "realtime").put("model", model)
-        .put("instructions", profile.validated().prompt()).put("output_modalities", JSONArray().put("audio"))
+        .put("instructions", profile.validated().prompt()).put("output_modalities", JSONArray().put(if (VoiceSynthesisContract.alternative(profile)) "text" else "audio"))
         .put("max_output_tokens", 1024).put("audio", JSONObject()
             .put("input", JSONObject().put("turn_detection", JSONObject().put("type", "server_vad").put("create_response", true).put("interrupt_response", true)))
             .put("output", JSONObject().put("voice", profile.voice).put("speed", profile.speed)))
@@ -114,10 +114,11 @@ object RealtimeSettings {
         .put("session", session(profile)).toString()
     fun confirms(session: JSONObject?, profile: AssistantProfile): Boolean {
         if (session == null) return false
-        val output = session.optJSONObject("audio")?.optJSONObject("output") ?: return false
         val model = session.optString("model")
-        return (model == this.model || model.startsWith("${this.model}-")) &&
-            session.optString("instructions") == profile.prompt() && output.optString("voice") == profile.voice &&
+        if (!(model == this.model || model.startsWith("${this.model}-")) || session.optString("instructions") != profile.prompt()) return false
+        if (VoiceSynthesisContract.alternative(profile)) return session.optJSONArray("output_modalities")?.let { it.length() == 1 && it.optString(0) == "text" } == true
+        val output = session.optJSONObject("audio")?.optJSONObject("output") ?: return false
+        return output.optString("voice") == profile.voice &&
             kotlin.math.abs(output.optDouble("speed", Double.NaN) - profile.speed) < 0.001
     }
 }

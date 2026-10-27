@@ -21,6 +21,14 @@ class VoiceSynthesisTest {
         assertFalse(VoiceSynthesisContract.alternative(AssistantProfile(name = "Jarvis")))
         for (engine in listOf("android", "openai_tts", "external", "sherpa_vits")) assertTrue(VoiceSynthesisContract.alternative(AssistantProfile(name = "Jarvis", ttsEngine = engine)))
         assertTrue(runCatching { AssistantProfile(name = "Jarvis", ttsEngine = "cargar-so").validated() }.isFailure)
+        for (engine in listOf("android", "openai_tts", "external", "sherpa_vits")) {
+            val p = AssistantProfile(name = "Jarvis", ttsEngine = engine)
+            val session = RealtimeSettings.session(p)
+            assertEquals("text", session.getJSONArray("output_modalities").getString(0))
+            assertTrue(RealtimeSettings.confirms(session, p))
+            session.put("output_modalities", org.json.JSONArray().put("audio"))
+            assertFalse(RealtimeSettings.confirms(session, p))
+        }
     }
     @Test fun `valida WAV mono PCM y rechaza formatos danados`() {
         val bytes = ByteArray(48)

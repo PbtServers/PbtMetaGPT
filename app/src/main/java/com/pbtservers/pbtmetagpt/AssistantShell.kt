@@ -129,16 +129,16 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                 }) { Text(if (step == steps.lastIndex) "Terminar" else "Siguiente") }
             }
         } else Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("Inicio", "Conversación", "Asistentes", "Personalidad", "Voz", "Activación por voz", "OpenAI", "Dispositivos", "Diagnóstico", "Privacidad").forEach { destination ->
+            listOf("Inicio", "Conversación", "Asistentes", "Personalidad", "Voz", "Biblioteca de voces", "Activación por voz", "OpenAI", "Dispositivos", "Diagnóstico", "Privacidad").forEach { destination ->
                 FilterChip(selected = page == destination, onClick = {
                     returnToWake = false; consent = false
                     if (destination in listOf("Inicio", "Conversación", "Dispositivos")) wake.stop() else stopAll()
-                    page = destination; if (destination in listOf("Personalidad", "Voz", "Activación por voz")) draft = selected ?: AssistantProfile()
+                    page = destination; if (destination in listOf("Personalidad", "Voz", "Biblioteca de voces", "Activación por voz")) draft = selected ?: AssistantProfile()
                 }, label = { Text(destination) })
             }
         }
         Text(wakeStatus, modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.primary)
-        selected?.let { Text("${it.name} · ${it.voice} · ${it.phrase}", modifier = Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelLarge) }
+        selected?.let { Text("${if (it.avatar.isBlank()) it.name else it.avatar + " " + it.name} · ${if (it.ttsEngine == "realtime") it.voice else it.ttsEngine} · ${it.phrase}", modifier = Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelLarge) }
         if (vs.active || vs.connecting || wake.armed) {
             Text(vs.status, modifier = Modifier.padding(horizontal = 16.dp))
             TextButton(onClick = { returnToWake = false; consent = false; stopAll() }) { Text("Desactivar escucha y cerrar sesión") }
@@ -190,8 +190,8 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                     }
                     profiles.forEach { profile ->
                         Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(profile.name + if (profile.id == selectedId) " · seleccionado" else "", style = MaterialTheme.typography.titleMedium)
-                            Text("${profile.phrase} · ${profile.voice} · ${profile.language}")
+                            Text((if (profile.avatar.isBlank()) profile.name else profile.avatar + " " + profile.name) + if (profile.id == selectedId) " · seleccionado" else "", style = MaterialTheme.typography.titleMedium)
+                            Text("${profile.phrase} · ${profile.ttsEngine} · ${profile.language}")
                             TextButton(onClick = { stopAll(); runCatching { save(profiles, profile.id); draft = profile }.onFailure { report("No se pudo seleccionar el asistente.") } }) { Text("Seleccionar") }
                             TextButton(onClick = { stopAll(); draft = profile; page = "Personalidad" }) { Text("Editar") }
                             TextButton(onClick = { stopAll(); draft = profile.copy(id = UUID.randomUUID().toString(), name = profile.name.take(33) + " copia"); page = "Personalidad" }) { Text("Duplicar") }
@@ -201,9 +201,18 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                     Button(onClick = { exportText = AssistantProfile.export(profiles); export.launch("asistentes-pbtmetagpt.json") }, enabled = profiles.isNotEmpty()) { Text("Exportar perfiles sin credenciales") }
                     OutlinedButton(onClick = { stopAll(); import.launch(arrayOf("application/json", "text/plain")) }) { Text("Importar perfiles") }
                 }
-                "Personalidad", "Nombre del asistente", "Voz" -> {
+                "Biblioteca de voces", "Voz" -> VoiceLibraryScreen(context, draft, { draft = it }, save = {
+                    runCatching { val valid = draft.validated(); save(profiles.filterNot { it.id == valid.id } + valid, valid.id); draft = valid }
+                        .onSuccess { report("Motor y voz guardados. Se utilizarán en una sesión nueva.") }.onFailure { report(it.message ?: "No se pudo guardar el perfil.") }
+                }, preview = { target ->
+                    runCatching {
+                        target.validated()
+                        if (target.ttsEngine == "realtime") { if (configure(target = target)) voice.start(backend, token.trim(), bluetooth, sample = true) }
+                        else voice.previewAlternative(target, bluetooth)
+                    }.onFailure { report("Revisa el perfil y la configuración del motor antes de reproducir la muestra.") }
+                }, stop = stopAll, report = report)
+                "Personalidad", "Nombre del asistente" -> {
                     Text("Los cambios se aplican en una sesión nueva. Guarda antes de probar la voz.")
-                    if (page == "Voz") Field("Indicaciones de tono, estilo y expresión", draft.tone) { draft = draft.copy(tone = it) }
                     if (page != "Voz") {
                         Field("Nombre del asistente", draft.name) { draft = draft.copy(name = it) }
                         Field("Avatar (emoji o iniciales, hasta 16 caracteres)", draft.avatar) { draft = draft.copy(avatar = it.take(16)) }
@@ -223,15 +232,11 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                         Slider(draft.sessionMinutes.toFloat(), { draft = draft.copy(sessionMinutes = it.toInt()) }, valueRange = 1f..60f, steps = 58)
                     }
                     Field("Idioma (por ejemplo, es-ES)", draft.language) { draft = draft.copy(language = it) }
-                    Text("Voz oficial · ${RealtimeSettings.model}. No puede cambiarse tras la primera respuesta de una sesión.")
-                    RealtimeSettings.voices.forEach { name -> FilterChip(selected = draft.voice == name, onClick = { draft = draft.copy(voice = name) }, label = { Text(name) }) }
-                    Text("Velocidad compatible con gpt-realtime: ${"%.2f".format(java.util.Locale.ROOT, draft.speed)}×")
-                    Slider(value = draft.speed.toFloat(), onValueChange = { draft = draft.copy(speed = it.toDouble()) }, valueRange = 0.25f..1.5f)
+                    Text("Motor y voz actuales: ${draft.ttsEngine}. Configúralos en Voz o Biblioteca de voces; los cambios requieren una sesión nueva.")
                     Button(onClick = {
                         stopAll(); runCatching { val valid = draft.validated(); save(profiles.filterNot { it.id == valid.id } + valid, valid.id); draft = valid }
                             .onSuccess { report("Asistente guardado. Se utilizará en la próxima sesión.") }.onFailure { report(it.message ?: "No se pudo guardar el perfil.") }
                     }) { Text("Guardar asistente y voz") }
-                    Button(onClick = { wake.stop(); if (configure()) voice.start(backend, token.trim(), bluetooth, sample = true) }, enabled = configured && !vs.active && !vs.connecting && selected == draft) { Text("Escuchar muestra guardada (consume API)") }
                     if (vs.active || vs.connecting) OutlinedButton(onClick = voice::stop) { Text("Cancelar muestra o sesión") }
                     Text(vs.status)
                 }

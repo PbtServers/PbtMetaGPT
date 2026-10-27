@@ -20,3 +20,4 @@ __pycache__/
 *.pyc
 *.aar
 *.descarga
+app/src/androidTest/assets/modelo-prueba.zip

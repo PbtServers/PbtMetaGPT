@@ -1,39 +1,33 @@
 # Seguimiento de PbtMetaGPT
 
-Actualización: 27 de octubre de 2026. Objetivo: ampliación de v0.4.0 con activación múltiple y biblioteca modular de voces. La siguiente compilación llevará una versión de desarrollo; no se publicará una Release estable sin completar la aceptación.
+Actualización: 27 de octubre de 2026. Objetivo: ampliación de v0.4.0, compilación experimental **0.4.1-dev**, código 5. No es una Release estable.
 
-## Estado inicial de la ampliación
+- Progreso ponderado: **65 %**. BYOK 20/25; configuración/perfiles 13/15; activación múltiple 14/20; motores/voz 9/20; integración 5/10; pruebas/documentación/APK 4/10. Incluye implementación y pruebas con alcances distintos; descuenta la validación física pendiente.
+- Fase actual: integración de Biblioteca y ruta Realtime textual; pruebas con modelo real preparadas, aún sin resultado.
+- Último commit publicado antes de este bloque: **4256249**. El commit que contiene esta actualización guarda la siguiente subfase; consultar `git log` y su propia CI.
+- Compilación y pruebas del bloque anterior: [CI 40488236081](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40488236081), tres trabajos correctos. 36 pruebas JVM, 4 Android/emulador, 19 Node, 3 Python; Lint, APK y contenedores correctos.
+- Tiempo transcurrido aproximado: 31 minutos. Estimación restante: 50–90 minutos para pruebas/correcciones/documentación. Hardware y OpenAI de pago no tienen una estimación fiable sin dispositivos ni credenciales.
 
-- Progreso ponderado: **57 %**. Fases: BYOK 20/25, configuración/perfiles 12/15, activación 10/20, motores/voz 6/20, integración 5/10, pruebas/documentación 4/10. La implementación de motores está aún pendiente de compilar/probar; no implica que la síntesis esté acreditada.
-- Fase actual: esquema y controles de activación múltiple implementados; comienza la síntesis modular. Compilación de prueba `0.4.1-dev` (código 5), ampliación experimental de v0.4.0.
-- Último commit publicado antes de este bloque: `d85185c`. El commit que contiene esta actualización guarda el bloque de frases/perfiles; consultar su SHA con `git log` y su propia CI.
-- Compilación de la base: correcta. [CI 40484660913](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40484660913).
-- Pruebas de la base: 22 JVM, 4 Android/emulador, 19 Node y 3 Python superadas. Lint, debug, contenedores y escáner correctos. No son pruebas acústicas ni de OpenAI de pago.
-- Tiempo inicial previsto: 90–150 minutos para implementación/CI, sujeto a dependencias y fallos. Validación física sin estimación fiable.
+## Completado e implementado
 
-## Completado en la base
+- Base BYOK cifrada y backend opcional, DAT/cámara y diagnósticos. El uso físico y la conversación real siguen pendientes.
+- Esquema de perfiles v2 migrable desde v1: múltiples frases, activar/desactivar, principal, nombre automático, tolerancia textual opcional, prueba escrita y acústica sin OpenAI. No hay cuota artificial de número: presupuesto de perfiles 256 KiB y límite técnico de sugerencias Binder 32 Ki caracteres. Todas las frases habilitadas participan en la comparación.
+- Arbitraje entre asistentes del mismo idioma, rechazo de ambigüedad y protección contra duplicados/callbacks antiguos. Motor exclusivamente on-device y solo visible. No hay sensibilidad acústica configurable ni segundo plano.
+- Avatar textual, confirmación, bienvenida y duración por asistente. Persistencia y exportación sin almacenes de claves.
+- Runtime oficial Sherpa 2.0.1 con hash fijado; paquetes ZIP de datos con metadatos, hashes, modelo VITS/Piper, símbolos y diccionario. Proceso aislado por petición. Validación estructural probada; no equivale a inferencia real.
+- Biblioteca de voces, selección de motor, proveedor HTTPS con credencial cifrada separada y muestras locales sin clave. Realtime textual para síntesis alternativa, audio nativo deshabilitado, micrófono apagado durante reproducción alternativa, cancelación coordinada y limpieza temporal.
+- Pruebas de cola/HTTP y fixture LJSpeech de inferencia real preparadas para la nueva CI. La fixture solo se descarga para la APK de pruebas, no para la aplicación.
 
-BYOK con Keystore/AES-GCM, WebRTC, backend opcional, configuración inicial, perfiles, voces oficiales, escucha on-device con una frase, DAT/cámara con consentimiento y diagnóstico. El código está implementado; el uso real de OpenAI, el reconocimiento hablado y los sensores físicos siguen pendientes.
+## Pendiente y límites
 
-## Pendiente de esta ampliación
+1. Ejecutar CI del bloque integrado; corregir cualquier fallo de Kotlin, Lint, emulador o modelo antes de afirmar su resultado.
+2. Probar realmente inferencia VITS aislada, separación de secretos y selección de motores. Ampliar diagnóstico y pruebas de interfaz.
+3. Actualizar README, arquitectura, validación y protocolo con los resultados concretos.
+4. Probar voz Android instalada, endpoints TTS y conversación real con OpenAI; no hay clave de pago disponible en este entorno. Los tests HTTP usan un proveedor sustituido.
+5. Reconocimiento acústico, micrófono/altavoces y Ray-Ban Meta pendientes de hardware. Nunca declarar compatibilidad completa por compilar o por una prueba PCM.
 
-1. Esquema migrable de múltiples frases y ajustes independientes por perfil; arbitraje entre perfiles y protección contra duplicados.
-2. Interfaz para editar/probar frases, avatar, bienvenida, confirmación y duración.
-3. Separación de conversación textual y síntesis; cancelación coordinada y exclusión de audio nativo/alternativo.
-4. Motores Android, API y modelos locales con un formato y motor concretos. No habilitar formatos sin ejecutor implementado.
-5. Biblioteca segura: metadatos, licencia/procedencia, requisitos, importación limitada, validación, muestras y eliminación.
-6. Tests, documentación y APK del commit final. Cada bloque significativo se guardará mediante commit y push a master.
+El modelo necesita pronunciaciones para todas las palabras; no se distribuye un fonemizador universal. Un ONNX arbitrario o estructuralmente válido puede fallar al ejecutar. OpenAI Speech es transitorio: retirada anunciada para 06/01/2027; el modo predeterminado sigue siendo Realtime. No se distribuyen voces clonadas de actores. Formato y requisitos: `BIBLIOTECA_DE_VOCES.md`.
 
-## Problemas conocidos y límites
+## Próxima tarea concreta
 
-No hay SDK Android local, clave de pago ni hardware validado en el entorno. La compilación completa y el emulador se ejecutan en GitHub Actions. No se ofrecerá escucha en segundo plano sin una implementación específica y validación. Un archivo ONNX u otro modelo importado no acredita capacidad de ejecución. No se distribuirán modelos de actores clonados ni se instalará código de paquetes de voz.
-
-## Continuación concreta
-
-Bloque de frases: esquema JSON v2 migrable desde v1; lista sin cuota de número (presupuesto total 256 KiB); activar/desactivar, principal, nombre automático, tolerancia textual opcional, prueba escrita y prueba de micrófono sin OpenAI. `ActivationGate` consume una sola coincidencia y rechaza callbacks antiguos y ambigüedad entre perfiles. El motor acústico continúa siendo Android on-device, solo visible y por idioma. Avatar textual, bienvenida, sonido y duración quedan en cada perfil. Los motores alternativos permanecen bloqueados hasta completar su ejecutor y su integración.
-
-Bloque de biblioteca: runtime oficial Sherpa ONNX 2.0.1 fijado por SHA-256; instalador ZIP limitado a datos con hashes/metadatos, diccionario y símbolos; proceso Android aislado para inferencia; ejecutores Android/Speech/API, PCM y cancelación. Siguen desconectados de Realtime y bloqueados por la comprobación de motor. Documentación del formato en `BIBLIOTECA_DE_VOCES.md`. Último commit previo publicado: `3bfe7ca`; su trabajo JVM/Lint/debug pasó en CI 40486820650. Nuevos tests de biblioteca pendientes de su CI.
-
-Próxima tarea: corregir CI del bloque de biblioteca, conectar el texto Realtime sin audio nativo al sintetizador, completar la pantalla Biblioteca y probar con un modelo real autorizado en emulador (sin confundir muestras PCM con escucha física).
-
-Leer este documento, comprobar `git status`, `git log` y CI del HEAD; continuar por el esquema de frases/perfiles y seleccionar un runtime de modelo local verificable. Mantener actualizada esta sección en cada bloque, sin dar por probada la síntesis real por pruebas de JSON.
+Publicar el bloque integrado, revisar CI de HEAD y la prueba nativa LJSpeech, corregir fallos, completar diagnóstico/documentación y publicar la APK de prueba del commit final. No crear Release estable. Al reanudar: leer este archivo y AGENTS, comprobar estado local/remoto y CI antes de repetir trabajo. Continuar guardando y haciendo push por cada bloque significativo.

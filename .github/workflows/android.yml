@@ -67,7 +67,9 @@ jobs:
       - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
       - name: Preparar runtime de síntesis verificado
-        run: python3 tools/preparar_sherpa.py
+        run: |
+          python3 tools/preparar_sherpa.py
+          python3 tools/preparar_modelo_prueba.py
       - name: Habilitar KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -80,6 +82,7 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
+          ram-size: 4096M
           script: bash ./gradlew --no-daemon connectedDebugAndroidTest
       - name: Publicar informe del emulador
         if: always()

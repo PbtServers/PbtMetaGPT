@@ -68,6 +68,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        cacheDir.listFiles().orEmpty().filter { it.name.startsWith("voz-") && it.name.endsWith(".wav") }.forEach { it.delete() }
         enableEdgeToEdge()
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         glasses = MetaGlasses(this, lifecycleScope, { message = it }, diagnostics)

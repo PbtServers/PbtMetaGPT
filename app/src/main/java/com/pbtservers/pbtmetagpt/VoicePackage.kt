@@ -39,7 +39,7 @@ class VoicePackageStore(private val root: File) {
         return VoicePackage(id, j.getString("name"), j.getString("language"), j.getString("license"), j.getString("source"),
             j.getString("sampleText"), j.getInt("minRamMb"), files.keys.sumOf { File(dir, it).length() }, text)
     }
-    fun install(input: InputStream): VoicePackage {
+    fun install(input: InputStream, checkActive: () -> Unit = {}): VoicePackage {
         root.mkdirs(); require(root.usableSpace > 320L * 1024 * 1024) { "Se necesitan al menos 320 MiB libres para instalar un paquete de forma segura." }
         val id = UUID.randomUUID().toString(); val staging = File(root, ".$id").canonicalFile
         require(staging.parentFile == root.canonicalFile); check(staging.mkdir())
@@ -52,7 +52,7 @@ class VoicePackageStore(private val root: File) {
                     require(!entry.isDirectory && seen.add(entry.name)) { "El paquete contiene entradas duplicadas o directorios." }
                     var size = 0L; val buffer = ByteArray(65536)
                     File(staging, entry.name).outputStream().use { output ->
-                        while (true) { val n = zip.read(buffer); if (n < 0) break; size += n; require(size <= limit) { "Un archivo supera su límite técnico de tamaño." }; output.write(buffer, 0, n) }
+                        while (true) { checkActive(); val n = zip.read(buffer); if (n < 0) break; size += n; require(size <= limit) { "Un archivo supera su límite técnico de tamaño." }; output.write(buffer, 0, n) }
                     }
                     require(size > 0) { "El paquete contiene un archivo vacío." }; zip.closeEntry()
                 }

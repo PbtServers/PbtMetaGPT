@@ -14,24 +14,8 @@ class AlternativeSpeech(private val context: Context, private val scope: Corouti
 ) {
     private val player = PcmPlayer()
     private val http = OkHttpClient.Builder().followRedirects(false).followSslRedirects(false).callTimeout(60, java.util.concurrent.TimeUnit.SECONDS).build()
-    private var job: Job? = null
-    private var generation = 0
-    fun speak(profile: AssistantProfile, text: String, finished: () -> Unit = {}) {
-        stop()
-        val current = generation
-        job = scope.launch {
-            try {
-                status("Generando voz alternativa · micrófono apagado")
-                val audio = synthesize(profile, text)
-                ensureActive()
-                if (current != generation) return@launch
-                status("Reproduciendo voz alternativa · micrófono apagado")
-                player.play(audio)
-            } catch (cancel: CancellationException) { throw cancel }
-            catch (_: Exception) { if (current == generation) error("No se pudo sintetizar o reproducir con el motor elegido. Revisa su configuración, modelo, diccionario, permisos y cuota. No se ha cambiado de voz automáticamente.") }
-            finally { if (current == generation) { job = null; finished() } }
-        }
-    }
+    private val queue = SpeechTaskQueue(scope, ::synthesize, player::play, player::stop, status, error)
+    fun speak(profile: AssistantProfile, text: String, finished: () -> Unit = {}) = queue.speak(profile, text, finished)
     suspend fun synthesize(profile: AssistantProfile, text: String): PcmAudio = when (profile.ttsEngine) {
         "android" -> AndroidVoiceEngine(context).synthesize(profile, text)
         "sherpa_vits" -> LocalModelClient(context).synthesize(VoicePackageStore(File(context.filesDir, "voces")), profile.ttsVoice, text, profile.speed)
@@ -41,15 +25,17 @@ class AlternativeSpeech(private val context: Context, private val scope: Corouti
             PcmAudio(http.newCall(request).awaitPcm(), 24000)
         }
         "external" -> {
-            val config = VoiceApiSettings(context).load().validate()
+            val settings = VoiceApiSettings(context)
+            check(settings.authorized()) { "Autoriza y guarda el proveedor TTS externo antes de enviar texto." }
+            val config = settings.load().validate()
             val vault = KeyVault(context, externalTts = true)
             val token = if (vault.exists()) vault.read() else null
-            val request = VoiceSynthesisContract.request(profile, text, config.endpoint, config.model, token)
+            val request = VoiceSynthesisContract.request(profile, text, config.endpoint, profile.ttsPackage.ifBlank { config.model }, token)
             PcmAudio(http.newCall(request).awaitPcm(), config.sampleRate)
         }
         else -> throw IllegalArgumentException("La voz Realtime usa exclusivamente su audio nativo.")
     }
-    fun stop() { generation++; job?.cancel(); job = null; player.stop() }
+    fun stop() = queue.stop()
 }
 
 internal suspend fun Call.awaitPcm(): ByteArray = suspendCancellableCoroutine { continuation ->
@@ -60,10 +46,12 @@ internal suspend fun Call.awaitPcm(): ByteArray = suspendCancellableCoroutine { 
             try {
                 val bytes = response.use {
                     check(it.isSuccessful) { "El proveedor TTS rechazó la solicitud." }
+                    val type = it.header("Content-Type").orEmpty().lowercase(java.util.Locale.ROOT)
+                    require(type.startsWith("audio/pcm") || type.startsWith("application/octet-stream")) { "El proveedor no devolvió el formato PCM contratado." }
                     val input = requireNotNull(it.body).byteStream()
                     val output = ByteArrayOutputStream(); val buffer = ByteArray(16384)
                     while (true) { val n = input.read(buffer); if (n < 0) break; require(output.size() + n <= 16777216); output.write(buffer, 0, n) }
-                    output.toByteArray().also { pcm -> require(pcm.isNotEmpty() && pcm.size % 2 == 0) }
+                    output.toByteArray().also { pcm -> require(pcm.isNotEmpty() && pcm.size % 2 == 0 && !(pcm.size >= 4 && String(pcm, 0, 4, Charsets.US_ASCII) == "RIFF")) }
                 }
                 if (continuation.isActive) continuation.resume(bytes)
             } catch (_: Exception) { if (continuation.isActive) continuation.resumeWithException(IllegalStateException("La API TTS no devolvió PCM16 mono válido dentro del límite de tamaño.")) }
