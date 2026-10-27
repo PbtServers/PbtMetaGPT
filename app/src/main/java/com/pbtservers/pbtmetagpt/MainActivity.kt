@@ -98,6 +98,7 @@ class MainActivity : ComponentActivity() {
                 val gs by glasses.state.collectAsStateWithLifecycle()
                 val vs by voice.state.collectAsStateWithLifecycle()
                 var captureConsent by remember { mutableStateOf(false) }
+                var deviceAdvanced by remember { mutableStateOf(false) }
                 val localBusy by localAudio.busy.collectAsStateWithLifecycle()
                 AssistantShell(this, vault, voice, wake, microphoneReady,
                     requestMic = { microphonePermission.launch(Manifest.permission.RECORD_AUDIO) },
@@ -123,12 +124,14 @@ class MainActivity : ComponentActivity() {
                             gs.devices.forEach { device ->
                                 ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Text(device.name, style = MaterialTheme.typography.titleMedium)
-                                    Text("Modelo informado por DAT: ${device.model}")
+                                    if (deviceAdvanced) Text("Modelo informado por DAT: ${device.model}")
                                     Text(device.status)
                                     Text(if (gs.connected && gs.selectedDevice == device.id) "Sesión conectada y confirmada por DAT" else "Sin sesión activa en estas gafas")
+                                    if (deviceAdvanced) {
                                     if (device.type == com.meta.wearable.dat.core.types.DeviceType.META_GLASSES) Text("El nombre visible, incluido «00R6», no identifica por sí solo el modelo comercial Adventurer.", style = MaterialTheme.typography.bodySmall)
                                     Text(if (device.displayCapable) "DAT declara capacidad de pantalla; esta app no envía contenido a ella." else "DAT no declara capacidad de pantalla.", style = MaterialTheme.typography.bodySmall)
                                     Text("Cámara: se comprueba al solicitar una captura. Micrófono y altavoces: validación física pendiente.", style = MaterialTheme.typography.bodySmall)
+                                    }
                                     if (!gs.connected && !gs.connecting) OutlinedButton(onClick = { glasses.connect(device.id) }, enabled = gs.registered && device.canConnect) { Text("Conectar estas gafas Meta") }
                                 } }
                             }
@@ -138,10 +141,26 @@ class MainActivity : ComponentActivity() {
                                 Button(onClick = { if (gs.connected || gs.connecting) { voice.stop(); glasses.disconnect() } else glasses.connect() }) {
                                     Text(if (gs.connected || gs.connecting) "Desconectar gafas" else "Conectar gafas Meta")
                                 }
-                                TextButton(onClick = { voice.stop(); glasses.unregister() }) { Text("Retirar registro de Meta AI") }
+                                if (deviceAdvanced) TextButton(onClick = { voice.stop(); glasses.unregister() }) { Text("Retirar registro de Meta AI") }
                             }
-                            Text("Necesitas Meta AI, gafas emparejadas y modo de desarrollador o una aplicación autorizada por Meta.", style = MaterialTheme.typography.bodySmall)
-                            Text("Este paso es opcional. Si Meta AI no abre el enlace, activa de nuevo el modo de desarrollador con las gafas conectadas y comprueba que DAT esté instalado en ellas. Actualiza y reinicia Meta AI antes de reintentar. El registro no borra el Setup.", style = MaterialTheme.typography.bodySmall)
+                            if (deviceAdvanced) Text("Necesitas Meta AI, gafas emparejadas y modo de desarrollador o una aplicación autorizada por Meta.", style = MaterialTheme.typography.bodySmall)
+                            if (deviceAdvanced) Text("Este paso es opcional. Si Meta AI no abre el enlace, activa de nuevo el modo de desarrollador con las gafas conectadas y comprueba que DAT esté instalado en ellas. Actualiza y reinicia Meta AI antes de reintentar. El registro no borra el Setup.", style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (page == "Dispositivos") {
+                            Panel("Audio", "Móvil y gafas") {
+                                Text("El emparejamiento Bluetooth y una sesión DAT son conexiones distintas. La ruta de audio debe probarse por separado.")
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Preferir Bluetooth", Modifier.weight(1f))
+                                    Switch(bluetooth, onCheckedChange = { voice.stop(); app.hosted.stop(); localAudio.stop(); setBluetooth(it) })
+                                }
+                                Text(if (bluetooth) "Salida Bluetooth solicitada; sin confirmar físicamente." else "Salida del teléfono seleccionada.")
+                                Button(onClick = {
+                                    if (bluetooth && !bluetoothReady) bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                                    else { voice.stop(); app.hosted.stop(); localAudio.speaker(bluetooth) }
+                                }, enabled = !localBusy) { Text("Probar sonido") }
+                                if (localBusy) OutlinedButton(onClick = localAudio::stop) { Text("Detener sonido") }
+                                TextButton(onClick = { deviceAdvanced = !deviceAdvanced }) { Text(if (deviceAdvanced) "Cerrar opciones de gafas" else "Opciones avanzadas de gafas") }
+                            }
                         }
                         if (page == "Inicio" || page == "Conversación") Panel("02 · Conversación", "OpenAI API · integración opcional") {
                             Text(vs.status, color = MaterialTheme.colorScheme.primary)
@@ -171,7 +190,7 @@ class MainActivity : ComponentActivity() {
                             if (vs.transcript.isNotBlank()) Text(vs.transcript, style = MaterialTheme.typography.bodyLarge)
                             Text("La pausa conserva el contexto. Con escucha persistente autorizada, el servicio mantiene el control del audio al salir; puedes detenerlo desde su notificación.", style = MaterialTheme.typography.bodySmall)
                         }
-                        if (page == "Inicio" || page == "Dispositivos") Panel("03 · Visión", "¿Qué estoy viendo?") {
+                        if (page == "Inicio" || page == "Dispositivos" && deviceAdvanced) Panel("03 · Visión", "¿Qué estoy viendo?") {
                             Text(if (gs.capturing) "Cámara activa · capturando una foto…" else "Cámara apagada", color = MaterialTheme.colorScheme.primary)
                             Text("La captura se muestra aquí antes de enviarla. No se sube vídeo ni se guardan fotos en la galería.")
                             Text(when (gs.cameraAvailable) { true -> "DAT permite cámara en esta sesión; calidad física sin validar"; false -> "DAT no pudo habilitar cámara. Revisa permisos y compatibilidad antes de reconectar."; null -> "Capacidad de cámara sin comprobar en esta sesión" })

@@ -15,7 +15,7 @@ import kotlinx.coroutines.*
 import java.io.File
 
 @Composable
-fun VoiceLibraryScreen(context: Context, profile: AssistantProfile, change: (AssistantProfile) -> Unit,
+fun AdvancedVoiceLibraryScreen(context: Context, profile: AssistantProfile, change: (AssistantProfile) -> Unit,
     save: () -> Unit, preview: (AssistantProfile) -> Unit, stop: () -> Unit, report: (String) -> Unit, compact: Boolean = false,
 ) {
     val scope = rememberCoroutineScope()

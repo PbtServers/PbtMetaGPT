@@ -32,7 +32,7 @@ jobs:
         env:
           PBT_QWEN_LIVE: '1'
         run: bash ./gradlew --no-daemon testDebugUnitTest --tests '*QwenLivePerformanceTest' 2>&1 | tee compilacion.log
-      - name: Extraer diagn?stico de compilaci?n sin datos de usuario
+      - name: Extraer diagnóstico de compilación sin datos de usuario
         if: failure()
         id: fallo
         run: |
@@ -40,13 +40,27 @@ jobs:
           import os,re
           from pathlib import Path
           lines=Path('compilacion.log').read_text(errors='replace').splitlines() if Path('compilacion.log').exists() else []
-          errors=[re.sub(r'[^a-zA-Z0-9 ????????????_.,:()<>/=+!?-]', '', x)[-220:] for x in lines if x.startswith('e: ') or ' > ' in x and 'FAILED' in x]
+          errors=[re.sub(r'[^a-zA-Z0-9 áéíóúÁÉÍÓÚñÑ_.,:()<>/=+!?-]', '', x)[-220:] for x in lines if x.startswith('e: ') or ' > ' in x and 'FAILED' in x]
           with open(os.environ['GITHUB_OUTPUT'],'a') as out: out.write('resumen='+' | '.join(errors[:4])[:850]+'\n')
           PY
-      - name: 'Diagn?stico: ${{ steps.fallo.outputs.resumen }}'
+      - name: 'Diagnóstico: ${{ steps.fallo.outputs.resumen }}'
         if: failure()
-        run: echo 'Consulta el informe completo de compilaci?n y pruebas.'
-      - name: 'PCM disponible: completo ${{ steps.medir.outputs.completo_ms }} ms; primer fragmento ${{ steps.medir.outputs.fragmento_ms }} ms'
+        run: echo 'Consulta el informe completo de compilación y pruebas.'
+      - name: Verificar evidencia real y leer tiempos del informe
+        id: evidencia
+        run: |
+          python3 - <<'PY'
+          import os,json
+          from pathlib import Path
+          p=Path('app/build/reports/qwen-latencia-real.json')
+          assert p.is_file(), 'No existe informe real: no se acepta una prueba omitida o en caché'
+          r=json.loads(p.read_text())
+          assert r.get('resultado') == 'CORRECTO_REAL', 'La inferencia remota no se completó'
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out:
+              out.write('completo_ms='+str(r['completo_ms']['TOTAL'])+'\n')
+              out.write('fragmento_ms='+str(r['primer_fragmento_ms']['TOTAL'])+'\n')
+          PY
+      - name: 'PCM disponible: completo ${{ steps.evidencia.outputs.completo_ms }} ms; primer fragmento ${{ steps.evidencia.outputs.fragmento_ms }} ms'
         run: echo "La métrica mide disponibilidad PCM, no sonido físico ni Bluetooth."
       - name: Conservar resultado incluso si cuota o servicio rechazan la prueba
         if: always()

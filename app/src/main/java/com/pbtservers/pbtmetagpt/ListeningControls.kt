@@ -15,7 +15,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.*
 import java.io.IOException
 
-@Composable fun ListeningControls(configured: Boolean, microphoneReady: Boolean, requestMic: () -> Unit, stopVisible: () -> Unit) {
+@Composable fun ListeningControls(configured: Boolean, microphoneReady: Boolean, requestMic: () -> Unit, stopVisible: () -> Unit,
+    compact: Boolean = false, configure: () -> Unit = {}) {
     val context = LocalContext.current
     val phase by ContinuousWakeService.state.collectAsStateWithLifecycle()
     val model = remember { WakeModel(context.applicationContext) }
@@ -31,10 +32,11 @@ import java.io.IOException
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Tu voz abre la conversación", style = MaterialTheme.typography.titleLarge)
             Text(phase.label, color = MaterialTheme.colorScheme.primary)
-            if (installed) Text("Modelo español Vosk 0.42 instalado · reconocimiento acústico pendiente de probar", style = MaterialTheme.typography.bodySmall)
+            if (installed && !compact) Text("Modelo español Vosk 0.42 instalado · reconocimiento acústico pendiente de probar", style = MaterialTheme.typography.bodySmall)
             if (phase == ListeningPhase.LISTENING) LinearProgressIndicator(Modifier.fillMaxWidth())
-            Text("Escucha continua local en español, con notificación y parada explícita. No envía audio hasta iniciar la conversación. Puede aumentar el consumo de batería; duración y acústica pendientes de validar.")
-            if (!installed) {
+            Text(if (compact) "Activación local · sin enviar audio de fondo." else "Escucha continua local en español, con notificación y parada explícita. Puede aumentar el consumo de batería; duración y acústica pendientes de validar.")
+            if (compact && !installed) TextButton(onClick = configure) { Text("Preparar activación local") }
+            if (!installed && !compact) {
                 Text("Necesita Vosk small-es-0.42 (39 MB, Apache 2.0), descargado desde alphacephei.com. Los nombres fuera del vocabulario requieren adaptar un modelo; no se garantiza cualquier frase.")
                 Button(onClick = { scope.launch {
                     downloading = true
@@ -52,10 +54,10 @@ import java.io.IOException
                 else if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
                 else consent = true
             }, enabled = installed && configured && !downloading) { Text("Activar escucha") }
-            if (!configured) Text("Guarda un asistente y configura OpenAI antes de activar la escucha.")
-            if (installed && !ContinuousWakeService.running) TextButton(onClick = { model.delete(); installed = false; status = "Modelo eliminado del teléfono." }) { Text("Eliminar modelo de activación") }
+            if (!configured) Text("Guarda un asistente y configura el proveedor elegido antes de activar la escucha.")
+            if (!compact && installed && !ContinuousWakeService.running) TextButton(onClick = { model.delete(); installed = false; status = "Modelo eliminado del teléfono." }) { Text("Eliminar modelo de activación") }
             if (status.isNotBlank()) Text(status)
-            TextButton(onClick = {
+            if (!compact) TextButton(onClick = {
                 try { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                     android.net.Uri.parse("package:${context.packageName}"))) }
                 catch (_: android.content.ActivityNotFoundException) { status = "Abre los ajustes de PbtMetaGPT desde Android para revisar permisos y batería." }

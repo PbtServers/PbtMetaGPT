@@ -11,6 +11,8 @@ data class ChatMessage(val id: Long, val assistant: Boolean, val text: String)
 class HostedConversation(private val context: Context, private val scope: CoroutineScope) {
     private val mutable = MutableStateFlow(VoiceState(status = "Listo"))
     val state = mutable.asStateFlow()
+    private val processing = MutableStateFlow(false)
+    val busy = processing.asStateFlow()
     private val phaseValue = MutableStateFlow(ConversationPhase.READY)
     val phase = phaseValue.asStateFlow()
     private val chat = MutableStateFlow<List<ChatMessage>>(emptyList())
@@ -55,12 +57,14 @@ class HostedConversation(private val context: Context, private val scope: Corout
         idleRelease?.cancel()
         val trace = VoiceLatency()
         voiceFailure.value = null; timing.value = emptyMap()
+        processing.value = true
         job = scope.launch {
             try { draining?.join(); ensureActive(); action(trace) }
             catch (cancel: CancellationException) { throw cancel }
             catch (problem: Exception) { failed(problem) }
             finally {
                 if (current == generation) {
+                    processing.value = false
                     trace.mark(VoiceStage.TOTAL); timing.value = trace.snapshot()
                     runCatching { LatencyStore(context).record(trace.snapshot()) }
                     mutable.update { it.copy(connecting = false, responding = false) }
@@ -185,7 +189,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
         mutable.update { it.copy(status = publicError(problem), failed = true) }
     }
     fun stop() {
-        generation++
+        generation++; processing.value = false
         job?.let { it.cancel(); draining = it }; job = null
         limit?.cancel(); idleRelease?.cancel(); player.stop(); route?.close(); route = null; android.close()
         history.clear(); profile = null; resolved = null

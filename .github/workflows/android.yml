@@ -38,7 +38,7 @@ jobs:
         run: |
           python3 tools/preparar_sherpa.py
           bash ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug 2>&1 | tee compilacion.log
-      - name: Extraer diagn?stico de compilaci?n sin datos de usuario
+      - name: Extraer diagnóstico de compilación sin datos de usuario
         if: failure()
         id: fallo
         run: |
@@ -46,17 +46,32 @@ jobs:
           import os,re
           from pathlib import Path
           lines=Path('compilacion.log').read_text(errors='replace').splitlines() if Path('compilacion.log').exists() else []
-          errors=[re.sub(r'[^a-zA-Z0-9 ????????????_.,:()<>/=+!?-]', '', x)[-220:] for x in lines if x.startswith('e: ') or ' > ' in x and 'FAILED' in x]
+          errors=[re.sub(r'[^a-zA-Z0-9 áéíóúÁÉÍÓÚñÑ_.,:()<>/=+!?-]', '', x)[-220:] for x in lines if x.startswith('e: ') or ' > ' in x and 'FAILED' in x]
           with open(os.environ['GITHUB_OUTPUT'],'a') as out: out.write('resumen='+' | '.join(errors[:4])[:850]+'\n')
           PY
-      - name: 'Diagn?stico: ${{ steps.fallo.outputs.resumen }}'
+      - name: 'Diagnóstico: ${{ steps.fallo.outputs.resumen }}'
         if: failure()
-        run: echo 'Consulta el informe completo de compilaci?n y pruebas.'
+        run: echo 'Consulta el informe completo de compilación y pruebas.'
       - name: Comprobar ausencia de claves privadas en fuentes y APK
         run: |
           python3 -m unittest discover -s tools -p 'test_*.py'
           python3 tools/comprobar_secretos.py --informe app/build/reports/seguridad/hallazgos.json app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump permissions app/build/outputs/apk/debug/app-debug.apk | grep -F "android.permission.ACCESS_NETWORK_STATE"
+      - name: Resumir hallazgos del escáner sin mostrar candidatos
+        if: failure()
+        id: seguridad
+        run: |
+          python3 - <<'PY'
+          import os,json
+          from pathlib import Path
+          p=Path('app/build/reports/seguridad/hallazgos.json')
+          r=json.loads(p.read_text()) if p.exists() else {}
+          summary=json.dumps(r.get('hallazgos',[]),ensure_ascii=True,separators=(',',':'))[:3000]
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out: out.write('resumen='+summary+'\n')
+          PY
+      - name: 'Seguridad: ${{ steps.seguridad.outputs.resumen }}'
+        if: failure()
+        run: echo 'Metadatos de atribución exclusivamente; los hallazgos siguen bloqueando la APK.'
       - name: Publicar informes
         if: always()
         uses: actions/upload-artifact@v4

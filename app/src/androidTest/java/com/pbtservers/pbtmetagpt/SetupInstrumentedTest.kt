@@ -24,6 +24,7 @@ class SetupInstrumentedTest {
     private val context get() = instrumentation.targetContext
     @Before fun preparar() {
         KeyVault(context).delete()
+        context.getSharedPreferences("servicios_alojados", 0).edit().clear().commit()
         ProfileStore(context).save(emptyList(), null)
         context.getSharedPreferences("configuracion", 0).edit().clear().commit()
     }
@@ -31,20 +32,17 @@ class SetupInstrumentedTest {
 
     @Test fun bienvenidaYCreacionDeAsistenteSinBackendNiNombreImpuesto() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            compose.onNodeWithText("Configuración inicial · 1/5 · Bienvenida").assertIsDisplayed()
+            compose.onNodeWithText("Configuración inicial · 1/3 · Servicio").assertIsDisplayed()
             compose.onAllNodesWithText("Jarvis", substring = true).assertCountEquals(0)
-            compose.onNodeWithText("Comenzar").performClick()
             compose.onNodeWithText("Continuar").performClick()
-            compose.onNodeWithText("Nombre del asistente").performScrollTo().performTextInput("Jarvis")
-            compose.onNodeWithText("Guardar asistente y voz").performScrollTo().performClick()
+            compose.onNodeWithText("Nombre del asistente").performScrollTo().performTextReplacement("Jarvis")
+            compose.onNodeWithText("Guardar voz").performScrollTo().performClick()
             compose.onNodeWithText("Entendido").performClick()
-            compose.onNodeWithText("Jarvis · marin · Atento Jarvis").assertIsDisplayed()
             assertEquals("Jarvis", ProfileStore(context).load().single().name)
             assertFalse(KeyVault(context).exists())
             scenario.recreate()
-            compose.onNodeWithText("Configuración inicial · 3/5 · Asistente").assertIsDisplayed()
+            compose.onNodeWithText("Configuración inicial · 2/3 · Voz").assertIsDisplayed()
             compose.onNodeWithText("Nombre del asistente").assertTextContains("Jarvis")
-            compose.onNodeWithText("Jarvis · marin · Atento Jarvis").assertIsDisplayed()
         }
     }
 
@@ -77,13 +75,14 @@ class SetupInstrumentedTest {
         ProfileStore(context).save(listOf(first, second), first.id)
         context.getSharedPreferences("configuracion", 0).edit().putBoolean("bienvenida", true).commit()
         ActivityScenario.launch(MainActivity::class.java).use {
-            compose.onNodeWithText("Más ajustes").performClick()
+            compose.onNode(hasText("Ajustes") and hasClickAction()).performClick()
             compose.onNode(hasText("Biblioteca de voces") and hasClickAction()).performScrollTo().performClick()
+            abrirAvanzadas()
             compose.onNodeWithText("API TTS externa · contrato PCM").performScrollTo().performClick()
             compose.onNodeWithText("Identificador de voz del proveedor").performScrollTo().performTextInput("personaje-original")
             compose.onNodeWithText("Guardar motor y voz en el asistente").performScrollTo().performClick()
             compose.onNodeWithText("Entendido").performClick()
-            compose.onNodeWithText("Más ajustes").performClick()
+            compose.onNode(hasText("Ajustes") and hasClickAction()).performClick()
             compose.onNode(hasText("Activación por voz") and hasClickAction()).performScrollTo().performClick()
             compose.onNodeWithText("Texto de la frase").performScrollTo().performTextClearance()
             compose.onNodeWithText("Texto de la frase").performTextInput("Oye")
@@ -100,30 +99,31 @@ class SetupInstrumentedTest {
 
     @Test fun setupReanudaVozRetrocedeYFinalizaSinGafasNiClave() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            compose.onNodeWithText("Comenzar").performClick()
             compose.onNodeWithText("Continuar").performClick()
-            compose.onNodeWithText("Nombre del asistente").performScrollTo().performTextInput("Luna")
-            // El avance valida y guarda el perfil, sin exigir una sesión ni una clave real.
-            compose.onNodeWithText("Continuar").performClick()
+            compose.onNodeWithText("Nombre del asistente").performScrollTo().performTextReplacement("Luna")
+            abrirAvanzadas()
             compose.onNodeWithText("cedar").performScrollTo().performClick().assertIsSelected()
             compose.runOnIdle {
-                assertEquals(3, SetupStore(context).step)
+                assertEquals(1, SetupStore(context).step)
                 assertEquals("cedar", SetupStore(context).draft()?.voice)
             }
             scenario.recreate()
-            compose.onNodeWithText("Configuración inicial · 4/5 · Voz").assertIsDisplayed()
+            compose.onNodeWithText("Configuración inicial · 2/3 · Voz").assertIsDisplayed()
+            abrirAvanzadas()
             compose.onNodeWithText("cedar").performScrollTo().assertIsSelected()
             compose.onNodeWithText("Anterior").performClick()
+            compose.onNodeWithText("Configuración inicial · 1/3 · Servicio").assertIsDisplayed()
+            compose.onNodeWithText("Continuar").performClick()
             compose.onNodeWithText("Nombre del asistente").assertTextContains("Luna")
             compose.onNodeWithText("Continuar").performClick()
-            compose.onNodeWithText("Continuar").performClick()
             scenario.recreate()
-            compose.onNodeWithText("Configuración inicial · 5/5 · Gafas Meta").assertIsDisplayed()
+            compose.onNodeWithText("Configuración inicial · 3/3 · Prueba").assertIsDisplayed()
             compose.onNodeWithText("Omitir").performClick()
             assertTrue(context.getSharedPreferences("configuracion", 0).getBoolean("bienvenida", false))
             assertEquals("cedar", ProfileStore(context).load().single().voice)
             scenario.recreate()
             compose.onAllNodesWithText("Configuración inicial", substring = true).assertCountEquals(0)
+            compose.onNode(hasText("Voces") and hasClickAction()).assertIsDisplayed()
             assertFalse(KeyVault(context).exists())
         }
     }
@@ -135,8 +135,9 @@ class SetupInstrumentedTest {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             // Hay dos destinos clicables llamados Voz (panel inicial y barra).
             // Abrir la biblioteca por su etiqueta inequívoca.
-            compose.onNodeWithText("Más ajustes").performClick()
-            compose.onNode(hasText("Biblioteca de voces") and hasClickAction()).performClick()
+            compose.onNode(hasText("Ajustes") and hasClickAction()).performClick()
+            compose.onNode(hasText("Biblioteca de voces") and hasClickAction()).performScrollTo().performClick()
+            abrirAvanzadas()
             RealtimeSettings.voices.forEach { voice ->
                 // El resumen también muestra el nombre: solo el chip es clicable.
                 compose.onNode(hasText(voice) and hasClickAction()).performScrollTo().performClick().assertIsSelected()
@@ -151,44 +152,82 @@ class SetupInstrumentedTest {
 
     @Test fun detenerAntesDeRecomponerConservaLaUltimaVozDelSetup() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            compose.onNodeWithText("Comenzar").performClick()
             compose.onNodeWithText("Continuar").performClick()
-            compose.onNodeWithText("Nombre del asistente").performScrollTo().performTextInput("Luna")
-            compose.onNodeWithText("Continuar").performClick()
+            compose.onNodeWithText("Nombre del asistente").performScrollTo().performTextReplacement("Luna")
+            abrirAvanzadas()
             compose.onNodeWithText("marin").performScrollTo().assertIsSelected()
             compose.onNodeWithText("cedar").performScrollTo()
             compose.mainClock.autoAdvance = false
             try {
-                // Ejecutar la acción accesible y detener Android antes del siguiente frame
-                // de Compose: el guardado no debe depender de recomponer la pantalla.
                 compose.onNodeWithText("cedar").performSemanticsAction(SemanticsActions.OnClick) { click -> click() }
                 scenario.moveToState(Lifecycle.State.CREATED)
-                assertEquals(3, SetupStore(context).step)
+                assertEquals(1, SetupStore(context).step)
                 assertEquals("cedar", SetupStore(context).draft()?.voice)
             } finally { compose.mainClock.autoAdvance = true }
             scenario.moveToState(Lifecycle.State.RESUMED)
             scenario.recreate()
-            compose.onNodeWithText("Configuración inicial · 4/5 · Voz").assertIsDisplayed()
+            compose.onNodeWithText("Configuración inicial · 2/3 · Voz").assertIsDisplayed()
+            abrirAvanzadas()
             compose.onNodeWithText("cedar").performScrollTo().assertIsSelected()
         }
     }
 
     @Test fun borradorIncompletoPersisteYErrorNoReiniciaLaEtapa() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            compose.onNodeWithText("Comenzar").performClick()
             compose.onNodeWithText("Continuar").performClick()
-            compose.onNodeWithText("Nombre del asistente").performScrollTo().performTextInput("L")
+            compose.onNodeWithText("Nombre del asistente").performScrollTo().performTextReplacement("L")
             compose.onNodeWithText("Continuar").performClick()
             compose.onNodeWithText("Entendido").performClick()
             scenario.recreate()
-            compose.onNodeWithText("Configuración inicial · 3/5 · Asistente").assertIsDisplayed()
+            compose.onNodeWithText("Configuración inicial · 2/3 · Voz").assertIsDisplayed()
             compose.onNodeWithText("Nombre del asistente").assertTextContains("L")
             assertTrue(ProfileStore(context).load().isEmpty())
         }
         ActivityScenario.launch(MainActivity::class.java).use {
-            compose.onNodeWithText("Configuración inicial · 3/5 · Asistente").assertIsDisplayed()
+            compose.onNodeWithText("Configuración inicial · 2/3 · Voz").assertIsDisplayed()
             compose.onNodeWithText("Nombre del asistente").assertTextContains("L")
         }
+    }
+
+    @Test fun cuatroApartadosYVozNaturalSinReproduccionAutomatica() {
+        val profile = AssistantProfile(name = "Luna")
+        ProfileStore(context).save(listOf(profile), profile.id)
+        context.getSharedPreferences("configuracion", 0).edit().putBoolean("bienvenida", true).commit()
+        ActivityScenario.launch(MainActivity::class.java).use {
+            listOf("Inicio", "Asistentes", "Voces", "Ajustes").forEach { tab ->
+                compose.onNode(hasText(tab) and hasClickAction()).assertIsDisplayed()
+            }
+            compose.onNodeWithText("Hablar").assertIsDisplayed().assertIsNotEnabled()
+            compose.onAllNodesWithText("Modelo Groq (ID público)").assertCountEquals(0)
+            compose.onNode(hasText("Voces") and hasClickAction()).performClick()
+            compose.onNodeWithText("Natural").performScrollTo().performClick().assertIsSelected()
+            compose.onAllNodesWithText("URL HTTPS completa de la API de síntesis").assertCountEquals(0)
+            compose.onAllNodesWithText("Escuchar muestra").onFirst().performScrollTo().assertIsNotEnabled()
+            compose.onNodeWithText("Guardar voz").performScrollTo().performClick()
+            compose.onNodeWithText("Entendido").performClick()
+            val saved = ProfileStore(context).load().single()
+            assertEquals("natural", saved.voiceMode)
+            assertEquals("qwen_space", saved.ttsEngine)
+            assertFalse(HostedSettings(context).qwenAuthorized)
+            assertFalse((context.applicationContext as PbtApplication).hosted.busy.value)
+        }
+    }
+
+    private fun abrirAvanzadas() {
+        compose.onNodeWithText("Personalizada").performScrollTo().performClick()
+        compose.onNodeWithText("Opciones avanzadas de voz").performScrollTo().performClick()
+    }
+
+    @Test fun migraBorradorAnteriorSinPerderVozNiRepetirConfiguracionTerminada() {
+        val draft = AssistantProfile(name = "Luna", voice = "cedar")
+        context.getSharedPreferences("configuracion", 0).edit().putInt("setup_step", 3)
+            .putString("setup_draft", draft.json().toString()).commit()
+        val setup = SetupStore(context)
+        assertEquals(1, setup.step)
+        assertEquals("cedar", setup.draft()?.voice)
+        setup.finish()
+        assertTrue(context.getSharedPreferences("configuracion", 0).getBoolean("bienvenida", false))
+        assertEquals(null, setup.draft())
     }
 
     @Test fun iconoAdaptativoEstaDeclaradoYResuelveEnAndroid() {

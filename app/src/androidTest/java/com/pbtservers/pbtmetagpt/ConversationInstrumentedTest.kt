@@ -26,6 +26,7 @@ class ConversationInstrumentedTest {
         instrumentation.runOnMainSync { voice?.stop(); wake?.stop(); scope.cancel() }
         context.getSharedPreferences("configuracion", Context.MODE_PRIVATE).edit().clear().commit()
         KeyVault(context).delete()
+        context.getSharedPreferences("servicios_alojados", 0).edit().clear().commit()
         ProfileStore(context).save(emptyList(), null)
     }
 
@@ -36,6 +37,7 @@ class ConversationInstrumentedTest {
         // Presencia de credencial con almacenamiento dañado: falla antes de red/audio,
         // sin claves reales ni permisos de sensores concedidos al proceso.
         context.getSharedPreferences("credenciales_cifradas", 0).edit().clear().putString("ciphertext", "dato-invalido").commit()
+        HostedSettings(context).select("openai")
         var failure by mutableStateOf<String?>(null)
         val client = RealtimeClient(context, scope, { failure = it }).also { voice = it }
         val listener = LocalWakeListener(context, scope) {}.also { wake = it }

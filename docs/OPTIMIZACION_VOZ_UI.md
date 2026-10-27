@@ -34,3 +34,15 @@ No se usa edge-tts ni automatización de servicios privados. No se incorpora una
 ## Evidencia en curso
 
 Primera subfase: seis JVM de segmentación/orden/cancelación/fallo/telemetría correctas localmente; 31 Python y 19 Node correctas; sintaxis Kotlin comprobada, sin sustituir compilación Android. CI y benchmark remoto deben corresponder a su SHA. README.md y seis archivos locales anteriores protegidos por SHA256 en `diagnosticos-locales/optimizacion-preservados.json` y excluidos de commits.
+
+## Interfaz y persistencia
+
+Cuatro destinos: Inicio, Asistentes, Voces y Ajustes. Inicio contiene Hablar, perfil, escucha y gafas. El chat Groq usa mensajes seleccionables y texto incremental; permite editar mientras TTS trabaja, detener, repetir audio, reintentar y elegir explícitamente una voz local ante fallo. Un indicador de trabajo único impide que se pierda un envío mientras llega el audio.
+
+La biblioteca ofrece Rápida (Android instalado), Natural (Qwen con consentimiento y disponibilidad no garantizada) y Personalizada. Endpoints, importaciones, voces oficiales y motores anteriores permanecen en opciones avanzadas. Seleccionar una tarjeta no reproduce muestras. Qwen admite un máximo de dos solicitudes por respuesta; no tiene streaming de PCM en este adaptador Gradio.
+
+Primer inicio: Servicio, Voz y Prueba opcional. Los borradores de cinco etapas migran conservando sus campos y las instalaciones que ya finalizaron no repiten el proceso. Se conservan regresiones de suspensión antes de recomposición, todas las voces oficiales, biblioteca/frases independientes y permiso denegado; adaptadas a tres etapas. Las pruebas de emulador distinguen navegación de inferencia real.
+
+Gafas muestra detección y sesión DAT por separado del Bluetooth, selección de salida y prueba explícita de sonido. Cámara, retirada de registro y detalles de capacidad permanecen en opciones avanzadas. No se acredita 00R6 por nombre ni se declara validación acústica.
+
+CI de la canalización: `1b964a0` compila y supera JVM/Lint/ensamblado, pero el control posterior de seguridad bloquea la APK; investigado sin omitir el escáner. El benchmark Kotlin terminó con salida numérica vacía: no se acepta como evidencia hasta comprobar su informe real en un paso independiente.

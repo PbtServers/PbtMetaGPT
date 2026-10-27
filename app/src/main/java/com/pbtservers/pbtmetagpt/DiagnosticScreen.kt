@@ -33,6 +33,12 @@ fun DiagnosticScreen(
             Button(onClick = { audio.stop(); onBack() }) { Text("Volver al asistente") }
             OutlinedButton(onClick = refresh) { Text("Actualizar permisos, Bluetooth y rutas") }
             OutlinedButton(onClick = checkCamera) { Text("Consultar permiso de cámara DAT") }
+            val timing = remember { LatencyStore(context) }
+            var timingReport by remember { mutableStateOf(timing.report()) }
+            Text("Latencia · solo métricas numéricas", style = MaterialTheme.typography.titleMedium)
+            Text(timingReport, style = MaterialTheme.typography.bodySmall)
+            Text("La primera trama indica avance del reproductor Android, no una medición acústica de las gafas. Cola y generación Qwen se miden juntas cuando la API no las separa.", style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { timing.clear(); timingReport = timing.report() }) { Text("Borrar métricas de latencia") }
             if (!configured) Text("Guarda un asistente y configura la clave personal o el servidor alternativo en OpenAI.")
             Button(onClick = { consent = "credencial" }, enabled = idle && configured) { Text("Comprobar credencial temporal") }
             Button(onClick = { consent = "realtime" }, enabled = idle && configured) { Text("Verificar Realtime sin micrófono") }
