@@ -58,9 +58,9 @@ class LocalWakeListener(private val context: Context, private val scope: Corouti
         val current = ++generation
         val selected = profile ?: return
         try {
-            val gate = (context.applicationContext as? PbtApplication)?.microphone
-            if (microphoneLease == null && gate != null) {
-                microphoneLease = gate.acquire(MicrophoneOwner.ANDROID_LOCAL)
+            val microphoneGate = (context.applicationContext as? PbtApplication)?.microphone
+            if (microphoneLease == null && microphoneGate != null) {
+                microphoneLease = microphoneGate.acquire(MicrophoneOwner.ANDROID_LOCAL)
                 check(microphoneLease != null) { "Micrófono ocupado" }
             }
             recognizer?.destroy()

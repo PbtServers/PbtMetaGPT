@@ -23,6 +23,14 @@ Verificación local: 19 JVM compiladas y ejecutadas directamente con Kotlin/JUni
 
 Implementación local: `0328564`. Push a `origin/master` intentado y rechazado por falta de conexión HTTPS. El conector GitHub permite lectura, pero la escritura devuelve **HTTP 403: Resource not accessible by integration**. Master remoto continúa en `f9daabd`; la consulta de Actions para el SHA de implementación devuelve cero ejecuciones. **Sin APK nueva ni CI de esta intervención**, y sin sumar porcentaje por publicar. Los seis archivos preexistentes son los únicos cambios ajenos que continúan sin incluirse en commits. Para desbloquear la CI se necesita publicar los commits desde un entorno con conexión y permisos de escritura; no se ha usado force push.
 
+### Correctivo de la colisión de controladores en escucha Android
+
+`b036a7b` ya está publicado en master. La [ejecución 40556319743](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40556319743) supera backend/contenedores, pero falla en `:app:compileDebugKotlin`: el `gate` local de tipo `MicrophoneGate?` ocultaba el campo `ActivationGate`. Esto impedía resolver `accept` y propagaba un tipo incorrecto hasta el callback del asistente. Los emuladores y la publicación de APK quedaron omitidos por ese fallo.
+
+El parche renombra únicamente esa variable local y sus dos usos a `microphoneGate`. `gate.accept(best, gateEpoch)` conserva el controlador de activación y su retorno `AssistantProfile?`; después de comprobar que no es nulo se detiene el reconocedor y se encola el callback con comprobación de generación. Se mantienen permisos, concesión/liberación del micrófono, rechazo de resultados antiguos, modo de prueba y todas las pruebas existentes.
+
+Verificado localmente: 19 JVM de políticas/diario correctas, 9 Python y 19 Node correctas, 77 archivos Kotlin sin errores sintácticos, README sin diferencias y seis archivos previos idénticos a sus copias. Gradle Java17 sigue sin SDK Android; la preparación de Sherpa sigue bloqueada por red. Estas verificaciones no acreditan la compilación Android ni sustituyen la CI del correctivo. **Se mantiene el 35 %** hasta validar nuevas etapas Android; acústica y cierres físicos continúan pendientes.
+
 ## Intervención de interfaz y errores · 27/10/2026
 
 Tarea independiente del **85 % funcional** documentado abajo. Base `654d06d`; README profesional conservado con una referencia breve añadida. Detalle: [CORRECCIONES_INTERFAZ.md](CORRECCIONES_INTERFAZ.md).
