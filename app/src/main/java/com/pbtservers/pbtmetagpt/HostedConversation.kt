@@ -72,4 +72,3 @@ class HostedDictation(private val context: Context) {
         finally { gate.release(lease) }
     }
 }
-

@@ -31,7 +31,21 @@ jobs:
         id: medir
         env:
           PBT_QWEN_LIVE: '1'
-        run: bash ./gradlew --no-daemon testDebugUnitTest --tests '*QwenLivePerformanceTest'
+        run: bash ./gradlew --no-daemon testDebugUnitTest --tests '*QwenLivePerformanceTest' 2>&1 | tee compilacion.log
+      - name: Extraer diagn?stico de compilaci?n sin datos de usuario
+        if: failure()
+        id: fallo
+        run: |
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          lines=Path('compilacion.log').read_text(errors='replace').splitlines() if Path('compilacion.log').exists() else []
+          errors=[re.sub(r'[^a-zA-Z0-9 ????????????_.,:()<>/=+!?-]', '', x)[-220:] for x in lines if x.startswith('e: ') or ' > ' in x and 'FAILED' in x]
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out: out.write('resumen='+' | '.join(errors[:4])[:850]+'\n')
+          PY
+      - name: 'Diagn?stico: ${{ steps.fallo.outputs.resumen }}'
+        if: failure()
+        run: echo 'Consulta el informe completo de compilaci?n y pruebas.'
       - name: 'PCM disponible: completo ${{ steps.medir.outputs.completo_ms }} ms; primer fragmento ${{ steps.medir.outputs.fragmento_ms }} ms'
         run: echo "La métrica mide disponibilidad PCM, no sonido físico ni Bluetooth."
       - name: Conservar resultado incluso si cuota o servicio rechazan la prueba

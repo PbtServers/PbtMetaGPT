@@ -34,9 +34,24 @@ jobs:
       - name: Probar el backend sin llamadas reales
         run: node --test backend/*.test.mjs
       - name: Compilar, analizar y probar Android
+        id: compilacion
         run: |
           python3 tools/preparar_sherpa.py
-          bash ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+          bash ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug 2>&1 | tee compilacion.log
+      - name: Extraer diagn?stico de compilaci?n sin datos de usuario
+        if: failure()
+        id: fallo
+        run: |
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          lines=Path('compilacion.log').read_text(errors='replace').splitlines() if Path('compilacion.log').exists() else []
+          errors=[re.sub(r'[^a-zA-Z0-9 ????????????_.,:()<>/=+!?-]', '', x)[-220:] for x in lines if x.startswith('e: ') or ' > ' in x and 'FAILED' in x]
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out: out.write('resumen='+' | '.join(errors[:4])[:850]+'\n')
+          PY
+      - name: 'Diagn?stico: ${{ steps.fallo.outputs.resumen }}'
+        if: failure()
+        run: echo 'Consulta el informe completo de compilaci?n y pruebas.'
       - name: Comprobar ausencia de claves privadas en fuentes y APK
         run: |
           python3 -m unittest discover -s tools -p 'test_*.py'

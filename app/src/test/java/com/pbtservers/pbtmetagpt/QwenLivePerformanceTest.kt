@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit
 
 /** Opt-in real: dos peticiones sintéticas, sin token, grabaciones ni reproducción simulada. */
 class QwenLivePerformanceTest {
-    @Test fun comparaAudioCompletoConPrimerFragmentoReal() = runBlocking {
+    @Test fun comparaAudioCompletoConPrimerFragmentoReal(): Unit = runBlocking {
         assumeTrue("Solo se ejecuta contra Internet por elección explícita", System.getenv("PBT_QWEN_LIVE") == "1")
         val first = "Hola, soy un asistente de voz. Esta muestra permite comprobar el primer fragmento de audio."
         val whole = "$first Después de esta primera frase, continúo con una explicación breve para comparar la espera antes de disponer de audio."
@@ -37,5 +37,6 @@ class QwenLivePerformanceTest {
             report.put("resultado", "NO_COMPLETADO").put("tipo_error", problem.javaClass.simpleName)
             throw AssertionError("No se completó la comparación remota; consulta el informe sin contenido.")
         } finally { output.writeText(report.toString(2)) }
+        Unit
     }
 }
