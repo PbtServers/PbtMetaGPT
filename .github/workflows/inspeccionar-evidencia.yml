@@ -1,0 +1,38 @@
+name: Diagnóstico de la prueba de navegación
+on:
+  push:
+    branches: [master]
+    paths: ['.github/workflows/inspeccionar-evidencia.yml']
+permissions:
+  actions: read
+  contents: read
+jobs:
+  leer:
+    runs-on: ubuntu-latest
+    outputs:
+      detalle: ${{ steps.leer.outputs.detalle }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: informes-emulador-api-*
+          run-id: 40604471493
+          github-token: ${{ github.token }}
+          path: evidencia
+      - id: leer
+        run: |
+          python3 - <<'PY'
+          import os,re,html
+          from pathlib import Path
+          details=[]
+          for p in Path('evidencia').rglob('*SetupInstrumentedTest.html'):
+              for pre in re.findall(r'<pre>(.*?)</pre>',p.read_text(),re.S):
+                  clean=html.unescape(re.sub('<[^>]+>','',pre))
+                  details.append(' '.join(clean.split())[:1800])
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out: out.write('detalle='+' | '.join(details[:1])+'\n')
+          PY
+  resultado:
+    needs: leer
+    name: 'Fallo de UI: ${{ needs.leer.outputs.detalle }}'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Diagnóstico de datos sintéticos de Compose; sin llamadas a proveedores.'
