@@ -50,8 +50,12 @@ class ConversationInstrumentedTest {
                 }
             } }
         }
-        compose.onNodeWithText("Iniciar conversación").performClick()
+        // Sin credencial válida, el botón de inicio está deshabilitado.
+        // La navegación permite comprobar la pantalla y el fallo recuperable
+        // sin fabricar una clave ni conceder permisos.
+        compose.onNodeWithText("Hablar").performClick()
         compose.onNodeWithText("Pantalla Conversación").assertIsDisplayed()
+        compose.onNodeWithText("Hablar con ChatGPT").performClick()
         compose.waitUntil(5_000) { failure != null }
         compose.onNodeWithText("Pantalla Conversación").assertIsDisplayed()
         assertFalse(client.state.value.active)

@@ -133,8 +133,10 @@ class SetupInstrumentedTest {
         ProfileStore(context).save(listOf(profile), profile.id)
         context.getSharedPreferences("configuracion", 0).edit().putBoolean("bienvenida", true).commit()
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            // La barra inferior es fija: su destino no pertenece al formulario desplazable.
-            compose.onNode(hasText("Voz") and hasClickAction()).assertIsDisplayed().performClick()
+            // Hay dos destinos clicables llamados Voz (panel inicial y barra).
+            // Abrir la biblioteca por su etiqueta inequívoca.
+            compose.onNodeWithText("Más ajustes").performClick()
+            compose.onNode(hasText("Biblioteca de voces") and hasClickAction()).performClick()
             RealtimeSettings.voices.forEach { voice ->
                 compose.onNodeWithText(voice).performScrollTo().performClick().assertIsSelected()
                 compose.onNodeWithText("Guardar motor y voz en el asistente").performScrollTo().performClick()
