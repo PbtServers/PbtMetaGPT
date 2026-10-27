@@ -176,6 +176,8 @@ class HostedConversation(private val context: Context, private val scope: Corout
     fun replay(voice: AssistantProfile? = null) {
         val previous = lastAnswer ?: return
         if (job?.isActive == true) return
+        profile = previous.first
+        if (limit?.isActive != true) limit = scope.launch { delay(previous.first.sessionMinutes * 60000L); stop() }
         fromWake = false; resolved = null
         mutable.update { it.copy(active = true, failed = false) }
         turn { trace ->

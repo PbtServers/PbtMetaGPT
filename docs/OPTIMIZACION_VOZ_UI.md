@@ -45,4 +45,18 @@ Primer inicio: Servicio, Voz y Prueba opcional. Los borradores de cinco etapas m
 
 Gafas muestra detección y sesión DAT por separado del Bluetooth, selección de salida y prueba explícita de sonido. Cámara, retirada de registro y detalles de capacidad permanecen en opciones avanzadas. No se acredita 00R6 por nombre ni se declara validación acústica.
 
-CI de la canalización: `1b964a0` compila y supera JVM/Lint/ensamblado, pero el control posterior de seguridad bloquea la APK; investigado sin omitir el escáner. El benchmark Kotlin terminó con salida numérica vacía: no se acepta como evidencia hasta comprobar su informe real en un paso independiente.
+CI de la canalización: `1b964a0` no acredita compilación porque el diagnóstico capturado ocultaba su código de salida; se corrige la propagación del fallo sin omitir verificaciones. El benchmark Kotlin terminó con salida numérica vacía: no se acepta como evidencia hasta comprobar su informe real en un paso independiente.
+
+## Icono: propuestas y revisión visual
+
+Se conserva #388BFF del foreground anterior como azul existente del proyecto; no se ha encontrado una especificación corporativa externa que permita atribuirle otra oficialidad. Fondo #000000 y trazos #FFFFFF. La antialiasing rasteriza mezclas de estos colores, sin añadir colores de diseño.
+
+- A, fusión geométrica: contorno continuo y puente azul suave; a 24 dp el centro pierde identidad.
+- B, inteligencia integrada: lentes simétricas y nodo geométrico azul en el puente. Elegida por contorno reconocible, apertura de lentes y equilibrio a tamaño de launcher.
+- C, diálogo abstracto: pares de formas angulares que convergen en el centro; su parte inferior resulta más compleja a 24 dp.
+
+[Comparativa con el icono anterior](assets/iconos/comparativa.png) y [máscaras a 24/36/48/72 dp](assets/iconos/mascaras.png), renderizadas e inspeccionadas visualmente. B incluye foreground vectorial, fondo negro, adaptativo/round API26 y monocromo API33 existentes, y respaldo en cinco densidades. Sin letras, burbujas en lentes, verde, dorado, degradados ni símbolos de Meta.
+
+Reproducción: `python tools/disenar_icono.py` y `python tools/renderizar_icono.py`. La prueba de recursos verifica paleta, zona segura convexa de radio 33, referencias adaptativas/monocromáticas y dimensiones PNG. Esto no acredita un launcher físico ni la audición en Nothing/00R6.
+
+Corrección de evidencia de CI: las ejecuciones `1b964a0` y `5567726` capturaron la salida Gradle con `tee` sin shell explícita. Su estado de paso no acredita compilación, JVM, Lint ni inferencia real. `f3aa48d` restaura la propagación estricta mediante `shell: bash`; el control de seguridad nunca se ha omitido. Se requiere una ejecución completa posterior correcta.

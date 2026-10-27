@@ -36,9 +36,9 @@ def contours(data):
             raise ValueError("Comando vectorial no compatible")
 
 
-def render(size, mono=False, circular=False):
+def render(size, mono=False, circular=False, vector_path=None, rounded=False):
     supersample = size * 8
-    vector = ET.parse(RES / "drawable" / ("ic_launcher_monochrome.xml" if mono else "ic_launcher_foreground.xml")).getroot()
+    vector = ET.parse(vector_path or RES / "drawable" / ("ic_launcher_monochrome.xml" if mono else "ic_launcher_foreground.xml")).getroot()
     group = vector.find("group")
     sx, sy = (float(group.attrib[A + key]) for key in ("scaleX", "scaleY"))
     result = Image.new("RGBA", (supersample, supersample), "#000000")
@@ -50,6 +50,10 @@ def render(size, mono=False, circular=False):
                                          ((y-54)*sy+54)*supersample/108) for x, y in polygon], fill=255)
             mask = ImageChops.difference(mask, part)
         result.paste(path.attrib[A + "fillColor"], (0, 0, supersample, supersample), mask)
+    if rounded:
+        mask = Image.new("L", result.size)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, supersample-1, supersample-1), radius=supersample*0.23, fill=255)
+        result.putalpha(mask)
     if circular:
         mask = Image.new("L", result.size)
         ImageDraw.Draw(mask).ellipse((0, 0, supersample-1, supersample-1), fill=255)

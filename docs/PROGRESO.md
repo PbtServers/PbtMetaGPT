@@ -2,17 +2,17 @@
 
 ## Optimización de voz, interfaz simplificada e icono profesional · 28/10/2026
 
-**45 % de esta nueva intervención**, independiente del 70 % anterior. Inicio medido 23:07 UTC del 27/10 (00:07 en Madrid del 28/10). Primera prioridad: streaming, métricas, conexiones y síntesis anticipada; todavía no se afirma menor latencia física ni superioridad de un proveedor. [Detalle y metodología](OPTIMIZACION_VOZ_UI.md).
+**58 % de esta nueva intervención**, independiente del 70 % anterior. Inicio medido 23:07 UTC del 27/10 (00:07 en Madrid del 28/10). Primera prioridad: streaming, métricas, conexiones y síntesis anticipada; todavía no se afirma menor latencia física ni superioridad de un proveedor. [Detalle y metodología](OPTIMIZACION_VOZ_UI.md).
 
 | Subfase | Avance/peso | Pendiente |
 | --- | ---: | --- |
-| Auditoría y latencia real | 12/25 | Instrumentación numérica añadida; falta benchmark remoto y primer sonido en dispositivo |
-| Canalización de voz | 12/15 | Compilación/JVM/Lint/ensamblado correctos en CI; Groq real y latencia acústica pendientes |
+| Auditoría y latencia real | 11/25 | Instrumentación numérica añadida; falta benchmark remoto y primer sonido en dispositivo |
+| Canalización de voz | 10/15 | Seis JVM locales; CI estricta de compilación en curso, Groq real y latencia acústica pendientes |
 | Inicio, chat y biblioteca | 15/20 | Cuatro destinos, chat incremental, modos y setup breve implementados; instrumentadas pendientes |
-| Tres propuestas e icono | 0/20 | Se hará tras la interfaz; conservar azul #388BFF ya presente |
+| Tres propuestas e icono | 16/20 | Tres vectores renderizados; elegido B, revisado 24/36/48/72 dp, mono y máscaras; launcher físico pendiente |
 | Compatibilidad y preferencias | 3/10 | Archivos previos preservados y migración v1/v2→v3 implementada; instrumentadas pendientes |
-| Pruebas y publicación | 3/10 | 31 Python, 19 Node y seis JVM nuevas correctas; CI completa y APK nuevas pendientes |
-| **Total** | **45/100** | **Experimental; sin medición física nueva** |
+| Pruebas y publicación | 3/10 | 32 Python, 19 Node y seis JVM nuevas locales correctas; CI estricta y APK pendientes |
+| **Total** | **58/100** | **Experimental; sin medición física nueva** |
 
 Estimación inicial restante: 45–75 minutos para implementación/revisión/CI, condicionada por servicios y runners; aceptación física sin estimación fiable hasta disponer de Nothing/00R6 y cuenta Groq Free. No se guardan conversaciones en métricas ni se envían grabaciones a pruebas remotas.
 

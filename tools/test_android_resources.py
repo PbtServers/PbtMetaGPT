@@ -3,6 +3,7 @@ import math
 import pathlib
 import re
 import unittest
+import struct
 import xml.etree.ElementTree as ET
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -11,6 +12,17 @@ A = "{http://schemas.android.com/apk/res/android}"
 
 
 class AndroidResourcesTest(unittest.TestCase):
+    def test_icon_identity_and_launcher_backups(self):
+        foreground = ET.parse(RES / "drawable/ic_launcher_foreground.xml").getroot()
+        self.assertEqual({"#FFFFFF", "#388BFF"}, {p.attrib[A + "fillColor"] for p in foreground.findall(".//path")})
+        colors = ET.parse(RES / "values/colors.xml").getroot()
+        self.assertEqual("#000000", next(c.text for c in colors if c.attrib["name"] == "ic_launcher_background"))
+        for density, size in (("mdpi", 48), ("hdpi", 72), ("xhdpi", 96), ("xxhdpi", 144), ("xxxhdpi", 192)):
+            for filename in ("ic_launcher.png", "ic_launcher_round.png"):
+                data = (RES / f"mipmap-{density}" / filename).read_bytes()
+                self.assertEqual(b"\x89PNG\r\n\x1a\n", data[:8])
+                self.assertEqual((size, size), struct.unpack(">II", data[16:24]))
+
     def test_webrtc_network_monitor_permission_declared(self):
         manifest = ET.parse(ROOT / "app/src/main/AndroidManifest.xml").getroot()
         permissions = {p.attrib[A + "name"] for p in manifest.findall("uses-permission")}

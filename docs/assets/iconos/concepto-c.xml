@@ -1,0 +1,7 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Geometría original: gafas y nodo de diálogo integrados; sin letras. -->
+    <group android:scaleX="0.85" android:scaleY="0.85" android:pivotX="54" android:pivotY="54">
+        <path android:fillColor="#FFFFFF" android:fillType="evenOdd" android:pathData="M23,39 L45,39 L53,47 L49,51 L42,45 L29,45 L31,58 L39,63 L47,58 L49,51 L54,54 L52,62 L39,70 L26,62 Z M85,39 L63,39 L55,47 L59,51 L66,45 L79,45 L77,58 L69,63 L61,58 L59,51 L54,54 L56,62 L69,70 L82,62 Z"/>
+        <path android:fillColor="#388BFF" android:fillType="evenOdd" android:pathData="M48,48 L54,42 L60,48 L56,52 L54,50 L52,52 Z"/>
+    </group>
+</vector>
