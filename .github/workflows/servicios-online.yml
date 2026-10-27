@@ -1,0 +1,29 @@
+name: Prueba real de Qwen online
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths: ['.github/workflows/servicios-online.yml']
+permissions:
+  contents: read
+concurrency:
+  group: prueba-qwen-publica
+  cancel-in-progress: false
+jobs:
+  qwen-real:
+    name: API y audio Qwen reales sin mocks ni token
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Una muestra sintética en el Space oficial, sin reintentos
+        run: python tools/probar_servicios_online.py --qwen --solo-qwen --informe diagnosticos-locales/qwen-real.json
+      - name: Conservar resultado incluso si cuota o servicio rechazan la prueba
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidencia-qwen-real
+          path: diagnosticos-locales/qwen-real.json

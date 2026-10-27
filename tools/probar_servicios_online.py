@@ -3,6 +3,7 @@
 No establece cuota agotada mediante abuso. Un error/ausencia de credencial no es un éxito.
 """
 import argparse
+import array
 from datetime import datetime, timezone
 import io
 import json
@@ -105,6 +106,9 @@ def qwen(results):
         with wave.open(io.BytesIO(audio)) as wav:
             if wav.getnchannels() != 1 or wav.getsampwidth() != 2 or wav.getnframes() == 0:
                 raise ValueError("PCM incompatible")
+            samples = array.array("h", wav.readframes(wav.getnframes()))
+            if not any(samples):
+                raise ValueError("Audio silencioso")
             return {"bytes": len(audio), "sample_rate": wav.getframerate(), "frames": wav.getnframes()}
     measure(results, "qwen_audio_real", synthesis)
 
@@ -112,15 +116,19 @@ def qwen(results):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--qwen", action="store_true", help="Autoriza una muestra sintética en el Space público, sin token")
+    parser.add_argument("--solo-qwen", action="store_true", help="No evaluar Groq; requiere --qwen")
     parser.add_argument("--confirmar-plan-free", action="store_true")
     parser.add_argument("--generar-groq", action="store_true", help="Autoriza una petición sintética a Groq; consume cuota")
     parser.add_argument("--modelo", default="openai/gpt-oss-20b")
     parser.add_argument("--informe", type=Path, required=True)
     args = parser.parse_args()
+    if args.solo_qwen and not args.qwen:
+        parser.error("--solo-qwen requiere --qwen")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9./_-]{0,119}", args.modelo):
         parser.error("ID de modelo no válido")
     results = []
-    groq(results, args)
+    if not args.solo_qwen:
+        groq(results, args)
     if args.qwen:
         qwen(results)
     report = {"fecha_utc": datetime.now(timezone.utc).isoformat(), "tipo": "RED_REAL_SIN_MOCKS", "pruebas": results,
