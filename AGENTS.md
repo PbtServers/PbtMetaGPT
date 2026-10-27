@@ -10,6 +10,8 @@ Aplicación Android Kotlin con Meta Wearables Device Access Toolkit y OpenAI Rea
 
 ## Prioridades
 
+Consulta `docs/PROGRESO.md` al comenzar. Publica commits de desarrollo descriptivos en español y push a `master` por cada bloque significativo, también si es parcial y está desactivado de forma segura. No uses force push. Actualiza el seguimiento con evidencias, pendientes y próxima tarea. Distingue commit experimental, APK de prueba y Release estable; no declares terminado el objetivo mientras falte validación obligatoria.
+
 1. Contrasta las APIs con las muestras actuales de Meta: registro, modo de desarrollador, permisos, descubrimiento y ciclo de sesión/cámara. No inventes APIs ni deduzcas soporte físico de la existencia de un artefacto Maven.
 2. Mantén conexión y desconexión explícitas, estados visibles, liberación de recursos y pruebas.
 3. v0.4.0 admite BYOK por petición expresa del usuario: clave personal cifrada con AES-GCM y Android Keystore, advertencia explícita del riesgo de un cliente móvil, sin logs, copias ni exportación de credenciales. Conserva el backend como alternativa más segura, con autenticación y límites. Nunca incluyas claves de desarrollador en la APK, repositorio o CI.
