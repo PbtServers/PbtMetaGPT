@@ -1,5 +1,26 @@
 # Seguimiento de PbtMetaGPT
 
+## Intervención de interfaz y errores · 27/10/2026
+
+Tarea independiente del **85 % funcional** documentado abajo. Base `654d06d`; README profesional conservado con una referencia breve añadida. Detalle: [CORRECCIONES_INTERFAZ.md](CORRECCIONES_INTERFAZ.md).
+
+| Bloque de esta tarea | Avance acreditado / peso |
+| --- | ---: |
+| Auditoría y diagnóstico | 10/10 |
+| Modo oscuro | 12/15; pares personalizados AA comprobados, Compose/Lint pendientes |
+| Cierre de voces y arranque de conversación | 8/20; selección y callbacks reforzados, causa exacta pendiente de Logcat |
+| Registro y familias Meta Wearables | 10/20; DAT 1.0.1, META_GLASSES/00R6 sin filtros de marca, errores/callback; JVM y hardware pendientes |
+| Setup, navegación y fotografía | 12/20; cinco etapas, borrador, navegación e imagen sin conversación previa; pruebas Android/API pendientes |
+| Icono | 3/5; recursos, manifiesto y círculo seguro comprobados; APK/instalación pendientes |
+| Pruebas, documentación y publicación | 5/10; 9 Python y 19 Node correctas, documentación y commits locales; CI/push bloqueados |
+| **Total de esta tarea** | **60/100** |
+
+Commit local de implementación: **`d57101d`**. Añadidas 17 pruebas JVM y 13 Android (pendientes de ejecución), además de actualizar el recorrido del Setup existente y añadir cuatro contratos Python ejecutados. Análisis sintáctico: 59 archivos Kotlin sin errores, sin comprobar tipos. Fotografía: la condición antigua exigía una sesión Realtime activa aunque la clave estuviera comprobada; ahora permite confirmar y abrir una sesión de imagen con micrófono apagado, conservando el bitmap en memoria.
+
+Se localizó Java 17 en `G:\Programas\zulu-17`; Gradle termina con **SDK location not found**. Descarga de Sherpa bloqueada por red; servidor ADB no disponible por restricciones del entorno. No se declaran JVM, Lint, compilación ni instrumentadas superadas. Git no puede conectar a GitHub y el conector rechaza escritura con **HTTP 403 / Resource not accessible by integration**. No hay push, ejecución CI ni APK de esta intervención. No se reutiliza el resultado de un SHA anterior.
+
+Cambios documentales locales preexistentes conservados y excluidos de los commits. README: una línea genérica ampliada a Meta Wearables y dos párrafos breves (Setup/familias); apartados, tablas, badges y advertencias conservados. No hay pruebas físicas nuevas ni Release estable. Próximo paso: disponer de SDK/runtime y acceso de publicación, ejecutar el conjunto Android y analizar Logcat de los dos cierres en 00R6 antes de declararlos resueltos. El protocolo y las causas confirmadas/pendientes están en el documento de correcciones.
+
 Última actualización: **27 de octubre de 2026, 11:49 UTC**. Objetivo: ampliación de **v0.4.0**. Número de compilación experimental **0.4.1-dev**, código 5. No se ha creado una Release estable.
 
 - Progreso general ponderado: **85 %**; incluye implementación y pruebas automáticas, con descuento explícito de validación real pendiente.

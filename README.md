@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>Tu asistente de voz, tus reglas.</strong><br>
-  Una aplicación Android de código abierto para diseñar asistentes personales con OpenAI y explorar su integración con Ray-Ban Meta.
+  Una aplicación Android de código abierto para diseñar asistentes personales con OpenAI y explorar su integración con gafas Meta Wearables.
 </p>
 
 <p align="center">
@@ -103,6 +103,8 @@ No existe una Release estable garantizada por esta documentación. El enlace a A
 6. Configura, si quieres, las frases de activación y prueba el reconocimiento local con la app visible.
 7. Autoriza el micrófono e inicia una conversación manualmente. Espera a **Escuchando** y utiliza **Pausar**, **Interrumpir** o **Finalizar** cuando corresponda.
 
+El asistente inicial reúne cinco etapas: bienvenida, OpenAI, asistente, voz y gafas opcionales. Guarda el progreso y permite retomarlo; todos los ajustes siguen disponibles después. Consulta los [cambios y validaciones del rediseño](docs/CORRECCIONES_INTERFAZ.md).
+
 El consumo de OpenAI API corre por tu cuenta: configura límites de gasto en OpenAI Platform.
 
 ## Asistentes y frases de activación
@@ -128,6 +130,8 @@ Se admiten paquetes ZIP `sherpa-piper-phonemes-v1` con `voz.json`, `model.onnx`,
 ## Ray-Ban Meta
 
 La app integra componentes de **Meta Wearables Device Access Toolkit (DAT)**. Para probarlos necesitas gafas compatibles emparejadas, Meta AI, permisos y autorización del registro de desarrollador de Meta.
+
+El código contempla distintas familias DAT, incluido `DeviceType.META_GLASSES` para Meta Glasses como Adventurer, Ray-Ban Meta Gen 1/2, Oakley Meta HSTN/Vanguard y Meta Ray-Ban Display según las capacidades que informe el SDK. «Meta Glasses 00R6» se muestra como nombre del dispositivo, sin deducir un modelo estable. Ninguna de estas familias se declara validada físicamente; véanse los [detalles y limitaciones](docs/CORRECCIONES_INTERFAZ.md).
 
 Comprueba por separado: sesión DAT, micrófono real, altavoces reales, captura puntual, vista previa y segunda confirmación antes de enviar una imagen a OpenAI. **Conectado no equivale a audio o cámara certificados.** La ruta Bluetooth puede depender de Android o recaer en el móvil.
 
