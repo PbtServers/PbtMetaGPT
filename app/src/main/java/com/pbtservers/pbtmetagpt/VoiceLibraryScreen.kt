@@ -61,6 +61,15 @@ fun VoiceLibraryScreen(context: Context, profile: AssistantProfile, change: (Ass
         }
     }
     Text("Biblioteca de voces", style = MaterialTheme.typography.headlineMedium)
+    if (!compact) ElevatedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Tu selección", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(if (profile.ttsEngine == "realtime") profile.voice else profile.ttsVoice.ifBlank { "Elige una voz" }, style = MaterialTheme.typography.headlineSmall)
+            Text(VoiceSynthesisContract.label(profile.ttsEngine))
+            Text("La selección no reproduce audio. Escucha una muestra explícita antes de guardar.", style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(onClick = { stop(); preview(profile) }, enabled = !busy && runCatching { profile.validated() }.isSuccess) { Text("Reproducir muestra seleccionada") }
+        }
+    }
     Text("Las voces son síntesis de IA. Utiliza voces originales o autorizadas. No se incluyen modelos ni clonaciones de actores. Una importación válida no garantiza inferencia ni calidad.")
     val engines = listOf("realtime" to "OpenAI Realtime · audio nativo", "android" to "Android TTS · voces locales instaladas", "openai_tts" to "OpenAI Speech · transitorio hasta 06/01/2027", "external" to "API TTS externa · contrato PCM", "sherpa_vits" to "Modelo Piper/VITS · Sherpa local")
     if (compact) Box {

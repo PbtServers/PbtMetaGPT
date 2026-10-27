@@ -22,6 +22,7 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
     microphoneReady: Boolean, requestMic: () -> Unit, stopAll: () -> Unit,
     report: (String) -> Unit, bindWakeStart: ((AssistantProfile) -> Unit) -> Unit,
     themeMode: String = "sistema", setTheme: (String) -> Unit = {},
+    deviceSummary: String = "Consulta en Dispositivos el estado real de las gafas.",
     legacy: @Composable (page: String, configured: Boolean, backend: String, token: String, bluetooth: Boolean, setBluetooth: (Boolean) -> Unit, start: () -> Unit, analyzePhoto: (android.graphics.Bitmap) -> Unit) -> Unit,
 ) {
     val store = remember { ProfileStore(context) }
@@ -38,6 +39,7 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
     var step by remember { mutableIntStateOf(setup.step) }
     var advanced by remember { mutableStateOf(false) }
     var navigationSettings by remember { mutableStateOf(false) }
+    var inspirationMenu by remember { mutableStateOf(false) }
     var direct by remember { mutableStateOf(preferences.getBoolean("directo", true)) }
     var keyPresent by remember { mutableStateOf(vault.exists()) }
     var keyInput by remember { mutableStateOf("") }
@@ -49,7 +51,8 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
         catch (_: IllegalStateException) { report("No se pudo guardar el progreso. Comprueba el almacenamiento.") }
     }
     var token by remember { mutableStateOf("") }
-    var bluetooth by remember { mutableStateOf(false) }
+    var bluetooth by remember { mutableStateOf(preferences.getBoolean("audio-bluetooth", false)) }
+    LaunchedEffect(bluetooth) { preferences.edit().putBoolean("audio-bluetooth", bluetooth).apply() }
     var consent by remember { mutableStateOf(false) }
     var allProfiles by remember { mutableStateOf(false) }
     var returnToWake by remember { mutableStateOf(false) }
@@ -93,6 +96,7 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
         if (target == null && requireProfile) { report("Crea y guarda un asistente antes de iniciar OpenAI."); return false }
         if (voice.state.value.active || voice.state.value.connecting) { report("Finaliza la sesión antes de cambiar la configuración."); return false }
         voice.configure(target, if (direct) ({ vault.read() }) else null)
+        (context.applicationContext as? PbtApplication)?.connection = WakeConnection(backend, token.trim(), direct)
         preferences.edit().putBoolean("directo", direct).putString("backend", backend).apply()
         return true
     }
@@ -103,6 +107,12 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
         android.util.Log.i("PbtStart", "CONVERSATION_BUTTON")
         page = "Conversación"
         pendingStart = true
+    }
+    val persistentPhase by ContinuousWakeService.state.collectAsStateWithLifecycle()
+    LaunchedEffect(persistentPhase) {
+        if (persistentPhase == ListeningPhase.CONVERSATION) {
+            profiles = store.load(); selectedId = store.selected()
+        }
     }
     LaunchedEffect(pendingStart, page) {
         if (pendingStart && page == "Conversación") {
@@ -185,9 +195,11 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
         } else Box {
             TextButton(onClick = { navigationSettings = true }) { Text("Más ajustes") }
             DropdownMenu(expanded = navigationSettings, onDismissRequest = { navigationSettings = false }) {
-                listOf("Personalidad", "Biblioteca de voces", "Activación por voz", "OpenAI", "Diagnóstico", "Privacidad").forEach { destination ->
+                listOf("Ajustes", "Personalidad", "Biblioteca de voces", "Activación por voz", "OpenAI", "Diagnóstico", "Privacidad").forEach { destination ->
                     DropdownMenuItem(text = { Text(destination) }, onClick = {
-                        returnToWake = false; consent = false; stopAll(); page = destination; navigationSettings = false
+                        returnToWake = false; consent = false; wake.stop()
+                        if (!ContinuousWakeService.running) stopAll()
+                        page = destination; navigationSettings = false
                         if (destination in listOf("Personalidad", "Biblioteca de voces", "Activación por voz")) draft = selected ?: draft
                     })
                 }
@@ -203,8 +215,17 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
             Text(vs.status, modifier = Modifier.padding(horizontal = 16.dp))
             TextButton(onClick = { returnToWake = false; consent = false; stopAll() }) { Text("Desactivar escucha y cerrar sesión") }
         }
-        if (page in listOf("Inicio", "Conversación", "Dispositivos", "Diagnóstico")) {
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+        if (page == "Inicio") Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = androidx.compose.ui.Alignment.TopCenter) {
+            HomeDashboard(selected, configured, vs, deviceSummary, microphoneReady, requestMic, start, { wake.stop(); voice.stop(); configure() }) { destination ->
+                wake.stop(); page = destination
+                if (destination in listOf("Voz", "Activación por voz")) draft = selected ?: draft
+            }
+        }
+        else if (page == "Registros de errores") Box(Modifier.weight(1f)) { ErrorLogScreen { page = "Diagnóstico" } }
+        else if (page in listOf("Inicio", "Conversación", "Dispositivos", "Diagnóstico")) {
+            Column(Modifier.weight(1f).fillMaxWidth()) {
+            if (page == "Diagnóstico") TextButton(onClick = { page = "Registros de errores" }) { Text("Registros de errores") }
+            Box(Modifier.weight(1f)) {
             legacy(page, configured, backend, token, bluetooth, { bluetooth = it }, start) { bitmap ->
                 returnToWake = false; consent = false; wake.stop()
                 if (voice.state.value.active) voice.askImage(bitmap) {}
@@ -212,9 +233,21 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                 else report("Configura OpenAI y guarda un asistente. La foto permanece disponible.")
             }
             }
+            }
         } else Column(Modifier.weight(1f).widthIn(max = 840.dp).fillMaxWidth().align(androidx.compose.ui.Alignment.CenterHorizontally).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(page, style = MaterialTheme.typography.headlineMedium)
             when (page) {
+                "Ajustes" -> {
+                    Text("Conexión, privacidad y herramientas del dispositivo", style = MaterialTheme.typography.titleLarge)
+                    listOf("OpenAI" to "Clave personal y servidor alternativo", "Permisos" to "Audio y permisos Android",
+                        "Privacidad" to "Almacenamiento seguro y consentimiento", "Diagnóstico" to "Rutas, conexión y registros de errores").forEach { (destination, description) ->
+                        OutlinedCard(onClick = { page = destination }, modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(18.dp)) { Text(destination, style = MaterialTheme.typography.titleMedium); Text(description) }
+                        }
+                    }
+                    Text("Apariencia", style = MaterialTheme.typography.titleMedium)
+                    listOf("sistema", "claro", "oscuro").forEach { mode -> FilterChip(selected = themeMode == mode, onClick = { setTheme(mode) }, label = { Text(mode) }) }
+                }
                 "Bienvenida" -> {
                     Text("Tu asistente, con tu nombre y tu estilo. Conversa desde el móvil o prueba gafas Meta compatibles con DAT. No necesitas servidor en el modo directo.")
                     Text("Las gafas, el audio y el reconocimiento local necesitan validación en tu dispositivo. Puedes usar siempre el botón manual.")
@@ -255,12 +288,20 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                 }
                 "Asistentes" -> {
                     Text("No hay un personaje obligatorio. Crea el tuyo o elige una inspiración opcional.")
-                    listOf("Personalizado", "Jarvis", "Friday", "PbtAdmin").forEach { name ->
-                        OutlinedButton(onClick = { stopAll(); draft = AssistantProfile.template(name); page = "Personalidad" }) { Text("Crear $name") }
+                    Button(onClick = { stopAll(); draft = AssistantProfile.template("Personalizado"); page = "Personalidad" }) { Text("Crear Personalizado") }
+                    Box {
+                        TextButton(onClick = { inspirationMenu = true }) { Text("Inspiraciones opcionales") }
+                        DropdownMenu(expanded = inspirationMenu, onDismissRequest = { inspirationMenu = false }) {
+                            listOf("Jarvis", "Friday", "PbtAdmin").forEach { name ->
+                                DropdownMenuItem(text = { Text("Crear $name") }, onClick = { stopAll(); draft = AssistantProfile.template(name); page = "Personalidad"; inspirationMenu = false })
+                            }
+                        }
                     }
                     profiles.forEach { profile ->
-                        Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (profile.id == selectedId) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer)) { Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(profile.avatar.ifBlank { profile.name.take(2).uppercase(java.util.Locale.forLanguageTag("es-ES")) }, style = MaterialTheme.typography.headlineLarge)
                             Text((if (profile.avatar.isBlank()) profile.name else profile.avatar + " " + profile.name) + if (profile.id == selectedId) " · seleccionado" else "", style = MaterialTheme.typography.titleMedium)
+                            if (profile.personality.isNotBlank()) Text(profile.personality.take(240), style = MaterialTheme.typography.bodyLarge)
                             Text("${profile.phrase} · ${VoiceSynthesisContract.label(profile.ttsEngine)} · ${profile.language}")
                             TextButton(onClick = { stopAll(); runCatching { save(profiles, profile.id); draft = profile }.onFailure { report("No se pudo seleccionar el asistente.") } }) { Text("Seleccionar") }
                             TextButton(onClick = { stopAll(); draft = profile; page = "Personalidad" }) { Text("Editar") }
@@ -287,17 +328,20 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                         Field("Nombre del asistente", draft.name) { draft = draft.copy(name = it) }
                         Field("Personalidad del asistente", draft.personality) { draft = draft.copy(personality = it) }
                         Field("Instrucciones personalizadas", draft.instructions) { draft = draft.copy(instructions = it) }
-                        if (wizard) TextButton(onClick = { advanced = !advanced }) { Text(if (advanced) "Ocultar ajustes avanzados" else "Ajustes avanzados del asistente") }
-                        if (!wizard || advanced) {
+                        TextButton(onClick = { advanced = !advanced }) { Text(if (advanced) "Ocultar ajustes avanzados" else "Ajustes avanzados del asistente") }
+                        if (advanced) {
+                        Text("Identidad y relación contigo", style = MaterialTheme.typography.titleMedium)
                         Field("Avatar (emoji o iniciales, hasta 16 caracteres)", draft.avatar) { draft = draft.copy(avatar = it.take(16)) }
                         Text("Frase: ${draft.phrase}")
                         Field("Cómo te llama (opcional)", draft.userName) { draft = draft.copy(userName = it) }
                         Field("Descripción", draft.description) { draft = draft.copy(description = it) }
+                        Text("Estilo de conversación", style = MaterialTheme.typography.titleMedium)
                         Field("Forma de hablar y expresión", draft.tone) { draft = draft.copy(tone = it) }
                         Toggle("Tratamiento formal (usted)", draft.formal) { draft = draft.copy(formal = it) }
                         Toggle("Respuestas detalladas habitualmente", draft.detailed) { draft = draft.copy(detailed = it) }
                         Field("Nivel de humor", draft.humor) { draft = draft.copy(humor = it) }
                         Field("Vocabulario", draft.vocabulary) { draft = draft.copy(vocabulary = it) }
+                        Text("Audio y límites de la sesión", style = MaterialTheme.typography.titleMedium)
                         Field("Mensaje de bienvenida opcional (se reproduce al conectar)", draft.welcomeMessage) { draft = draft.copy(welcomeMessage = it.take(1000)) }
                         Toggle("Sonido de confirmación al activar", draft.confirmationSound) { draft = draft.copy(confirmationSound = it) }
                         Text("Duración máxima de sesión: ${draft.sessionMinutes} minutos")
@@ -314,6 +358,7 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                     Text(vs.status)
                 }
                 "Activación por voz" -> {
+                    ListeningControls(configured, microphoneReady, requestMic) { wake.stop(); voice.stop(); configure() }
                     if (selected != null) {
                         PhraseEditor(draft, { draft = it; wake.stop() }, test = { phrase ->
                             stopAll()
@@ -326,7 +371,7 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                     Text(selected?.let { "Frase actual: «${it.phrase}»" } ?: "Guarda un asistente para construir su frase.")
                     Text("Motor Android exclusivamente local: ${if (wake.available()) "disponible" else "no disponible"}. Necesita el modelo de idioma instalado. No garantiza reconocer cualquier nombre ni escuchar sin interrupciones.")
                     Text("Di únicamente la frase y espera a que aparezca «Escuchando» antes de hacer la petición. No se conserva el audio anterior a la conexión. Durante la sesión puedes seguir preguntando sin repetirla.")
-                    Text("Espera limitada a dos minutos con la aplicación visible. El sistema elige la entrada de captura del reconocedor; no se garantiza el micrófono de las gafas. Prueba primero sin Bluetooth. No hay activación desde el firmware ni escucha con pantalla bloqueada.")
+                    Text("Prueba Android alternativa: ventanas de hasta dos minutos solo con la aplicación visible. Para segundo plano utiliza el servicio Vosk de arriba. Android elige la entrada del reconocedor; el micrófono de las gafas requiere comprobación física. Ningún motor usa la palabra de activación del firmware Meta.")
                     Toggle("Autorizo la escucha local visible, sin guardar ni enviar su audio", consent) { consent = it; if (!it) { returnToWake = false; wake.stop() } }
                     Toggle("Escuchar también las frases de otros asistentes del mismo idioma", allProfiles) { allProfiles = it; wake.stop() }
                     Text("La sensibilidad acústica no es configurable con este motor. Puedes elegir coincidencia exacta o tolerancia textual por perfil. Si dos asistentes coinciden, no se activa ninguno. Las sugerencias al motor se limitan a 32 Ki caracteres por el tamaño de las transacciones Android; todas las frases siguen participando en la comparación.")
@@ -347,7 +392,8 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                 "Dispositivos" to R.drawable.ic_glasses).forEach { (destination, icon) ->
                 NavigationBarItem(selected = page == destination, onClick = {
                     returnToWake = false; consent = false
-                    if (destination in listOf("Inicio", "Conversación", "Dispositivos")) wake.stop() else stopAll()
+                    wake.stop()
+                    if (!ContinuousWakeService.running && destination !in listOf("Inicio", "Conversación", "Dispositivos")) stopAll()
                     page = destination
                     if (destination == "Voz") draft = selected ?: draft
                 }, icon = { Icon(androidx.compose.ui.res.painterResource(icon), contentDescription = null) },

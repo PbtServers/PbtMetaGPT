@@ -50,8 +50,12 @@ jobs:
             app/build/reports/
             app/build/test-results/
   emulador:
-    name: Android Keystore y persistencia en emulador
+    name: Android API ${{ matrix.api }} · audio y persistencia
     needs: [validar, contenedores]
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [35, 36]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -78,7 +82,7 @@ jobs:
       - name: Probar Android Keystore real del emulador sin claves ni llamadas reales
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: ${{ matrix.api }}
           arch: x86_64
           target: google_apis
           disable-animations: true
@@ -88,17 +92,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: informes-emulador
+          name: informes-emulador-api-${{ matrix.api }}
           path: app/build/reports/androidTests/
       - name: Verificar APK final sin claves privadas
         run: python3 tools/comprobar_secretos.py app/build/outputs/apk/debug/app-debug.apk
-      - name: Publicar APK debug tras todas las comprobaciones
-        uses: actions/upload-artifact@v4
-        with:
-          name: PbtMetaGPT-v0.4.1-dev-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
   contenedores:
     name: Backend Docker y proxy
     runs-on: ubuntu-latest
@@ -136,3 +133,31 @@ jobs:
       - name: Detener contenedores de prueba
         if: always()
         run: docker compose -f deploy/compose.yml -f deploy/compose.ci.yml down --volumes
+  publicar:
+    name: APK experimental tras validar ambas versiones Android
+    needs: [validar, emulador, contenedores]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Preparar y comprobar APK del mismo SHA validado
+        run: |
+          python3 tools/preparar_sherpa.py
+          bash ./gradlew --no-daemon assembleDebug
+          python3 tools/comprobar_secretos.py app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PbtMetaGPT-v0.4.1-dev-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

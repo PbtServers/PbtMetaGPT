@@ -11,6 +11,7 @@ import android.os.Looper
 
 /** Ruta Android por capacidades de comunicación; sin deducir marca o modelo del nombre. */
 class AudioRoute(context: Context, private val onInterrupted: (String) -> Unit) {
+    private val app = context.applicationContext as? PbtApplication
     private val manager = context.getSystemService(AudioManager::class.java)
     private var previousMode = AudioManager.MODE_NORMAL
     private var previousDevice: AudioDeviceInfo? = null
@@ -52,15 +53,16 @@ class AudioRoute(context: Context, private val onInterrupted: (String) -> Unit) 
     fun close() {
         if (!started) return
         started = false
-        manager.unregisterAudioDeviceCallback(devicesCallback)
+        closePart { manager.unregisterAudioDeviceCallback(devicesCallback) }
         bluetoothDeviceId = null
-        try {
-            manager.clearCommunicationDevice()
-            previousDevice?.let { manager.setCommunicationDevice(it) }
-            manager.mode = previousMode
-        } catch (_: SecurityException) {
-            // El usuario puede revocar Bluetooth durante la sesión; no reabrir la ruta.
-            android.util.Log.w("PbtStart", "AUDIO_PERMISSION_REVOKED_ON_CLOSE")
-        } finally { manager.abandonAudioFocusRequest(focus) }
+        closePart { manager.clearCommunicationDevice() }
+        closePart { previousDevice?.let { manager.setCommunicationDevice(it) } }
+        closePart { manager.mode = previousMode }
+        closePart { manager.abandonAudioFocusRequest(focus) }
+    }
+    private fun closePart(action: () -> Unit) {
+        try { action() }
+        catch (problem: SecurityException) { app?.journal?.record(Check.ROUTE, Fault.RELEASE, problem) }
+        catch (problem: IllegalStateException) { app?.journal?.record(Check.ROUTE, Fault.RELEASE, problem) }
     }
 }

@@ -14,9 +14,11 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /** Exclusivamente motor on-device. Sin fallback remoto, persistencia ni reconocimiento parcial. */
 class LocalWakeListener(private val context: Context, private val scope: CoroutineScope, private val activated: (AssistantProfile) -> Unit) {
+    private fun record(problem: Throwable) { (context.applicationContext as? PbtApplication)?.journal?.record(Check.WAKE, Fault.INITIALIZATION, problem) }
     private val mutable = MutableStateFlow("Escucha local desactivada")
     val status = mutable.asStateFlow()
     private var recognizer: SpeechRecognizer? = null
+    private var microphoneLease: MicrophoneGate.Lease? = null
     private var loop: Job? = null
     private var generation = 0
     private var retries = 0
@@ -29,7 +31,9 @@ class LocalWakeListener(private val context: Context, private val scope: Corouti
     var armed = false
         private set
 
-    fun available() = SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
+    fun available(): Boolean = try { SpeechRecognizer.isOnDeviceRecognitionAvailable(context) }
+        catch (problem: SecurityException) { record(problem); false }
+        catch (problem: IllegalStateException) { record(problem); false }
     fun start(selected: AssistantProfile) = start(listOf(selected))
     fun test(selected: AssistantProfile, phrase: ActivationPhrase) {
         if (!phrase.enabled) { stop(); mutable.value = "La frase está desactivada. Actívala para probarla."; return }
@@ -54,8 +58,16 @@ class LocalWakeListener(private val context: Context, private val scope: Corouti
         val current = ++generation
         val selected = profile ?: return
         try {
+            val gate = (context.applicationContext as? PbtApplication)?.microphone
+            if (microphoneLease == null && gate != null) {
+                microphoneLease = gate.acquire(MicrophoneOwner.ANDROID_LOCAL)
+                check(microphoneLease != null) { "Micrófono ocupado" }
+            }
             recognizer?.destroy()
-            recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context).apply {
+            (context.applicationContext as? PbtApplication)?.journal?.record(Check.WAKE, Fault.RECOGNIZER_CREATE)
+            val created = SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+            recognizer = created // Conservarlo antes de configurar: un fallo también debe poder destruirlo.
+            created.apply {
                 setRecognitionListener(object : RecognitionListener {
                     override fun onReadyForSpeech(params: Bundle?) { if (generation == current) mutable.value = "Escucha local activa · ${candidates.size} asistentes · idioma ${selected.language} · ruta elegida por Android" }
                     override fun onBeginningOfSpeech() = Unit
@@ -73,7 +85,11 @@ class LocalWakeListener(private val context: Context, private val scope: Corouti
                             val test = testing
                             stop()
                             mutable.value = if (test) "Prueba local: frase detectada. No se ha conectado con OpenAI." else "Frase reconocida · preparando conversación"
-                            if (!test) activated(match)
+                            if (!test) {
+                                val stoppedGeneration = generation
+                                // Salir del callback del motor Android antes de preparar audio nativo.
+                                scope.launch(Dispatchers.Main) { yield(); if (generation == stoppedGeneration) activated(match) }
+                            }
                         } else { retries = 0; rearm(current) }
                     }
                     override fun onError(error: Int) {
@@ -106,7 +122,9 @@ class LocalWakeListener(private val context: Context, private val scope: Corouti
             }
             mutable.value = "Preparando escucha local · micrófono autorizado"
             loop?.cancel(); loop = scope.launch { delay(20000); if (current == generation && armed) { stop(); mutable.value = "El reconocedor no respondió a tiempo. Escucha detenida." } }
-        } catch (_: Exception) { stop(); mutable.value = "No se pudo iniciar el motor local. No se ha usado reconocimiento remoto." }
+        } catch (problem: SecurityException) { record(problem); stop(); mutable.value = "Android ha denegado el micrófono. Revisa los permisos." }
+        catch (problem: IllegalStateException) { record(problem); stop(); mutable.value = "El motor local no está preparado. Consulta Registros de errores y reintenta." }
+        catch (problem: UnsupportedOperationException) { record(problem); stop(); mutable.value = "Este motor no permite reconocimiento local en el dispositivo." }
     }
     private fun rearm(current: Int) {
         mutable.value = "Espera local · reiniciando reconocedor (puede haber huecos de escucha)"
@@ -117,7 +135,15 @@ class LocalWakeListener(private val context: Context, private val scope: Corouti
         gate.stop(); candidates = emptyList()
         testing = false
         val previous = recognizer; recognizer = null
-        runCatching { previous?.cancel() }; runCatching { previous?.destroy() }
+        try { previous?.cancel() }
+        catch (problem: IllegalStateException) { record(problem) }
+        catch (problem: SecurityException) { record(problem) }
+        finally {
+            try { previous?.destroy() }
+            catch (problem: IllegalStateException) { record(problem) }
+            catch (problem: SecurityException) { record(problem) }
+        }
         mutable.value = "Escucha local desactivada · micrófono liberado"
+        (context.applicationContext as? PbtApplication)?.microphone?.release(microphoneLease); microphoneLease = null
     }
 }

@@ -35,7 +35,8 @@ class MainActivity : ComponentActivity() {
     private var message by mutableStateOf<String?>(null)
     private lateinit var glasses: MetaGlasses
     private lateinit var voice: RealtimeClient
-    private val diagnostics = Diagnostics()
+    private val app get() = application as PbtApplication
+    private val diagnostics get() = app.diagnostics
     private lateinit var localAudio: LocalAudioDiagnostics
     private lateinit var wake: LocalWakeListener
     private lateinit var vault: KeyVault
@@ -53,7 +54,7 @@ class MainActivity : ComponentActivity() {
     private val microphonePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         microphoneReady = granted
         refreshDiagnostics()
-        message = if (granted) "Micrófono autorizado. Pulsa Iniciar conversación cuando quieras hablar." else "El permiso de micrófono es necesario para conversar por voz."
+        message = if (granted) "Micrófono autorizado. Pulsa Activar escucha o Iniciar conversación cuando quieras." else "El permiso de micrófono es necesario para conversar por voz."
     }
     private val cameraPermission = registerForActivityResult(Wearables.RequestPermissionContract()) { result ->
         diagnostics.record(Check.CAMERA_PERMISSION, if (result.getOrDefault(PermissionStatus.Denied) == PermissionStatus.Granted) CheckStatus.OK else CheckStatus.WARNING,
@@ -70,17 +71,15 @@ class MainActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         photoMemory = androidx.lifecycle.ViewModelProvider(this)[PhotoMemory::class.java]
         glasses = MetaGlasses(this, lifecycleScope, { message = it }, diagnostics, photoMemory)
-        voice = RealtimeClient(this, lifecycleScope, { message = it; if (photoMemory.bitmap != null) photoMemory.error = it }, diagnostics)
+        voice = app.voice
+        lifecycleScope.launch { app.message.collect { text ->
+            if (text != null) { message = text; if (photoMemory.bitmap != null) photoMemory.error = text; app.clearMessage() }
+        } }
         localAudio = LocalAudioDiagnostics(this, lifecycleScope, diagnostics)
         vault = KeyVault(this)
         wake = LocalWakeListener(this, lifecycleScope) { if (foreground) wakeStart(it) }
-        lifecycleScope.launch {
-            var previouslyConnected = false
-            glasses.state.collect { state ->
-                if (previouslyConnected && !state.connected) voice.stop()
-                previouslyConnected = state.connected
-            }
-        }
+        // DAT controla cámara/dispositivo. Las interrupciones de audio se observan en AudioRoute;
+        // cerrar una sesión DAT al ocultar la pantalla no implica perder la ruta Bluetooth.
         microphoneReady = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         bluetoothReady = checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
         if (bluetoothReady) glasses.initialize()
@@ -102,8 +101,9 @@ class MainActivity : ComponentActivity() {
                 val localBusy by localAudio.busy.collectAsStateWithLifecycle()
                 AssistantShell(this, vault, voice, wake, microphoneReady,
                     requestMic = { microphonePermission.launch(Manifest.permission.RECORD_AUDIO) },
-                    stopAll = { wake.stop(); voice.stop(); localAudio.stop() }, report = { message = it }, bindWakeStart = { wakeStart = it },
-                    themeMode = themeMode, setTheme = { themeMode = it; themePreferences.edit().putString("tema", it).apply() }) { page, configured, backend, token, bluetooth, setBluetooth, start, analyzePhoto ->
+                    stopAll = { ContinuousWakeService.stop(this); wake.stop(); voice.stop(); localAudio.stop() }, report = { message = it }, bindWakeStart = { wakeStart = it },
+                    themeMode = themeMode, setTheme = { themeMode = it; themePreferences.edit().putString("tema", it).apply() },
+                    deviceSummary = "Gafas · ${gs.status}") { page, configured, backend, token, bluetooth, setBluetooth, start, analyzePhoto ->
                 if (page == "Diagnóstico") DiagnosticScreen(diagnostics, voice, localAudio,
                     configured = configured, backend = backend, token = token, bluetooth = bluetooth,
                     microphoneReady = microphoneReady, refresh = ::refreshDiagnostics,
@@ -169,7 +169,7 @@ class MainActivity : ComponentActivity() {
                             }
                             if (vs.active || vs.connecting) OutlinedButton(onClick = voice::stop) { Text(if (vs.connecting) "Cancelar conexión" else "Finalizar conversación") }
                             if (vs.transcript.isNotBlank()) Text(vs.transcript, style = MaterialTheme.typography.bodyLarge)
-                            Text("La pausa conserva el contexto. Finalizar o salir cierra la sesión. No hay escucha en segundo plano.", style = MaterialTheme.typography.bodySmall)
+                            Text("La pausa conserva el contexto. Con escucha persistente autorizada, el servicio mantiene el control del audio al salir; puedes detenerlo desde su notificación.", style = MaterialTheme.typography.bodySmall)
                         }
                         if (page == "Inicio" || page == "Dispositivos") Panel("03 · Visión", "¿Qué estoy viendo?") {
                             Text(if (gs.capturing) "Cámara activa · capturando una foto…" else "Cámara apagada", color = MaterialTheme.colorScheme.primary)
@@ -238,7 +238,11 @@ class MainActivity : ComponentActivity() {
         if (DatRegistrationPolicy.callback(intent.action, intent.data?.scheme)) glasses.registrationReturn()
     }
     override fun onStart() { super.onStart(); foreground = true; refreshDiagnostics(); glasses.registrationReturn() }
-    override fun onStop() { foreground = false; wake.stop(); localAudio.stop(); voice.stop(); glasses.stopCapture(); glasses.disconnect(); super.onStop() }
+    override fun onStop() {
+        foreground = false; wake.stop(); localAudio.stop()
+        if (!ContinuousWakeService.running) { voice.stop(); app.connection = null }
+        glasses.stopCapture(); glasses.disconnect(); super.onStop()
+    }
 }
 
 @Composable

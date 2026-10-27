@@ -1,0 +1,41 @@
+package com.pbtservers.pbtmetagpt
+
+enum class ListeningPhase(val label: String) {
+    OFF("Desactivado"), LOADING("Preparando motor local"), LISTENING("Esperando frase de activación"),
+    DETECTED("Frase detectada"), PREPARING("Preparando OpenAI Realtime"), CONVERSATION("Conversación activa"),
+    RETURNING("Volviendo a escucha local"), SUSPENDED("Escucha suspendida · pulsa Activar escucha para reintentar"),
+}
+
+/** Consentimiento y callbacks de una sola generación, sin depender de una pantalla. */
+class WakeSessionPolicy {
+    var authorized = false; private set
+    var phase = ListeningPhase.OFF; private set
+    private var epoch = 0
+    private var hadSession = false
+    fun authorize() { epoch++; authorized = true; hadSession = false; phase = ListeningPhase.LOADING }
+    fun beginListening(): Int? {
+        if (!authorized) return null
+        phase = ListeningPhase.LOADING
+        return ++epoch
+    }
+    fun ready(token: Int): Boolean {
+        if (!authorized || token != epoch || phase != ListeningPhase.LOADING) return false
+        phase = ListeningPhase.LISTENING; return true
+    }
+    fun detected(token: Int): Boolean {
+        if (!authorized || token != epoch || phase != ListeningPhase.LISTENING) return false
+        phase = ListeningPhase.DETECTED; return true
+    }
+    fun preparing() { epoch++; if (authorized) phase = ListeningPhase.PREPARING }
+    /** true solo cuando una conversación real ha terminado y puede volver a escuchar. */
+    fun onVoice(active: Boolean, connecting: Boolean, failed: Boolean): Boolean {
+        if (!authorized) return false
+        if (failed) { suspendListening(); return false }
+        if (active) { hadSession = true; phase = ListeningPhase.CONVERSATION }
+        else if (!connecting && hadSession) { hadSession = false; phase = ListeningPhase.RETURNING; return true }
+        else if (!connecting && phase == ListeningPhase.PREPARING) suspendListening()
+        return false
+    }
+    fun suspendListening() { epoch++; authorized = false; hadSession = false; phase = ListeningPhase.SUSPENDED }
+    fun stop() { epoch++; authorized = false; hadSession = false; phase = ListeningPhase.OFF }
+}

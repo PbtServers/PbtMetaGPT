@@ -5,6 +5,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class WakeConfigurationTest {
+    @Test fun `Atento sin nombre restaura y selecciona el asistente sin ambiguedad`() {
+        val custom = AssistantProfile(name = "Luna", activationPhrases = listOf(ActivationPhrase(text = "Atento", appendName = false)))
+        val restored = AssistantProfile.import(AssistantProfile.export(listOf(custom))).single()
+        assertEquals(restored, PhraseMatcher.resolve("  ATÉNTO!  ", listOf(restored)))
+        assertNull(PhraseMatcher.resolve("", listOf(restored)))
+        val other = restored.copy(id = "otro", name = "Jarvis")
+        assertNull(PhraseMatcher.resolve("Atento", listOf(restored, other)))
+    }
     @Test fun `migra perfiles anteriores sin imponer nuevas frases`() {
         val old = AssistantProfile(name = "Jarvis").json().apply { remove("activationPhrases") }
         val profile = AssistantProfile.parse(old)

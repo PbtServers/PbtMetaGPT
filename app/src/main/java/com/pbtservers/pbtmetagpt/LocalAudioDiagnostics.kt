@@ -17,6 +17,7 @@ class LocalAudioDiagnostics(private val context: Context, private val scope: Cor
     private var toneAwaitingConfirmation = false
     private var record: AudioRecord? = null
     private var track: AudioTrack? = null
+    private var microphoneLease: MicrophoneGate.Lease? = null
     private val route = AudioRoute(context) { stop() }
 
     fun microphone(bluetooth: Boolean) = start(Check.LOCAL_MIC, bluetooth) {
@@ -83,13 +84,23 @@ class LocalAudioDiagnostics(private val context: Context, private val scope: Cor
         diagnostics.record(check, CheckStatus.RUNNING, "Prueba local iniciada expresamente; no se envía audio.")
         job = scope.launch {
             try {
+                val gate = (context.applicationContext as? PbtApplication)?.microphone
+                if (gate != null) {
+                    microphoneLease = gate.acquire(MicrophoneOwner.DIAGNOSTIC)
+                    check(microphoneLease != null) { "Micrófono ocupado por otro motor" }
+                }
                 route.start(bluetooth, speaker = true)
                 diagnostics.record(Check.ROUTE, CheckStatus.WARNING, if (bluetooth) "Ruta Bluetooth solicitada; la prueba informa del tipo realmente observado." else "Altavoz y micrófono del teléfono solicitados para la prueba local.")
                 withTimeout(7000) { action() }
             } catch (_: TimeoutCancellationException) { diagnostics.record(check, CheckStatus.ERROR, "Tiempo agotado en la prueba local.", "LOCAL_TIMEOUT")
             } catch (cancelled: CancellationException) { diagnostics.record(check, CheckStatus.WARNING, "Prueba local cancelada.", "CANCELLED"); throw cancelled
-            } catch (_: Exception) { diagnostics.record(check, CheckStatus.ERROR, "No se pudo completar la prueba. Revisa permisos, ruta, volumen y aplicaciones que usan audio.", "LOCAL_AUDIO_ERROR")
-            } finally { route.close(); mutableBusy.value = false }
+            } catch (problem: IllegalStateException) { failure(check, problem) }
+            catch (problem: SecurityException) { failure(check, problem) }
+            catch (problem: IllegalArgumentException) { failure(check, problem) }
+            finally {
+                try { route.close() }
+                finally { (context.applicationContext as? PbtApplication)?.microphone?.release(microphoneLease); microphoneLease = null; mutableBusy.value = false }
+            }
         }
     }
     fun stop() {
@@ -98,6 +109,10 @@ class LocalAudioDiagnostics(private val context: Context, private val scope: Cor
         runCatching { record?.stop() }
         runCatching { track?.stop() }
         toneAwaitingConfirmation = false
+    }
+    private fun failure(check: Check, problem: Throwable) {
+        (context.applicationContext as? PbtApplication)?.journal?.record(check, Fault.INITIALIZATION, problem)
+        diagnostics.record(check, CheckStatus.ERROR, "No se pudo completar la prueba. Revisa permisos, ruta y aplicaciones que usan audio.", "LOCAL_AUDIO_ERROR")
     }
     private fun deviceType(type: Int?): String = when (type) {
         AudioDeviceInfo.TYPE_BUILTIN_MIC -> "micrófono del teléfono"

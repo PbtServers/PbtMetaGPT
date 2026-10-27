@@ -50,7 +50,7 @@ class ConversationInstrumentedTest {
                 }
             } }
         }
-        compose.onNodeWithText("Hablar con ChatGPT").performClick()
+        compose.onNodeWithText("Iniciar conversación").performClick()
         compose.onNodeWithText("Pantalla Conversación").assertIsDisplayed()
         compose.waitUntil(5_000) { failure != null }
         compose.onNodeWithText("Pantalla Conversación").assertIsDisplayed()

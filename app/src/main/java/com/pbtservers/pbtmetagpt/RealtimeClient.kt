@@ -26,6 +26,8 @@ data class VoiceState(
     val transcript: String = "",
     val phoneFallbackAvailable: Boolean = false,
     val imageAnalysis: Boolean = false,
+    val failed: Boolean = false,
+    val sessionConfirmed: Boolean = false,
 )
 
 /** Una conexión WebRTC conserva el contexto. No se persisten audio, imágenes ni credenciales. */
@@ -41,6 +43,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     private var channel: DataChannel? = null
     private var source: AudioSource? = null
     private var microphone: AudioTrack? = null
+    private var microphoneLease: MicrophoneGate.Lease? = null
     private var job: Job? = null
     private var timeout: Job? = null
     private var sessionLimit: Job? = null
@@ -75,8 +78,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     }
     private val route = AudioRoute(appContext) { message -> scope.launch {
         val offerPhone = requestedBluetooth
-        stop()
-        mutable.update { it.copy(phoneFallbackAvailable = offerPhone) }
+        stopInternal(false, message, offerPhone)
         error(message)
     } }
 
@@ -103,6 +105,14 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
             var stage = Check.BACKEND
             try {
                 withTimeout(60_000) {
+                    ContinuousWakeService.beforeRealtime()
+                    if (!testOnly && !sample && !imageOnly) {
+                        val gate = (appContext as? PbtApplication)?.microphone
+                        if (gate != null) {
+                            microphoneLease = gate.acquire(MicrophoneOwner.REALTIME)
+                            if (microphoneLease == null) throw DiagnosticFailure("MICROPHONE_BUSY", "El micrófono todavía está en uso. Detén la escucha o la prueba local y reintenta.")
+                        }
+                    }
                     if (usesAlternative()) {
                         stage = Check.TTS_ENGINE
                         alternative.prepare(requireNotNull(sessionProfile))
@@ -110,6 +120,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     }
                     stage = Check.BACKEND
                     android.util.Log.i("PbtStart", "CREDENTIAL_REQUEST")
+                    (appContext as? PbtApplication)?.journal?.record(Check.CREDENTIAL, Fault.CREDENTIAL_REQUEST)
                     val secret = credential(baseUrl, accessToken)
                     ensureActive()
                     stage = Check.ROUTE
@@ -118,8 +129,10 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     if (!testOnly) diagnostics.record(Check.ROUTE, CheckStatus.WARNING, "Ruta de comunicación solicitada a Android. La selección no acredita micrófono o altavoz de las gafas.")
                     mutable.update { it.copy(route = routeLabel, status = "Conectando con OpenAI…") }
                     android.util.Log.i("PbtStart", "WEBRTC_INITIALIZE")
+                    (appContext as? PbtApplication)?.journal?.record(Check.REALTIME, Fault.WEBRTC_INITIALIZE)
                     PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions.builder(appContext).createInitializationOptions())
                     android.util.Log.i("PbtStart", "AUDIO_MODULE_CREATE")
+                    (appContext as? PbtApplication)?.journal?.record(Check.MICROPHONE, Fault.AUDIO_MODULE_CREATE)
                     val audioModule = JavaAudioDeviceModule.builder(appContext)
                         .setAudioRecordErrorCallback(object : JavaAudioDeviceModule.AudioRecordErrorCallback {
                             private fun failed() = dispatch(current) { diagnostics.record(Check.MICROPHONE, CheckStatus.ERROR, "WebRTC notificó un fallo real de captura.", "NATIVE_RECORD_ERROR"); fail("No se pudo utilizar el micrófono. Comprueba permisos, ruta de audio y otras aplicaciones.") }
@@ -143,6 +156,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                         }).createAudioDeviceModule()
                     module = audioModule
                     android.util.Log.i("PbtStart", "PEER_FACTORY_CREATE")
+                    (appContext as? PbtApplication)?.journal?.record(Check.REALTIME, Fault.PEER_FACTORY_CREATE)
                     val createdFactory = PeerConnectionFactory.builder().setAudioDeviceModule(audioModule).createPeerConnectionFactory()
                     factory = createdFactory
                     val connection = createdFactory.createPeerConnection(
@@ -203,6 +217,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
             } catch (_: TimeoutCancellationException) { if (generation == current) fail("Se agotó el tiempo para iniciar la conversación.")
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (problem: LinkageError) {
+                (appContext as? PbtApplication)?.journal?.record(Check.REALTIME, Fault.INITIALIZATION, problem)
                 diagnostics.record(Check.REALTIME, CheckStatus.ERROR, "No se pudo cargar una API o biblioteca nativa de WebRTC.", Diagnostics.sdkCode(problem))
                 android.util.Log.e("PbtStart", "WEBRTC_LINKAGE_ERROR")
                 if (generation == current) fail("La biblioteca de audio no es compatible con este dispositivo o APK. Consulta Diagnóstico y prueba una compilación compatible.")
@@ -243,7 +258,15 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     }
 
     private fun dispatch(current: Int, action: () -> Unit) {
-        callbacks.dispatch(current, action)
+        callbacks.dispatch(current) {
+            try { action() }
+            catch (problem: IllegalStateException) { recordFailure(problem, Check.REALTIME); fail("El audio dejó de estar disponible. Puedes reintentar.") }
+            catch (problem: SecurityException) { recordFailure(problem, Check.MICROPHONE); fail("Android ha retirado un permiso de audio.") }
+            catch (problem: LinkageError) {
+                (appContext as? PbtApplication)?.journal?.record(Check.REALTIME, Fault.INITIALIZATION, problem)
+                fail("La biblioteca nativa no pudo completar la operación. Consulta Registros de errores.")
+            }
+        }
     }
 
     private fun receive(text: String) {
@@ -313,7 +336,9 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     else { mutable.update { it.copy(responding = false) }; error("OpenAI rechazó una operación de la sesión. Consulta Diagnóstico.") }
                 }
             }
-        } catch (_: Exception) { fail("Se recibió un evento de conversación no válido.") }
+        } catch (problem: org.json.JSONException) { recordFailure(problem, Check.REALTIME); fail("Se recibió un evento de conversación no válido.") }
+        catch (problem: IllegalStateException) { recordFailure(problem, Check.REALTIME); fail("La sesión de audio ya no está disponible. Vuelve a intentarlo.") }
+        catch (problem: SecurityException) { recordFailure(problem, Check.MICROPHONE); fail("Android ha retirado el permiso de audio. Revisa los permisos antes de reintentar.") }
     }
 
     private fun responseText(response: JSONObject): String = buildString {
@@ -354,6 +379,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     private fun ready() {
         if (configured) return
         configured = true
+        mutable.update { it.copy(sessionConfirmed = true) }
         timeout?.cancel()
         diagnostics.record(Check.REALTIME, CheckStatus.OK, "Sesión y configuración confirmadas por OpenAI; audio pendiente de validación humana.", "SESSION_CONFIGURED")
         if (diagnosticOnly) { stop(); return }
@@ -471,37 +497,63 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
             is javax.net.ssl.SSLException -> "TLS_ERROR"
             is java.net.UnknownHostException -> "DNS_ERROR"
             is java.net.SocketTimeoutException -> "NETWORK_TIMEOUT"
+            is java.security.GeneralSecurityException -> "KEYSTORE_ERROR"
             else -> "CONNECTION_OR_CONFIGURATION"
         }
         val target = if (code.startsWith("SDP")) Check.SDP else if (code.startsWith("OPENAI") || code.startsWith("BACKEND_")) Check.CREDENTIAL else fallback
+        (appContext as? PbtApplication)?.journal?.record(target, FaultClassifier.connection(code), problem)
         diagnostics.record(target, CheckStatus.ERROR, if (problem is DiagnosticFailure) problem.message.orEmpty() else "La etapa no pudo completarse. Revisa conexión, certificado y configuración.", code)
     }
     private fun fail(message: String) {
         diagnostics.record(Check.CONTROL, CheckStatus.ERROR, message)
-        stopInternal(false); error(message)
+        stopInternal(false, message)
+        error(message)
     }
 
     fun stop() = stopInternal(true)
-    private fun stopInternal(recordControl: Boolean) {
+    private fun stopInternal(recordControl: Boolean, failure: String? = null, offerPhone: Boolean = false) {
         if (recordControl && (state.value.active || state.value.connecting)) diagnostics.record(Check.CONTROL, CheckStatus.WARNING, "Cierre de sesión y liberación de audio solicitados; no se reanuda automáticamente.", "STOP_REQUESTED")
         generation++
         pendingImage = null
         imageOnly = false; sampleOnly = false; diagnosticOnly = false
         generating = false; outputPlaying = false
-        currentResponse = ""; suppressed.clear(); texts.clear(); alternative.stop()
+        currentResponse = ""; suppressed.clear(); texts.clear(); releasePart { alternative.stop() }
         job?.cancel(); job = null
         timeout?.cancel(); timeout = null
         sessionLimit?.cancel(); sessionLimit = null
-        microphone?.setEnabled(false)
-        peer?.setAudioRecording(false)
-        channel?.unregisterObserver(); channel?.close(); channel?.dispose(); channel = null
-        peer?.close(); peer?.dispose(); peer = null
-        microphone?.dispose(); microphone = null
-        source?.dispose(); source = null
-        factory?.dispose(); factory = null
-        module?.release(); module = null
-        route.close()
-        mutable.value = VoiceState()
+        // Desvincular primero: una segunda parada no vuelve a liberar los mismos objetos nativos.
+        val oldMic = microphone; microphone = null
+        val oldPeer = peer; peer = null
+        val oldChannel = channel; channel = null
+        val oldSource = source; source = null
+        val oldFactory = factory; factory = null
+        val oldModule = module; module = null
+        releasePart { oldMic?.setEnabled(false) }
+        releasePart { oldPeer?.setAudioRecording(false) }
+        releasePart { oldChannel?.unregisterObserver() }
+        releasePart { oldChannel?.close() }
+        releasePart { oldChannel?.dispose() }
+        releasePart { oldPeer?.close() }
+        releasePart { oldPeer?.dispose() }
+        releasePart { oldMic?.dispose() }
+        releasePart { oldSource?.dispose() }
+        releasePart { oldFactory?.dispose() }
+        releasePart { oldModule?.release() }
+        releasePart { route.close() }
+        (appContext as? PbtApplication)?.microphone?.release(microphoneLease); microphoneLease = null
+        // Publicar cierre y error juntos: nunca un estado intermedio que parezca fin normal y rearme el servicio.
+        mutable.value = if (failure == null) VoiceState() else VoiceState(failed = true,
+            status = "Error recuperable · $failure", phoneFallbackAvailable = offerPhone)
+    }
+    private fun releasePart(action: () -> Unit) {
+        try { action() }
+        catch (problem: IllegalStateException) { releaseFailure(problem) }
+        catch (problem: SecurityException) { releaseFailure(problem) }
+        catch (problem: LinkageError) { releaseFailure(problem) }
+    }
+    private fun releaseFailure(problem: Throwable) {
+        (appContext as? PbtApplication)?.journal?.record(Check.CONTROL, Fault.RELEASE, problem)
+        diagnostics.record(Check.CONTROL, CheckStatus.ERROR, "Una operación de cierre de audio ha fallado; se continúa liberando el resto. Consulta Registros de errores.", "RELEASE_FAILED")
     }
 }
 

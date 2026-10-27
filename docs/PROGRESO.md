@@ -1,5 +1,24 @@
 # Seguimiento de PbtMetaGPT
 
+## Nueva estabilización de audio y escucha persistente · 27/10/2026
+
+**35 % de esta nueva tarea**, independiente del 85 % general y del 60 % de la intervención anterior. Base `f9daabd`, cuya [CI 40542139078](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40542139078) está correcta. No valida el código añadido aquí ni el audio real. Dispositivo comunicado: Nothing Phone 3a Lite, Android 16, Nothing OS 4.1 Beta; gafas Meta Glasses 00R6. Detalle, límites y protocolo sin ADB: [ESTABILIZACION_AUDIO.md](ESTABILIZACION_AUDIO.md).
+
+| Bloque de esta tarea | Avance acreditado / peso | Pendiente |
+| --- | ---: | --- |
+| Auditoría y evidencias | 8/15 | Informe del cierre real; no se confirma causa física |
+| Diagnóstico y corrección de cierres | 6/30 | Compilación Android, reproducción y reparación contrastada con teléfono |
+| Escucha local y frases | 8/20 | Servicio/Vosk y políticas implementados; modelo, permisos, acústica, bloqueo y batería sin validar |
+| Rediseño de apartados | 4/20 | Inicio, ajustes, tarjetas/editor y biblioteca modificados; emulador y revisión física pendientes |
+| Pruebas, documentación y publicación | 4/15 | 19 JVM nuevas + 9 Python + 19 Node correctas; Android/CI/publicación nuevas pendientes |
+| **Total** | **35/100** | **Experimental; ninguna función acústica nueva certificada** |
+
+El diario privado registra hitos y errores con códigos/tipos/archivos de la app, sin mensajes externos ni contenido del usuario. Incluye exportación `.txt` por selector Android, retención de siete días y borrado confirmado. `ApplicationExitInfo` aporta causas de salida cuando Android las conserva; no garantiza una pila de fallos nativos. El manejador Java/Kotlin conserva la cadena de cierre de Android.
+
+El servicio de tipo micrófono se inicia desde una confirmación visible, usa Vosk español opcional y una notificación de parada. No reinicia tras una parada explícita ni tras morir el proceso. La exclusión de micrófono y la política de consentimiento/callbacks tienen pruebas JVM ejecutadas. Un fallo de conexión/audio suspende; una conversación confirmada que finaliza normalmente puede volver a escucha con el consentimiento vigente. No se promete reconocimiento de nombres fuera del vocabulario ni compatibilidad física con la beta.
+
+Verificación local: 19 JVM compiladas y ejecutadas directamente con Kotlin/JUnit de Gradle (no la suite Android completa); 77 archivos Kotlin sin errores sintácticos, sin comprobar tipos. Gradle Java17 bloqueado por `SDK location not found`; descarga de Sherpa y Git HTTPS bloqueados por red. CI preparada para API35 y API36, con APK final condicionada a ambas. README sin modificaciones y seis archivos locales anteriores conservados byte a byte. Se mantiene el porcentaje hasta nuevas verificaciones. Próxima aceptación: publicar/ejecutar CI y obtener el informe del cierre desde una APK nueva validada, seguido de las pruebas físicas documentadas.
+
 ## Intervención de interfaz y errores · 27/10/2026
 
 Tarea independiente del **85 % funcional** documentado abajo. Base `654d06d`; README profesional conservado con una referencia breve añadida. Detalle: [CORRECCIONES_INTERFAZ.md](CORRECCIONES_INTERFAZ.md).
