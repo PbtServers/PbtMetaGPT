@@ -63,7 +63,7 @@ import java.io.IOException
         }
     }
     if (consent) AlertDialog(onDismissRequest = { consent = false }, title = { Text("Autorizar escucha persistente") },
-        text = { Text("El micrófono seguirá activo al minimizar y bloquear el móvil mientras Android lo permita. Reconocer una frase guardada abrirá una conversación con OpenAI y podrá consumir cuota. Podrás detenerlo desde Inicio y la notificación. No se guardan grabaciones de fondo. Las frases deben estar guardadas y ser del idioma español. Al detener el servicio no se reinicia solo.") },
+        text = { Text("El micrófono seguirá activo al minimizar y bloquear el móvil mientras Android lo permita. Una frase guardada abrirá el proveedor elegido: GroqCloud Free utiliza cuota gratuita; OpenAI API opcional es facturable. Configura el servicio y su consentimiento antes. Podrás detenerlo desde Inicio y la notificación. No se guardan grabaciones de fondo. Las frases deben estar guardadas y ser del idioma español. Al detener el servicio no se reinicia solo.") },
         confirmButton = { TextButton(onClick = {
             consent = false; stopVisible()
             try { ContinuousWakeService.startVisible(context) }

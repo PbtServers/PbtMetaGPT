@@ -6,6 +6,7 @@ import android.app.ApplicationExitInfo
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import java.io.File
 
 /** Recursos independientes de Compose. Crear el proceso nunca inicia captura. */
@@ -18,6 +19,10 @@ class PbtApplication : Application() {
     private val mutableMessage = MutableStateFlow<String?>(null)
     val message = mutableMessage.asStateFlow()
     val voice by lazy { RealtimeClient(this, scope, { mutableMessage.value = it }, diagnostics) }
+    val hosted by lazy { HostedConversation(this, scope) }
+    val conversationState by lazy { combine(voice.state, hosted.state) { paid, free ->
+        if (HostedSettings(this).provider == "groq") free else paid
+    } }
     fun clearMessage() { mutableMessage.value = null }
     fun errorReport(): String = "PbtMetaGPT ${BuildConfig.VERSION_NAME} · Android API ${android.os.Build.VERSION.SDK_INT}\n" +
         "ABI: " + android.os.Build.SUPPORTED_ABIS.filter { it in setOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86") }.joinToString() + "\n" + journal.report()

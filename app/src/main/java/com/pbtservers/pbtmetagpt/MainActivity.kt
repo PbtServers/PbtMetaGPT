@@ -101,7 +101,7 @@ class MainActivity : ComponentActivity() {
                 val localBusy by localAudio.busy.collectAsStateWithLifecycle()
                 AssistantShell(this, vault, voice, wake, microphoneReady,
                     requestMic = { microphonePermission.launch(Manifest.permission.RECORD_AUDIO) },
-                    stopAll = { ContinuousWakeService.stop(this); wake.stop(); voice.stop(); localAudio.stop() }, report = { message = it }, bindWakeStart = { wakeStart = it },
+                    stopAll = { ContinuousWakeService.stop(this); wake.stop(); voice.stop(); app.hosted.stop(); localAudio.stop() }, report = { message = it }, bindWakeStart = { wakeStart = it },
                     themeMode = themeMode, setTheme = { themeMode = it; themePreferences.edit().putString("tema", it).apply() },
                     deviceSummary = "Gafas · ${gs.status}") { page, configured, backend, token, bluetooth, setBluetooth, start, analyzePhoto ->
                 if (page == "Diagnóstico") DiagnosticScreen(diagnostics, voice, localAudio,
@@ -115,7 +115,7 @@ class MainActivity : ComponentActivity() {
                         Text("PBT / ASISTENTE PERSONAL", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
                         Text(if (page == "Inicio") "Tu asistente, a tu manera" else page, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                         Text(page, style = MaterialTheme.typography.titleMedium)
-                        Text("Habla con ChatGPT y comparte una foto cuando tú decidas. Integración con gafas pendiente de validación física.")
+                        Text("Conversa con el proveedor que elijas. Análisis de fotos mediante OpenAI API opcional y confirmación propia. Gafas pendientes de validación física.")
                         if (page == "Inicio" || page == "Dispositivos") Panel("01 · Tus gafas", "Gafas Meta Wearables") {
                             Text(gs.status, color = MaterialTheme.colorScheme.primary)
                             Text(if (gs.registered) "Aplicación registrada en Meta AI" else "Aplicación sin registrar en Meta AI")
@@ -143,7 +143,7 @@ class MainActivity : ComponentActivity() {
                             Text("Necesitas Meta AI, gafas emparejadas y modo de desarrollador o una aplicación autorizada por Meta.", style = MaterialTheme.typography.bodySmall)
                             Text("Este paso es opcional. Si Meta AI no abre el enlace, activa de nuevo el modo de desarrollador con las gafas conectadas y comprueba que DAT esté instalado en ellas. Actualiza y reinicia Meta AI antes de reintentar. El registro no borra el Setup.", style = MaterialTheme.typography.bodySmall)
                         }
-                        if (page == "Inicio" || page == "Conversación") Panel("02 · Conversación", "Habla con ChatGPT") {
+                        if (page == "Inicio" || page == "Conversación") Panel("02 · Conversación", "OpenAI API · integración opcional") {
                             Text(vs.status, color = MaterialTheme.colorScheme.primary)
                             Text(vs.route, style = MaterialTheme.typography.bodySmall)
                             if (vs.phoneFallbackAvailable) OutlinedButton(onClick = { setBluetooth(false); start() }) { Text("Usar micrófono y altavoz del móvil") }
@@ -182,7 +182,7 @@ class MainActivity : ComponentActivity() {
                                 resume = voice::pauseOrResume, cancel = voice::stop)
                         }
                         Text("Privacidad bajo tu control", style = MaterialTheme.typography.titleMedium)
-                        Text("El audio y las fotos que autorices se envían a OpenAI. La suscripción ChatGPT y la facturación de la API son independientes. Versión pendiente de pruebas con gafas reales.", style = MaterialTheme.typography.bodySmall)
+                        Text("El proveedor de conversación se elige en Servicios de IA. Las fotos se envían a OpenAI solo por elección y confirmación explícitas. ChatGPT y OpenAI API tienen facturación independiente. Pendiente de pruebas con gafas reales.", style = MaterialTheme.typography.bodySmall)
                     }
                 }
                 }
@@ -240,7 +240,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() { super.onStart(); foreground = true; refreshDiagnostics(); glasses.registrationReturn() }
     override fun onStop() {
         foreground = false; wake.stop(); localAudio.stop()
-        if (!ContinuousWakeService.running) { voice.stop(); app.connection = null }
+        if (!ContinuousWakeService.running) { voice.stop(); app.hosted.stop(); app.connection = null }
         glasses.stopCapture(); glasses.disconnect(); super.onStop()
     }
 }

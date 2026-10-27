@@ -43,7 +43,11 @@ data class AssistantProfile(
         activationPhrases.forEach { it.validate(name) }
         require(avatar.length <= 16 && welcomeMessage.length <= 1000 && !SecretPatterns.contains(welcomeMessage)) { "Avatar o bienvenida no válidos; no incluyas secretos." }
         require(sessionMinutes in 1..60) { "La sesión admite entre 1 y 60 minutos para limitar consumo y recursos." }
-        require(ttsEngine in setOf("realtime", "android", "openai_tts", "external", "sherpa_vits")) { "Motor de voz no compatible." }
+        require(ttsEngine in setOf("realtime", "android", "openai_tts", "external", "sherpa_vits", "qwen_space")) { "Motor de voz no compatible." }
+        if (ttsEngine == "qwen_space") {
+            require(ttsVoice in QwenSpaceContract.speakers && ttsPackage in QwenSpaceContract.sizes) { "Selecciona una voz y un modelo Qwen3-TTS compatibles." }
+            QwenSpaceContract.language(language)
+        }
         require(ttsVoice.length <= 200 && ttsPackage.length <= 200 && !SecretPatterns.contains(ttsVoice + ttsPackage) && pitch.isFinite() && pitch in 0.5..2.0) { "Ajustes de síntesis no válidos." }
         if (ttsEngine in setOf("android", "external", "sherpa_vits")) require(ttsVoice.isNotBlank()) { "Selecciona una voz o modelo para el motor elegido antes de guardar." }
         if (ttsEngine == "android") require(ttsPackage.matches(Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+"))) { "Selecciona un motor Android instalado." }

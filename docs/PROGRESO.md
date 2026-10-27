@@ -1,5 +1,25 @@
 # Seguimiento de PbtMetaGPT
 
+## Servicios online gratuitos sin infraestructura propia · 27/10/2026
+
+**55 % de esta ampliación; experimental, sin aceptación de extremo a extremo.** No sustituye ni incrementa el 85 % histórico de otra intervención. Inicio medido: 21:54 UTC; corte de revisión 22:10 UTC (unos 16 minutos). La estimación comunicada de 20–35 minutos corresponde al cierre de revisión/documentación/commits e intento de publicación; no a la aceptación real, que depende de red, cuenta Free y SDK/hardware.
+
+| Subfase | Avance acreditado / peso | Pendiente |
+| --- | ---: | --- |
+| Investigación y acceso a servicios | 14/25 | Groq Free documentado; falta cuenta y conexión real. Gemini descartado para Free en EEE; Cerebras actual exige medio de pago |
+| Configuración y perfiles | 10/15 | Selección explícita Groq/OpenAI, clave Groq en Keystore separado, consentimientos y voz por perfil; instrumentadas nuevas pendientes |
+| Conversación y activación local | 10/20 | Ruta Groq por texto y dictado Vosk conectada a activación existente; generación real, tipos Android y acústica pendientes |
+| Voces online | 8/20 | Qwen CustomVoice/Gradio experimental, nueve voces y dos tamaños; contrato vivo y audio sin validar. RVC desactivado |
+| Integración y diseño | 8/10 | Sin fallback facturable; iconos adaptativo/mono/respaldo revisados a 48/64/96 px. Faltan teléfono/gafas |
+| Pruebas y documentación | 5/10 | 31 Python, 19 Node y 26 JVM de políticas correctas; suite Android/Lint/API35/API36/publicación pendientes |
+| **Total** | **55/100** | **No hay conversación gratuita ni TTS remoto declarados operativos** |
+
+Detalle de proveedores, restricciones, recorrido y comandos: [SERVICIOS_ONLINE.md](SERVICIOS_ONLINE.md). El nuevo modo conserva OpenAI opcional, Vosk, frases «Atento», servicio/notificación/parada, DAT, cámara con confirmación y motores existentes. Groq recibe exclusivamente texto/contexto autorizado; el dictado permanece local. Qwen exige consentimiento propio, contrato compatible y origen del archivo restringido. No hay token HF ni acceso a créditos HF de pago. RVC no importa ni sube `.pth`/`.index`; el candidato r3gm/rvc_zero limita su demo a educación/investigación y no se ha probado su API para este uso.
+
+**Evidencias de esta intervención:** 87 archivos Kotlin sin errores sintácticos (no comprueba tipos); 26 JVM ejecutadas directamente con Kotlin/JUnit de Gradle (7 nuevas de cuota/modelo/seguridad y 19 de políticas/diario); 31 Python y 19 Node correctas. Se añaden 6 contratos JVM Qwen y 2 instrumentadas Android de aislamiento Keystore/consentimiento, pendientes de suite Android. Prueba remota sin mocks ejecutada: Groq **no ejecutado** por falta de clave; API Qwen **bloqueada** por red (`URLError`, WinError10013), síntesis **no ejecutada**. No se han provocado cuotas por abuso. No se reutilizan resultados de CI anterior.
+
+Java17/Gradle con caché local llega a configurar, pero `testDebugUnitTest lintDebug assembleDebug` falla por **SDK location not found**. Preparación de Sherpa y modelo de pruebas fallan por red bloqueada. ADB no tiene dispositivos; instrumentadas Android15/16 y escaneo de APK no se pueden acreditar. La CI conserva ambas APIs y la publicación condicionada; no se ha creado una Release estable ni APK nueva local. README.md y los seis archivos locales anteriores se comprueban por SHA256 y quedan fuera de los commits. El resultado de publicación se registrará tras el intento de push, sin force.
+
 ## Permiso de red WebRTC y nuevo icono · 27/10/2026
 
 **65 % de intervención técnica, validación física pendiente.** El informe real del Nothing Phone 3a Lite indica `SecurityException` por falta de `android.permission.ACCESS_NETWORK_STATE` durante `org.webrtc.NetworkMonitorAutoDetect`, seguida de aborto JNI (`SIGABRT`). Se ha añadido el permiso normal en el manifiesto principal, una prueba Python de regresión y comprobación del permiso real con `aapt dump permissions` tanto en la APK de validación como en la de publicación. El código de WebRTC permanece intacto hasta comprobar este defecto específico. Se requiere reinstalar la APK y comprobar en el dispositivo que ya no aparece el mismo aborto.

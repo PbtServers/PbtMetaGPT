@@ -13,7 +13,8 @@ from atribuir_secretos import attribute_dex, safe_label
 PATTERNS = [re.compile(rb"sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{24,}"),
             # Los parsers PEM (p. ej., mbedTLS de Meta) incluyen las etiquetas literales.
             # Exigir un bloque con carga evita confundir el parser con una clave incorporada.
-            re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----\r?\n[A-Za-z0-9+/=\r\n]{64,}-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")]
+            re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----\r?\n[A-Za-z0-9+/=\r\n]{64,}-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
+            re.compile(rb"gsk_[A-Za-z0-9]{20,}"), re.compile(rb"hf_[A-Za-z0-9]{20,}")]
 
 
 def sensitive(data):
@@ -22,7 +23,7 @@ def sensitive(data):
 
 def describe_matches(data):
     """Metadatos exclusivamente: no incluir el candidato, contexto ni texto DEX."""
-    names = ("OPENAI_API_KEY", "PEM_PRIVATE_KEY")
+    names = ("OPENAI_API_KEY", "PEM_PRIVATE_KEY", "GROQ_API_KEY", "HF_API_TOKEN")
     return [{"patron": names[number], "offset": match.start(), "longitud": len(match.group()),
              "sha256": hashlib.sha256(match.group()).hexdigest()}
             for number, pattern in enumerate(PATTERNS) for match in pattern.finditer(data)]

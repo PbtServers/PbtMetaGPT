@@ -61,6 +61,7 @@ fun VoiceLibraryScreen(context: Context, profile: AssistantProfile, change: (Ass
         }
     }
     Text("Biblioteca de voces", style = MaterialTheme.typography.headlineMedium)
+    if (HostedSettings(context).provider == "groq") Text("GroqCloud Free: para reproducir respuestas elige Android TTS o Qwen3-TTS experimental. Las voces OpenAI y la API externa se conservan para otros modos; no se utilizan ni se facturan desde la conversación gratuita.")
     if (!compact) ElevatedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Tu selección", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
@@ -71,7 +72,9 @@ fun VoiceLibraryScreen(context: Context, profile: AssistantProfile, change: (Ass
         }
     }
     Text("Las voces son síntesis de IA. Utiliza voces originales o autorizadas. No se incluyen modelos ni clonaciones de actores. Una importación válida no garantiza inferencia ni calidad.")
-    val engines = listOf("realtime" to "OpenAI Realtime · audio nativo", "android" to "Android TTS · voces locales instaladas", "openai_tts" to "OpenAI Speech · transitorio hasta 06/01/2027", "external" to "API TTS externa · contrato PCM", "sherpa_vits" to "Modelo Piper/VITS · Sherpa local")
+    Text("RVC · voces entrenadas", style = MaterialTheme.typography.titleLarge)
+    Text("Experimental no disponible: no hay proveedor gratuito con API autorizada y modelos personalizados verificado. Importación .pth/.index, TTS base, conversión y muestras desactivados. No se cargan modelos PyTorch en Android ni se suben a terceros.")
+    val engines = listOf("qwen_space" to "Qwen3-TTS online · experimental sin validar", "realtime" to "OpenAI Realtime · audio nativo", "android" to "Android TTS · voces locales instaladas", "openai_tts" to "OpenAI Speech · transitorio hasta 06/01/2027", "external" to "API TTS externa · contrato PCM", "sherpa_vits" to "Modelo Piper/VITS · Sherpa local")
     if (compact) Box {
         OutlinedButton(onClick = { engineMenu = true }) { Text("Motor: ${VoiceSynthesisContract.label(profile.ttsEngine)}") }
         DropdownMenu(expanded = engineMenu, onDismissRequest = { engineMenu = false }) {
@@ -83,6 +86,7 @@ fun VoiceLibraryScreen(context: Context, profile: AssistantProfile, change: (Ass
         FilterChip(selected = profile.ttsEngine == id, enabled = id != "openai_tts" || VoiceSynthesisContract.speechAvailable(), onClick = { stop(); change(VoiceSelection.engine(profile, id)) }, label = { Text(title) })
     }
     Text("Motor del perfil: ${VoiceSynthesisContract.label(profile.ttsEngine)}. Guarda y abre una sesión nueva para aplicar los cambios.")
+    if (profile.ttsEngine == "qwen_space") QwenVoicePanel(context, profile, change, stop, preview)
     if (profile.ttsEngine in listOf("realtime", "openai_tts")) {
         Text("Voces oficiales")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -147,8 +151,10 @@ fun VoiceLibraryScreen(context: Context, profile: AssistantProfile, change: (Ass
     }
     TextButton(onClick = { advanced = !advanced }) { Text(if (advanced) "Ocultar ajustes avanzados de voz" else "Ajustes avanzados de voz") }
     if (advanced) {
+    if (profile.ttsEngine != "qwen_space") {
     Text("Velocidad: ${"%.2f".format(java.util.Locale.ROOT, profile.speed)}×")
     Slider(profile.speed.toFloat(), { change(profile.copy(speed = it.toDouble())) }, valueRange = 0.25f..1.5f)
+    }
     OutlinedTextField(profile.language, { change(profile.copy(language = it.take(30))) }, label = { Text("Idioma de conversación del perfil") }, modifier = Modifier.fillMaxWidth())
     if (profile.ttsEngine in listOf("android", "sherpa_vits", "external")) Text("Cambiar el idioma de conversación no reentrena la voz: la pronunciación depende del idioma y vocabulario del motor/modelo elegido.")
     }

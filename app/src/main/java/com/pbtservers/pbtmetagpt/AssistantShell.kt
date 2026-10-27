@@ -26,13 +26,16 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
     legacy: @Composable (page: String, configured: Boolean, backend: String, token: String, bluetooth: Boolean, setBluetooth: (Boolean) -> Unit, start: () -> Unit, analyzePhoto: (android.graphics.Bitmap) -> Unit) -> Unit,
 ) {
     val store = remember { ProfileStore(context) }
+    val hostedSettings = remember { HostedSettings(context) }
+    val hosted = remember { (context.applicationContext as PbtApplication).hosted }
+    var provider by remember { mutableStateOf(hostedSettings.provider) }
     val preferences = remember { context.getSharedPreferences("configuracion", Context.MODE_PRIVATE) }
     val setup = remember { SetupStore(context) }
     var profiles by remember { mutableStateOf(runCatching { store.load() }.getOrElse { report("No se pudieron leer los perfiles. Importa una copia o crea otro."); emptyList() }) }
     var selectedId by remember { mutableStateOf(store.selected()) }
     val selected = profiles.find { it.id == selectedId }
-    val steps = listOf("Bienvenida", "OpenAI", "Asistente", "Voz", "Gafas Meta")
-    val stepPages = listOf("Bienvenida", "OpenAI", "Personalidad", "Voz", "Dispositivos")
+    val steps = listOf("Bienvenida", "Servicio", "Asistente", "Voz", "Gafas Meta")
+    val stepPages = listOf("Bienvenida", "Servicios de IA", "Personalidad", "Voz", "Dispositivos")
     var draft by remember { mutableStateOf(if (!preferences.getBoolean("bienvenida", false)) runCatching { setup.draft() }.getOrNull() ?: selected ?: AssistantProfile() else selected ?: AssistantProfile()) }
     var page by remember { mutableStateOf(if (preferences.getBoolean("bienvenida", false)) "Inicio" else stepPages[setup.step]) }
     var wizard by remember { mutableStateOf(!preferences.getBoolean("bienvenida", false)) }
@@ -73,7 +76,9 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
         owner.lifecycle.addObserver(observer)
         onDispose { owner.lifecycle.removeObserver(observer); wake.stop() }
     }
-    val vs by voice.state.collectAsStateWithLifecycle()
+    val paidState by voice.state.collectAsStateWithLifecycle()
+    val freeState by hosted.state.collectAsStateWithLifecycle()
+    val vs = if (provider == "groq") freeState else paidState
     val wakeStatus by wake.status.collectAsStateWithLifecycle()
     var exportText by remember { mutableStateOf("") }
     fun save(list: List<AssistantProfile>, id: String?) {
@@ -93,6 +98,11 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
         catch (_: IllegalStateException) { report("No se pudo guardar. Tu configuración continúa en esta pantalla; vuelve a intentarlo.") }
     }
     fun configure(requireProfile: Boolean = true, target: AssistantProfile? = selected): Boolean {
+        if (provider == "groq") {
+            if (requireProfile && target == null) { report("Crea y guarda un asistente antes de conversar."); return false }
+            if (!hostedSettings.authorized || !KeyVault(context, provider = "groq").exists()) { report("Configura una clave Groq Free y su consentimiento en Servicios de IA."); return false }
+            return true
+        }
         if (target == null && requireProfile) { report("Crea y guarda un asistente antes de iniciar OpenAI."); return false }
         if (voice.state.value.active || voice.state.value.connecting) { report("Finaliza la sesión antes de cambiar la configuración."); return false }
         voice.configure(target, if (direct) ({ vault.read() }) else null)
@@ -100,7 +110,12 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
         preferences.edit().putBoolean("directo", direct).putString("backend", backend).apply()
         return true
     }
-    val configured = selected != null && if (direct) keyPresent else backend.isNotBlank() && token.isNotBlank()
+    val configured = selected != null && if (provider == "groq") hostedSettings.authorized && KeyVault(context, provider = "groq").exists() else if (direct) keyPresent else backend.isNotBlank() && token.isNotBlank()
+    fun startSelected(target: AssistantProfile? = selected, dictate: Boolean = false) {
+        if (!configure(target = target)) return
+        if (provider == "groq") target?.let { hosted.start(it, dictate) }
+        else voice.start(backend, token.trim(), bluetooth)
+    }
     val start: () -> Unit = {
         returnToWake = false; hadSession = false
         wake.stop()
@@ -120,10 +135,10 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
             withFrameNanos { }
             pendingStart = false
             android.util.Log.i("PbtStart", "CONVERSATION_SCREEN")
-            if (!microphoneReady) requestMic()
+            if (!microphoneReady && provider == "openai") requestMic()
             else try {
                 selected?.validated()
-                if (configure()) voice.start(backend, token.trim(), bluetooth)
+                startSelected()
             } catch (problem: IllegalArgumentException) { report(problem.message ?: "Revisa el asistente y la voz antes de conversar.") }
             catch (_: IllegalStateException) { report("No se pudo preparar la conversación. Finaliza la sesión anterior y vuelve a intentarlo.") }
         } else if (pendingStart) pendingStart = false
@@ -143,7 +158,7 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
         }
         runCatching { save(profiles, matched.id); draft = matched }.onFailure { report("No se pudo seleccionar el asistente activado.") }
         returnToWake = true; page = "Conversación"; wake.stop()
-        if (!microphoneReady) requestMic() else if (configure(target = matched)) voice.start(backend, token.trim(), bluetooth)
+        if (!microphoneReady) requestMic() else startSelected(matched, dictate = provider == "groq")
     } }
     // Solo al entrar en diagnóstico; sus pruebas usan la misma selección explícita.
     LaunchedEffect(page) { if (page == "Diagnóstico" && !vs.active && !vs.connecting) configure() }
@@ -195,7 +210,7 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
         } else Box {
             TextButton(onClick = { navigationSettings = true }) { Text("Más ajustes") }
             DropdownMenu(expanded = navigationSettings, onDismissRequest = { navigationSettings = false }) {
-                listOf("Ajustes", "Personalidad", "Biblioteca de voces", "Activación por voz", "OpenAI", "Diagnóstico", "Privacidad").forEach { destination ->
+                listOf("Ajustes", "Servicios de IA", "Personalidad", "Biblioteca de voces", "Activación por voz", "OpenAI", "Diagnóstico", "Privacidad").forEach { destination ->
                     DropdownMenuItem(text = { Text(destination) }, onClick = {
                         returnToWake = false; consent = false; wake.stop()
                         if (!ContinuousWakeService.running) stopAll()
@@ -216,19 +231,23 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
             TextButton(onClick = { returnToWake = false; consent = false; stopAll() }) { Text("Desactivar escucha y cerrar sesión") }
         }
         if (page == "Inicio") Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = androidx.compose.ui.Alignment.TopCenter) {
-            HomeDashboard(selected, configured, vs, deviceSummary, microphoneReady, requestMic, start, { wake.stop(); voice.stop(); configure() }) { destination ->
+            HomeDashboard(selected, configured, vs, deviceSummary, microphoneReady, requestMic, start, { wake.stop(); voice.stop(); hosted.stop(); configure() }, provider = provider) { destination ->
                 wake.stop(); page = destination
                 if (destination in listOf("Voz", "Activación por voz")) draft = selected ?: draft
             }
+        }
+        else if (page == "Conversación" && provider == "groq") Box(Modifier.weight(1f)) {
+            HostedConversationScreen(context, selected, microphoneReady, requestMic, stopAll) { stopAll(); page = "Servicios de IA" }
         }
         else if (page == "Registros de errores") Box(Modifier.weight(1f)) { ErrorLogScreen { page = "Diagnóstico" } }
         else if (page in listOf("Inicio", "Conversación", "Dispositivos", "Diagnóstico")) {
             Column(Modifier.weight(1f).fillMaxWidth()) {
             if (page == "Diagnóstico") TextButton(onClick = { page = "Registros de errores" }) { Text("Registros de errores") }
             Box(Modifier.weight(1f)) {
-            legacy(page, configured, backend, token, bluetooth, { bluetooth = it }, start) { bitmap ->
+            legacy(page, configured && provider == "openai", backend, token, bluetooth, { bluetooth = it }, start) { bitmap ->
                 returnToWake = false; consent = false; wake.stop()
-                if (voice.state.value.active) voice.askImage(bitmap) {}
+                if (provider != "openai") report("El análisis de fotos requiere elegir explícitamente OpenAI API opcional en Servicios de IA. No se ha enviado la foto.")
+                else if (voice.state.value.active) voice.askImage(bitmap) {}
                 else if (configured && configure()) voice.start(backend, token.trim(), bluetooth, image = bitmap)
                 else report("Configura OpenAI y guarda un asistente. La foto permanece disponible.")
             }
@@ -237,9 +256,12 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
         } else Column(Modifier.weight(1f).widthIn(max = 840.dp).fillMaxWidth().align(androidx.compose.ui.Alignment.CenterHorizontally).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(page, style = MaterialTheme.typography.headlineMedium)
             when (page) {
+                "Servicios de IA" -> HostedProviderScreen(context, provider, select = {
+                    stopAll(); hostedSettings.select(it); provider = it
+                }, openOpenAI = { page = "OpenAI" })
                 "Ajustes" -> {
                     Text("Conexión, privacidad y herramientas del dispositivo", style = MaterialTheme.typography.titleLarge)
-                    listOf("OpenAI" to "Clave personal y servidor alternativo", "Permisos" to "Audio y permisos Android",
+                    listOf("Servicios de IA" to "GroqCloud gratuito o proveedor opcional", "OpenAI" to "Integración facturable opcional", "Permisos" to "Audio y permisos Android",
                         "Privacidad" to "Almacenamiento seguro y consentimiento", "Diagnóstico" to "Rutas, conexión y registros de errores").forEach { (destination, description) ->
                         OutlinedCard(onClick = { page = destination }, modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(18.dp)) { Text(destination, style = MaterialTheme.typography.titleMedium); Text(description) }
@@ -257,10 +279,14 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                     Text("BYOK: introduces tu propia clave API. Se cifra con AES-GCM y una clave de Android Keystore; no se incluye en la APK ni en perfiles exportados. Una clave permanente en un móvil tiene riesgo: un proceso comprometido, dispositivo rooteado o depuración puede exponerla mientras se usa. El cifrado no elimina ese riesgo.")
                     Text("Utiliza una clave de proyecto con permisos y presupuesto reducidos. Vigila el consumo y revócala si pierdes el teléfono. El backend opcional evita guardar esa clave en el cliente y añade límites de uso.")
                     Text("ChatGPT Plus y otros planes de ChatGPT no incluyen la facturación de OpenAI API. La voz y las muestras consumen cuota de API.")
-                    Text("La conversación autorizada y las fotos confirmadas se envían a OpenAI. El detector local no envía ni guarda su audio. Solo funciona con la app visible; se desactiva al salir o navegar. Los perfiles contienen información personal y se exportan sin cifrar.")
+                    Text("GroqCloud recibe texto, contexto e instrucciones tras autorización. Qwen3-TTS recibe texto si autorizas su Space. OpenAI solo se utiliza por elección explícita; las fotos exigen confirmación propia. Vosk no transmite audio. La escucha persistente se detiene desde la notificación. Los perfiles se exportan sin cifrar.")
                     Text("No se clonan voces ni se garantiza una interpretación exacta de personajes. Las instrucciones de tono son preferencias, no controles acústicos exactos.")
                 }
                 "OpenAI", "Comprobar conexión" -> {
+                    if (provider != "openai") {
+                        Text("OpenAI está desactivado. Configurarlo no autoriza su uso. Selecciónalo expresamente en Servicios de IA para realizar llamadas facturables.")
+                        TextButton(onClick = { page = "Servicios de IA" }) { Text("Elegir servicio de conversación") }
+                    }
                     Text("OpenAI API tiene facturación independiente. ChatGPT Plus no incluye crédito de API.")
                     Text("Puedes preparar el asistente sin clave y añadirla después desde Más ajustes → OpenAI. No podrás conversar hasta configurar la conexión.")
                     Toggle("Conexión directa con tu clave (sin backend)", direct) { stopAll(); direct = it; preferences.edit().putBoolean("directo", it).apply() }
@@ -282,7 +308,7 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                         OutlinedTextField(token, { if (it.length <= 256) token = it }, label = { Text("Token personal del backend") }, visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), singleLine = true, modifier = Modifier.fillMaxWidth())
                     }
-                    Button(onClick = { wake.stop(); if (configure(false)) voice.probeCredentials(backend, token.trim()) }, enabled = (if (direct) keyPresent else backend.isNotBlank() && token.isNotBlank()) && !vs.active && !vs.connecting) { Text("Comprobar credenciales sin audio") }
+                    Button(onClick = { wake.stop(); if (configure(false)) voice.probeCredentials(backend, token.trim()) }, enabled = provider == "openai" && (if (direct) keyPresent else backend.isNotBlank() && token.isNotBlank()) && !vs.active && !vs.connecting) { Text("Comprobar credenciales sin audio") }
                     Text(vs.status)
                     Text("La comprobación solicita una credencial temporal; no acredita micrófono, altavoz ni gafas. Guarda un asistente antes de conversar.")
                 }
@@ -318,7 +344,8 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                 }, preview = { target ->
                     runCatching {
                         target.validated()
-                        if (target.ttsEngine == "realtime") { if (configure(target = target)) voice.start(backend, token.trim(), bluetooth, sample = true) }
+                        if (provider == "groq" && !HostedPolicy.freeVoice(target.ttsEngine)) report("Elige Android TTS o Qwen3-TTS experimental para muestras gratuitas. No se ha llamado a OpenAI.")
+                        else if (target.ttsEngine == "realtime") { if (configure(target = target)) voice.start(backend, token.trim(), bluetooth, sample = true) }
                         else voice.previewAlternative(target, bluetooth)
                     }.onFailure { report("Revisa el perfil y la configuración del motor antes de reproducir la muestra.") }
                 }, stop = stopAll, report = report, compact = wizard)

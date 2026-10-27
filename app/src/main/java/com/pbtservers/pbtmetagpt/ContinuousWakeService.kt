@@ -26,7 +26,7 @@ class ContinuousWakeService : Service() {
         engine = ContinuousWakeEngine(this, scope)
         instance = this
         scope.launch {
-            app.voice.state.collect { voice ->
+            app.conversationState.collect { voice ->
                 val wasAuthorized = session.authorized
                 val rearm = session.onVoice(voice.active && voice.sessionConfirmed, voice.connecting, voice.failed)
                 update(session.phase)
@@ -66,7 +66,17 @@ class ContinuousWakeService : Service() {
                 // El backend usa token solo en memoria de la sesión actual; no se exporta ni persiste aquí.
                 val connection = app.connection
                 val direct = connection?.direct ?: preferences.getBoolean("directo", true)
-                if ((direct && !KeyVault(this).exists()) || (!direct && connection == null)) suspendListening()
+                if (HostedSettings(this).provider == "groq") {
+                    try {
+                        if (!HostedSettings(this).authorized || !KeyVault(this, provider = "groq").exists()) suspendListening()
+                        else {
+                            val store = ProfileStore(this)
+                            store.save(store.load(), matched.id)
+                            app.hosted.start(matched, dictate = true)
+                        }
+                    } catch (problem: Exception) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); suspendListening() }
+                }
+                else if ((direct && !KeyVault(this).exists()) || (!direct && connection == null)) suspendListening()
                 else {
                     try {
                         val store = ProfileStore(this)
@@ -107,6 +117,7 @@ class ContinuousWakeService : Service() {
         // El cierre de micrófono se completa antes de cancelar el scope del servicio.
         app.scope.launch { engine.stop(); scope.cancel() }
         app.voice.stop()
+        app.hosted.stop()
         app.connection = null
         if (mutable.value != ListeningPhase.SUSPENDED) mutable.value = ListeningPhase.OFF
         stopForeground(STOP_FOREGROUND_REMOVE)

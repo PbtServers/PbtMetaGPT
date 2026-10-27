@@ -19,6 +19,10 @@ class AlternativeSpeech(private val context: Context, private val scope: Corouti
     suspend fun prepare(profile: AssistantProfile) {
         profile.validated()
         when (profile.ttsEngine) {
+            "qwen_space" -> {
+                check(HostedSettings(context).qwenAuthorized) { "Autoriza el envío de texto a Qwen3-TTS en la biblioteca de voces." }
+                QwenSpaceApi().probe()
+            }
             "android" -> AndroidVoiceEngine(context).verify(profile)
             "sherpa_vits" -> {
                 val pack = withContext(Dispatchers.IO) { VoicePackageStore(File(context.filesDir, "voces")).describe(profile.ttsVoice) }
@@ -37,6 +41,10 @@ class AlternativeSpeech(private val context: Context, private val scope: Corouti
         }
     }
     suspend fun synthesize(profile: AssistantProfile, text: String): PcmAudio = when (profile.ttsEngine) {
+        "qwen_space" -> {
+            check(HostedSettings(context).qwenAuthorized) { "Falta autorización para transmitir texto al Space Qwen3-TTS." }
+            QwenSpaceApi().synthesize(profile, text) { message -> scope.launch { status(message) } }
+        }
         "android" -> AndroidVoiceEngine(context).synthesize(profile, text)
         "sherpa_vits" -> LocalModelClient(context).synthesize(VoicePackageStore(File(context.filesDir, "voces")), profile.ttsVoice, text, profile.speed)
         "openai_tts" -> {

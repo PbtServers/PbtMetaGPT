@@ -26,9 +26,7 @@ data class ActivationPhrase(
     }
 }
 
-object SecretPatterns {
-    fun contains(text: String) = Regex("sk-[A-Za-z0-9_-]{20,}|(?i)bearer\\s+[A-Za-z0-9_.-]{16,}|-----BEGIN .*PRIVATE KEY").containsMatchIn(text)
-}
+
 
 object PhraseMatcher {
     fun normalize(text: String): String = Normalizer.normalize(text.lowercase(Locale.ROOT), Normalizer.Form.NFD)

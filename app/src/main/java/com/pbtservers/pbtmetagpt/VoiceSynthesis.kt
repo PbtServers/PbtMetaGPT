@@ -25,6 +25,7 @@ object VoiceSynthesisContract {
         "openai_tts" -> "OpenAI Speech"
         "external" -> "API de voz externa"
         "sherpa_vits" -> "Modelo local (Sherpa ONNX)"
+        "qwen_space" -> "Qwen3-TTS · Space público experimental"
         else -> "Motor desconocido"
     }
     fun speechAvailable(day: java.time.LocalDate = java.time.LocalDate.now(java.time.ZoneOffset.UTC)) = day.isBefore(java.time.LocalDate.of(2027, 1, 6))

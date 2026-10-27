@@ -21,9 +21,10 @@ object KeyCipher {
     }
 }
 
-class KeyVault(context: Context, private val externalTts: Boolean = false) {
-    private val preferences = context.getSharedPreferences(if (externalTts) "credenciales_tts_cifradas" else "credenciales_cifradas", Context.MODE_PRIVATE)
-    private val alias = if (externalTts) "PbtMetaGPT.ExternalTts.v1" else "PbtMetaGPT.OpenAI.v1"
+class KeyVault(context: Context, private val externalTts: Boolean = false, private val provider: String? = null) {
+    init { require(provider == null || provider in setOf("groq", "huggingface")) }
+    private val preferences = context.getSharedPreferences(provider?.let { "credenciales_${it}_cifradas" } ?: if (externalTts) "credenciales_tts_cifradas" else "credenciales_cifradas", Context.MODE_PRIVATE)
+    private val alias = provider?.let { "PbtMetaGPT.$it.v1" } ?: if (externalTts) "PbtMetaGPT.ExternalTts.v1" else "PbtMetaGPT.OpenAI.v1"
     private fun store() = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
     private fun key(): SecretKey = (store().getKey(alias, null) as? SecretKey) ?: KeyGenerator.getInstance("AES", "AndroidKeyStore").run {
         init(KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
@@ -33,7 +34,11 @@ class KeyVault(context: Context, private val externalTts: Boolean = false) {
     }
     fun exists() = preferences.contains("ciphertext")
     @Synchronized fun save(value: String) {
-        require(if (externalTts) value.matches(Regex("[A-Za-z0-9_.=/-]{8,1024}")) else value.matches(Regex("sk-[A-Za-z0-9_-]{20,500}"))) { "Introduce una credencial válida para este proveedor." }
+        require(when (provider) {
+            "groq" -> value.matches(Regex("gsk_[A-Za-z0-9]{20,200}"))
+            "huggingface" -> value.matches(Regex("hf_[A-Za-z0-9]{20,200}"))
+            else -> if (externalTts) value.matches(Regex("[A-Za-z0-9_.=/-]{8,1024}")) else value.matches(Regex("sk-[A-Za-z0-9_-]{20,500}"))
+        }) { "Introduce una credencial válida para este proveedor." }
         val plain = value.toByteArray(Charsets.UTF_8)
         try {
             val (iv, ciphertext) = KeyCipher.encrypt(key(), plain)
@@ -42,7 +47,7 @@ class KeyVault(context: Context, private val externalTts: Boolean = false) {
         } finally { plain.fill(0) }
     }
     @Synchronized fun read(): String {
-        if (!exists()) throw DiagnosticFailure("KEY_MISSING", "Configura tu clave API en OpenAI.")
+        if (!exists()) throw DiagnosticFailure("KEY_MISSING", "Configura la clave API del proveedor seleccionado.")
         try {
             val secret = store().getKey(alias, null) as? SecretKey ?: error("Clave de cifrado no disponible")
             val plain = KeyCipher.decrypt(secret, Base64.decode(preferences.getString("iv", ""), Base64.NO_WRAP), Base64.decode(preferences.getString("ciphertext", ""), Base64.NO_WRAP))

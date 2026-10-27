@@ -2,7 +2,7 @@ package com.pbtservers.pbtmetagpt
 
 enum class ListeningPhase(val label: String) {
     OFF("Desactivado"), LOADING("Preparando motor local"), LISTENING("Esperando frase de activación"),
-    DETECTED("Frase detectada"), PREPARING("Preparando OpenAI Realtime"), CONVERSATION("Conversación activa"),
+    DETECTED("Frase detectada"), PREPARING("Preparando proveedor elegido"), CONVERSATION("Conversación activa"),
     RETURNING("Volviendo a escucha local"), SUSPENDED("Escucha suspendida · pulsa Activar escucha para reintentar"),
 }
 
