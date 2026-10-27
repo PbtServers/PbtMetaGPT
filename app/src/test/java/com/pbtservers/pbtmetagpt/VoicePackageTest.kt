@@ -15,7 +15,7 @@ class VoicePackageTest {
     private fun field(tag: Int, text: ByteArray) = varint(tag) + varint(text.size) + text
     /** Protobuf estructural ficticio, deliberadamente sin pesos. Nunca se usa para acreditar inferencia. */
     private fun structuralOnnx(): ByteArray = byteArrayOf(8, 8) + field(18, "prueba estructural sin inferencia".repeat(3).toByteArray()) + field(58, byteArrayOf(10, 0)) +
-        listOf("model_type" to "vits", "is_piper" to "1", "sample_rate" to "22050").fold(byteArrayOf()) { all, (k, v) -> all + field(114, field(10, k.toByteArray()) + field(18, v.toByteArray())) }
+        listOf("comment" to "piper", "sample_rate" to "22050", "n_speakers" to "1", "language" to "en-us").fold(byteArrayOf()) { all, (k, v) -> all + field(114, field(10, k.toByteArray()) + field(18, v.toByteArray())) }
     private fun files(): MutableMap<String, ByteArray> {
         val files = mutableMapOf("model.onnx" to structuralOnnx(), "tokens.txt" to ("  0\n" + "abcdefghij".mapIndexed { i, c -> "$c ${i + 1}\n" }.joinToString("")).toByteArray(), "lexicon.tsv" to "hola\thab\n".toByteArray())
         val hashes = JSONObject(); files.forEach { (name, bytes) -> hashes.put(name, MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }) }

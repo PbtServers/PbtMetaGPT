@@ -22,7 +22,7 @@ class VoiceSynthesisTest {
         for (engine in listOf("android", "openai_tts", "external", "sherpa_vits")) assertTrue(VoiceSynthesisContract.alternative(AssistantProfile(name = "Jarvis", ttsEngine = engine)))
         assertTrue(runCatching { AssistantProfile(name = "Jarvis", ttsEngine = "cargar-so").validated() }.isFailure)
         for (engine in listOf("android", "openai_tts", "external", "sherpa_vits")) {
-            val p = AssistantProfile(name = "Jarvis", ttsEngine = engine)
+            val p = AssistantProfile(name = "Jarvis", ttsEngine = engine, ttsVoice = if (engine == "sherpa_vits") "11111111-1111-1111-1111-111111111111" else "voz-elegida", ttsPackage = "com.motor.tts")
             val session = RealtimeSettings.session(p)
             assertEquals("text", session.getJSONArray("output_modalities").getString(0))
             assertTrue(RealtimeSettings.confirms(session, p))

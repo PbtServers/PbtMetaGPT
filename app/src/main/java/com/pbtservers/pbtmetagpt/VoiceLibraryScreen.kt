@@ -54,12 +54,13 @@ fun VoiceLibraryScreen(context: Context, profile: AssistantProfile, change: (Ass
     Text("Biblioteca de voces", style = MaterialTheme.typography.headlineMedium)
     Text("Las voces son síntesis de IA. Utiliza voces originales o autorizadas. No se incluyen modelos ni clonaciones de actores. Una importación válida no garantiza inferencia ni calidad.")
     listOf("realtime" to "OpenAI Realtime · audio nativo", "android" to "Android TTS · voces locales instaladas", "openai_tts" to "OpenAI Speech · transitorio hasta 06/01/2027", "external" to "API TTS externa · contrato PCM", "sherpa_vits" to "Modelo Piper/VITS · Sherpa local").forEach { (id, title) ->
-        FilterChip(selected = profile.ttsEngine == id, onClick = { stop(); change(profile.copy(ttsEngine = id, ttsVoice = "", ttsPackage = "", pitch = 1.0)) }, label = { Text(title) })
+        FilterChip(selected = profile.ttsEngine == id, onClick = { stop(); change(profile.copy(ttsEngine = id, ttsVoice = "", ttsPackage = "", pitch = 1.0,
+            voice = if (id != "openai_tts" && profile.voice !in RealtimeSettings.voices) "marin" else profile.voice)) }, label = { Text(title) })
     }
     Text("Motor del perfil: ${profile.ttsEngine}. Guarda y abre una sesión nueva para aplicar los cambios.")
     if (profile.ttsEngine in listOf("realtime", "openai_tts")) {
         Text("Voces oficiales")
-        RealtimeSettings.voices.forEach { id -> FilterChip(selected = profile.voice == id, onClick = { change(profile.copy(voice = id)) }, label = { Text(id) }) }
+        (if (profile.ttsEngine == "openai_tts") RealtimeSettings.speechVoices else RealtimeSettings.voices).forEach { id -> FilterChip(selected = profile.voice == id, onClick = { change(profile.copy(voice = id)) }, label = { Text(id) }) }
         if (profile.ttsEngine == "openai_tts") Text("Este endpoint está anunciado como obsoleto y requiere tu clave BYOK de OpenAI, incluso si la conversación usa servidor. La muestra y la síntesis consumen cuota adicional. Usa Realtime para evitar esta ruta transitoria.")
         OutlinedTextField(profile.tone, { change(profile.copy(tone = it.take(4000))) }, label = { Text("Instrucciones de tono y expresión") }, modifier = Modifier.fillMaxWidth())
     }
@@ -92,6 +93,7 @@ fun VoiceLibraryScreen(context: Context, profile: AssistantProfile, change: (Ass
         Button(onClick = { stop(); runCatching { config.validate(); if (token.isNotBlank()) vault.save(token); settings.save(config); token = "" }
             .onSuccess { report("Conexión del proveedor guardada en este teléfono. La credencial no se exporta con el perfil.") }.onFailure { report("No se pudo guardar la API. Comprueba HTTPS, modelo, token y frecuencia.") } }, enabled = externalConsent) { Text("Guardar proveedor y autorización") }
         OutlinedButton(onClick = { stop(); runCatching { vault.delete() }.onSuccess { token = ""; report("Token externo eliminado.") }.onFailure { report("No se pudo eliminar el token externo.") } }) { Text("Eliminar token externo") }
+        OutlinedButton(onClick = { stop(); runCatching { settings.revoke() }.onSuccess { externalConsent = false; report("Autorización revocada. No se enviarán nuevas respuestas al proveedor hasta volver a autorizarlo.") }.onFailure { report("No se pudo revocar la autorización local.") } }) { Text("Desactivar proveedor externo") }
         Text("La conexión al proveedor se configura por teléfono; modelo y voz se guardan por asistente. Velocidad requiere que el proveedor admita el campo speed. No hay controles acústicos adicionales sin contrato implementado.")
     }
     if (profile.ttsEngine == "sherpa_vits") {
@@ -112,7 +114,8 @@ fun VoiceLibraryScreen(context: Context, profile: AssistantProfile, change: (Ass
     }
     Text("Velocidad: ${"%.2f".format(java.util.Locale.ROOT, profile.speed)}×")
     Slider(profile.speed.toFloat(), { change(profile.copy(speed = it.toDouble())) }, valueRange = 0.25f..1.5f)
-    OutlinedTextField(profile.language, { change(profile.copy(language = it.take(30))) }, label = { Text("Idioma del perfil") }, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(profile.language, { change(profile.copy(language = it.take(30))) }, label = { Text("Idioma de conversación del perfil") }, modifier = Modifier.fillMaxWidth())
+    if (profile.ttsEngine in listOf("android", "sherpa_vits", "external")) Text("Cambiar el idioma de conversación no reentrena la voz: la pronunciación depende del idioma y vocabulario del motor/modelo elegido.")
     Button(onClick = { stop(); save() }, enabled = !busy) { Text("Guardar motor y voz en el asistente") }
     Button(onClick = { stop(); preview(profile) }, enabled = !busy && profile.name.isNotBlank()) { Text("Escuchar muestra (puede consumir API)") }
     OutlinedButton(onClick = { operation?.cancel(); stop() }) { Text("Cancelar operación y audio pendiente") }

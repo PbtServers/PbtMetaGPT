@@ -51,7 +51,7 @@ class LocalModelClient(private val context: Context) {
         }
         try {
             bound = context.bindIsolatedService(Intent(context, ModelVoiceService::class.java), Context.BIND_AUTO_CREATE,
-                "voz-" + java.util.UUID.randomUUID().toString(), context.mainExecutor, connection)
+                "voz_" + java.util.UUID.randomUUID().toString().replace("-", ""), context.mainExecutor, connection)
             check(bound) { "Android no permitió iniciar el motor aislado." }
             val rate = ready.await()
             val bytes = suspendCancellableCoroutine<ByteArray> { continuation ->

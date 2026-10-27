@@ -58,8 +58,12 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     private val texts = mutableMapOf<String, String>()
     private fun usesAlternative() = sessionProfile?.let(VoiceSynthesisContract::alternative) == true
     private val alternative = AlternativeSpeech(appContext, scope,
-        { message -> if (state.value.active) mutable.update { it.copy(status = message, responding = true) } },
-        { message -> diagnostics.record(Check.PLAYBACK, CheckStatus.ERROR, message, "ALTERNATIVE_TTS_ERROR"); error(message) })
+        { message -> if (state.value.active) {
+            if (message.startsWith("Reproduciendo")) diagnostics.record(Check.TTS_ENGINE, CheckStatus.OK, "El motor entregó PCM y comenzó su reproducción; falta confirmación auditiva y física.", "PCM_READY")
+            else diagnostics.record(Check.TTS_ENGINE, CheckStatus.RUNNING, "El motor está preparando la síntesis alternativa.", "TTS_RUNNING")
+            mutable.update { it.copy(status = message, responding = true) }
+        } },
+        { message -> diagnostics.record(Check.TTS_ENGINE, CheckStatus.ERROR, message, "ALTERNATIVE_TTS_ERROR"); error(message) })
     fun configure(profile: AssistantProfile?, directKey: (() -> String)?) {
         check(!state.value.active && !state.value.connecting) { "Finaliza la sesión antes de cambiar su configuración." }
         this.profile = profile
@@ -85,7 +89,13 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
         job = scope.launch {
             var stage = Check.BACKEND
             try {
-                withTimeout(35_000) {
+                withTimeout(60_000) {
+                    if (usesAlternative()) {
+                        stage = Check.TTS_ENGINE
+                        alternative.prepare(requireNotNull(sessionProfile))
+                        diagnostics.record(Check.TTS_ENGINE, CheckStatus.WARNING, "Configuración del sintetizador validada antes de solicitar credenciales. La inferencia y escucha siguen pendientes.", "TTS_CONFIGURED")
+                    }
+                    stage = Check.BACKEND
                     val secret = credential(baseUrl, accessToken)
                     ensureActive()
                     stage = Check.ROUTE
@@ -175,7 +185,8 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (problem: Exception) {
                 if (generation == current) recordFailure(problem, stage)
-                if (generation == current) fail(if (problem is IllegalArgumentException || problem is IllegalStateException)
+                if (generation == current) fail(if (stage == Check.TTS_ENGINE) "El sintetizador elegido no está preparado. Revisa la voz instalada, el paquete local o la autorización del proveedor. No se ha iniciado la captura."
+                    else if (problem is IllegalArgumentException || problem is IllegalStateException)
                     problem.message ?: "No se pudo iniciar la conversación." else "No se pudo conectar. Comprueba la red y la dirección HTTPS del backend.")
             }
         }

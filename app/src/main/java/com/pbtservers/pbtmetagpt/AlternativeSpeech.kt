@@ -16,6 +16,20 @@ class AlternativeSpeech(private val context: Context, private val scope: Corouti
     private val http = OkHttpClient.Builder().followRedirects(false).followSslRedirects(false).callTimeout(60, java.util.concurrent.TimeUnit.SECONDS).build()
     private val queue = SpeechTaskQueue(scope, ::synthesize, player::play, player::stop, status, error)
     fun speak(profile: AssistantProfile, text: String, finished: () -> Unit = {}) = queue.speak(profile, text, finished)
+    suspend fun prepare(profile: AssistantProfile) {
+        profile.validated()
+        when (profile.ttsEngine) {
+            "android" -> AndroidVoiceEngine(context).verify(profile)
+            "sherpa_vits" -> withContext(Dispatchers.IO) { VoicePackageStore(File(context.filesDir, "voces")).describe(profile.ttsVoice) }
+            "external" -> {
+                val settings = VoiceApiSettings(context)
+                if (!settings.authorized()) throw DiagnosticFailure("TTS_AUTHORIZATION", "Autoriza y guarda el proveedor TTS externo antes de enviar texto.")
+                settings.load().validate()
+                val vault = KeyVault(context, externalTts = true); if (vault.exists()) vault.read()
+            }
+            "openai_tts" -> KeyVault(context).read()
+        }
+    }
     suspend fun synthesize(profile: AssistantProfile, text: String): PcmAudio = when (profile.ttsEngine) {
         "android" -> AndroidVoiceEngine(context).synthesize(profile, text)
         "sherpa_vits" -> LocalModelClient(context).synthesize(VoicePackageStore(File(context.filesDir, "voces")), profile.ttsVoice, text, profile.speed)

@@ -4,6 +4,7 @@ Actualización: 27 de octubre de 2026. Objetivo: ampliación de v0.4.0, compilac
 
 - Progreso ponderado: **65 %**. BYOK 20/25; configuración/perfiles 13/15; activación múltiple 14/20; motores/voz 9/20; integración 5/10; pruebas/documentación/APK 4/10. Incluye implementación y pruebas con alcances distintos; descuenta la validación física pendiente.
 - Fase actual: integración de Biblioteca y ruta Realtime textual; pruebas con modelo real preparadas, aún sin resultado.
+- Incidencia de CI posterior: `0aee4c6`, ejecución 40489877319, pasó compilación/Lint, 41 JVM, Node y Python; el emulador pasó 5 de 6 pruebas y rechazó el modelo por metadatos. La revisión del runtime oficial confirma que Piper se identifica mediante `comment` y usa `n_speakers`, no los campos inicialmente asumidos. Se corrige el validador y el nombre de instancia Android; no se da la inferencia por superada hasta repetirla.
 - Último commit publicado antes de este bloque: **4256249**. El commit que contiene esta actualización guarda la siguiente subfase; consultar `git log` y su propia CI.
 - Compilación y pruebas del bloque anterior: [CI 40488236081](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40488236081), tres trabajos correctos. 36 pruebas JVM, 4 Android/emulador, 19 Node, 3 Python; Lint, APK y contenedores correctos.
 - Tiempo transcurrido aproximado: 31 minutos. Estimación restante: 50–90 minutos para pruebas/correcciones/documentación. Hardware y OpenAI de pago no tienen una estimación fiable sin dispositivos ni credenciales.

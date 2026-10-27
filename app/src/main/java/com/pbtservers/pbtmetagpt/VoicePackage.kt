@@ -88,7 +88,7 @@ class PronunciationLexicon private constructor(private val words: Map<String, St
         require(tokens.isNotEmpty()) { "No hay texto pronunciable." }
         val result = tokens.map { token ->
             if (token.length == 1 && token[0] in ".,!?;:") token.takeIf { it[0].code in symbols }.orEmpty()
-            else words[token] ?: throw IllegalArgumentException("El diccionario del modelo no cubre esta respuesta. Amplía sus pronunciaciones o elige otra voz.")
+            else words[token] ?: throw DiagnosticFailure("TTS_LEXICON_COVERAGE", "El diccionario del modelo no cubre esta respuesta. Amplía sus pronunciaciones o elige otra voz.")
         }.joinToString(" ")
         val points = result.codePoints().toArray()
         require(points.size <= 32768) { "Las pronunciaciones superan el límite seguro de comunicación con el proceso aislado." }
@@ -138,14 +138,15 @@ object OnnxMetadata {
                     if (field == 14) {
                         var key = ""; var value = ""
                         while (input.filePointer < end) { val t = varint(end); require(t == 10L || t == 18L); if (t == 10L) key = text(end) else value = text(end) }
-                        if (key in setOf("model_type", "sample_rate", "num_speakers", "is_piper")) metadata[key] = value
+                        if (key in setOf("sample_rate", "n_speakers", "language", "comment")) metadata[key] = value
                     }
                     input.seek(end)
                 }
                 else -> error("Modelo protobuf no compatible")
             }
         }
-        require(ir && graph && metadata["model_type"] == "vits" && (metadata["sample_rate"]?.toIntOrNull() ?: 0) in 8000..48000 && metadata["is_piper"] == "1") { "El ONNX no acredita los metadatos VITS/Piper compatibles. No se cargará como una voz." }
+        require(ir && graph && metadata["comment"]?.contains("piper") == true && (metadata["sample_rate"]?.toIntOrNull() ?: 0) in 8000..48000 &&
+            (metadata["n_speakers"]?.toIntOrNull() ?: -1) in 0..10000 && !metadata["language"].isNullOrBlank()) { "El ONNX no acredita los metadatos VITS/Piper compatibles. No se cargará como una voz." }
         metadata
     }
 }

@@ -36,7 +36,7 @@ data class AssistantProfile(
         require(name.trim().length in 2..40 && name.trim().any(Char::isLetter) && name.all { it.isLetterOrDigit() || it == ' ' || it == '-' }) { "El nombre debe tener entre 2 y 40 letras, números, espacios o guiones." }
         require(listOf(userName, description, personality, tone, humor, vocabulary, instructions).all { it.length <= 4000 }) { "Cada campo admite hasta 4000 caracteres." }
         require(listOf(name, userName, description, personality, tone, humor, vocabulary, instructions).none { Regex("sk-[A-Za-z0-9_-]{20,}").containsMatchIn(it) }) { "No guardes claves API en los perfiles ni en sus instrucciones." }
-        require(voice in RealtimeSettings.voices && speed.isFinite() && speed in 0.25..1.5) { "Voz o velocidad no compatible con gpt-realtime." }
+        require(voice in (if (ttsEngine == "openai_tts") RealtimeSettings.speechVoices else RealtimeSettings.voices) && speed.isFinite() && speed in 0.25..1.5) { "Voz o velocidad no compatible con el motor elegido." }
         require(language.matches(Regex("[a-z]{2,3}(-[A-Za-z]{2,8})?"))) { "Usa un idioma como es-ES." }
         require(id.length in 1..80) { "Identificador de perfil no válido." }
         require(activationPhrases.map { it.id }.distinct().size == activationPhrases.size && activationPhrases.count { it.primary } <= 1) { "Las frases deben tener identificadores únicos y una sola principal." }
@@ -45,6 +45,9 @@ data class AssistantProfile(
         require(sessionMinutes in 1..60) { "La sesión admite entre 1 y 60 minutos para limitar consumo y recursos." }
         require(ttsEngine in setOf("realtime", "android", "openai_tts", "external", "sherpa_vits")) { "Motor de voz no compatible." }
         require(ttsVoice.length <= 200 && ttsPackage.length <= 200 && !SecretPatterns.contains(ttsVoice + ttsPackage) && pitch.isFinite() && pitch in 0.5..2.0) { "Ajustes de síntesis no válidos." }
+        if (ttsEngine in setOf("android", "external", "sherpa_vits")) require(ttsVoice.isNotBlank()) { "Selecciona una voz o modelo para el motor elegido antes de guardar." }
+        if (ttsEngine == "android") require(ttsPackage.matches(Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+"))) { "Selecciona un motor Android instalado." }
+        if (ttsEngine == "sherpa_vits") require(ttsVoice.matches(Regex("[a-f0-9-]{36}"))) { "Selecciona un paquete local instalado." }
         return copy(name = name.trim())
     }
     fun prompt(): String = """
@@ -104,11 +107,12 @@ data class AssistantProfile(
 object RealtimeSettings {
     const val model = "gpt-realtime"
     val voices = listOf("marin", "cedar", "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse")
+    val speechVoices = voices + listOf("fable", "onyx", "nova")
     fun session(profile: AssistantProfile): JSONObject = JSONObject().put("type", "realtime").put("model", model)
         .put("instructions", profile.validated().prompt()).put("output_modalities", JSONArray().put(if (VoiceSynthesisContract.alternative(profile)) "text" else "audio"))
         .put("max_output_tokens", 1024).put("audio", JSONObject()
             .put("input", JSONObject().put("turn_detection", JSONObject().put("type", "server_vad").put("create_response", true).put("interrupt_response", true)))
-            .put("output", JSONObject().put("voice", profile.voice).put("speed", profile.speed)))
+            .apply { if (!VoiceSynthesisContract.alternative(profile)) put("output", JSONObject().put("voice", profile.voice).put("speed", profile.speed)) })
     fun secretRequest(profile: AssistantProfile): String = JSONObject()
         .put("expires_after", JSONObject().put("anchor", "created_at").put("seconds", 60))
         .put("session", session(profile)).toString()
@@ -117,6 +121,7 @@ object RealtimeSettings {
         val model = session.optString("model")
         if (!(model == this.model || model.startsWith("${this.model}-")) || session.optString("instructions") != profile.prompt()) return false
         if (VoiceSynthesisContract.alternative(profile)) return session.optJSONArray("output_modalities")?.let { it.length() == 1 && it.optString(0) == "text" } == true
+        if (session.optJSONArray("output_modalities")?.let { it.length() == 1 && it.optString(0) == "audio" } != true) return false
         val output = session.optJSONObject("audio")?.optJSONObject("output") ?: return false
         return output.optString("voice") == profile.voice &&
             kotlin.math.abs(output.optDouble("speed", Double.NaN) - profile.speed) < 0.001

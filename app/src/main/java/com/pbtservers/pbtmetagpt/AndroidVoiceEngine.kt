@@ -12,6 +12,11 @@ import kotlin.coroutines.resumeWithException
 data class AndroidVoice(val engine: String, val name: String, val language: String)
 
 class AndroidVoiceEngine(private val context: Context) {
+    suspend fun verify(profile: AssistantProfile) = withTimeout(15000) {
+        val tts = open(profile.ttsPackage)
+        try { require(tts.voices.orEmpty().any { it.name == profile.ttsVoice && !it.isNetworkConnectionRequired && "notInstalled" !in it.features.orEmpty() }) { "La voz seleccionada no es una voz local instalada." } }
+        finally { tts.shutdown() }
+    }
     private suspend fun open(packageName: String): TextToSpeech = withContext(Dispatchers.Main.immediate) {
         val available = context.packageManager.queryIntentServices(android.content.Intent(TextToSpeech.Engine.INTENT_ACTION_TTS_SERVICE), 0)
         require(available.any { it.serviceInfo.packageName == packageName }) { "El motor TTS seleccionado no está instalado." }

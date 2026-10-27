@@ -55,5 +55,6 @@ class VoiceApiSettings(context: Context) {
     private val prefs = context.getSharedPreferences("tts_api_publica", Context.MODE_PRIVATE)
     fun load() = ExternalVoiceConfig(prefs.getString("endpoint", "").orEmpty(), prefs.getString("model", "").orEmpty(), prefs.getInt("sampleRate", 24000))
     fun authorized() = prefs.getBoolean("authorized", false)
+    fun revoke() { check(prefs.edit().putBoolean("authorized", false).commit()) }
     fun save(config: ExternalVoiceConfig) { config.validate(); check(prefs.edit().putString("endpoint", config.endpoint).putString("model", config.model).putInt("sampleRate", config.sampleRate).putBoolean("authorized", true).commit()) }
 }

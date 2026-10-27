@@ -64,4 +64,28 @@ class SetupInstrumentedTest {
         }
         scope.cancel()
     }
+    @Test fun bibliotecaYFrasesGuardanConfiguracionesIndependientesSinClave() {
+        val first = AssistantProfile(name = "Jarvis")
+        val second = AssistantProfile(name = "Friday", activationPhrases = listOf(ActivationPhrase(text = "Escucha")))
+        ProfileStore(context).save(listOf(first, second), first.id)
+        context.getSharedPreferences("configuracion", 0).edit().putBoolean("bienvenida", true).commit()
+        ActivityScenario.launch(MainActivity::class.java).use {
+            compose.onNode(hasText("Biblioteca de voces") and hasClickAction()).performScrollTo().performClick()
+            compose.onNodeWithText("API TTS externa · contrato PCM").performScrollTo().performClick()
+            compose.onNodeWithText("Identificador de voz del proveedor").performScrollTo().performTextInput("personaje-original")
+            compose.onNodeWithText("Guardar motor y voz en el asistente").performScrollTo().performClick()
+            compose.onNodeWithText("Entendido").performClick()
+            compose.onNode(hasText("Activación por voz") and hasClickAction()).performScrollTo().performClick()
+            compose.onNodeWithText("Texto de la frase").performScrollTo().performTextClearance()
+            compose.onNodeWithText("Texto de la frase").performTextInput("Oye")
+            compose.onNodeWithText("Guardar frases y preferencias").performScrollTo().performClick()
+            compose.onNodeWithText("Entendido").performClick()
+            val profiles = ProfileStore(context).load()
+            assertEquals("external", profiles.first { p -> p.id == first.id }.ttsEngine)
+            assertEquals("personaje-original", profiles.first { p -> p.id == first.id }.ttsVoice)
+            assertEquals("Oye Jarvis", profiles.first { p -> p.id == first.id }.phrase)
+            assertEquals("Escucha Friday", profiles.first { p -> p.id == second.id }.phrase)
+            assertFalse(KeyVault(context).exists())
+        }
+    }
 }
