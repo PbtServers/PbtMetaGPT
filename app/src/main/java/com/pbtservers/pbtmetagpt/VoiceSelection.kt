@@ -7,7 +7,7 @@ object VoiceSelection {
     fun engine(profile: AssistantProfile, engine: String): AssistantProfile {
         require(engine in engines) { "Motor de voz no compatible." }
         if (engine == profile.ttsEngine) return profile
-        return profile.copy(ttsEngine = engine, ttsVoice = "", ttsPackage = "", pitch = 1.0,
+        return profile.copy(ttsEngine = engine, ttsVoice = "", ttsPackage = "", pitch = 1.0, voiceMode = VoiceModes.forEngine(engine),
             voice = profile.voice.takeIf { it in catalog(engine) } ?: "marin")
     }
     fun official(profile: AssistantProfile, voice: String): AssistantProfile {

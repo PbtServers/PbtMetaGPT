@@ -1,6 +1,13 @@
 package com.pbtservers.pbtmetagpt
 
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.channels.trySendBlocking
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -44,8 +51,7 @@ internal suspend fun Call.hostedBytes(limit: Int = 1048576): ByteArray = suspend
 }
 
 /** API pública de GroqCloud; no usa servicios de OpenAI aunque el protocolo sea compatible. */
-class GroqApi(private val http: OkHttpClient = OkHttpClient.Builder().retryOnConnectionFailure(false).followRedirects(false)
-    .followSslRedirects(false).callTimeout(45, TimeUnit.SECONDS).build()) {
+class GroqApi(private val http: OkHttpClient = HostedHttp.groq) {
     private fun request(path: String, key: String) = Request.Builder().url("https://api.groq.com/openai/v1/$path")
         .header("Authorization", "Bearer $key")
     suspend fun models(key: String): List<String> {
@@ -53,12 +59,45 @@ class GroqApi(private val http: OkHttpClient = OkHttpClient.Builder().retryOnCon
         return (0 until body.length()).map { body.getJSONObject(it).getString("id") }.sorted()
     }
     suspend fun answer(key: String, model: String, messages: List<Pair<String, String>>): String {
+        return answerStream(key, model, messages) {}
+    }
+    suspend fun answerStream(key: String, model: String, messages: List<Pair<String, String>>, delta: suspend (String) -> Unit): String {
         require(messages.size in 2..18 && messages.sumOf { it.second.length } <= 24000)
-        val data = JSONObject().put("model", HostedPolicy.model(model)).put("max_completion_tokens", 1024).put("stream", false)
+        val data = JSONObject().put("model", HostedPolicy.model(model)).put("max_completion_tokens", 1024).put("stream", true)
             .put("messages", JSONArray().apply { messages.forEach { (role, text) -> put(JSONObject().put("role", role).put("content", text)) } })
         if (model.startsWith("openai/gpt-oss-")) data.put("reasoning_effort", "low")
-        val body = http.newCall(request("chat/completions", key).post(data.toString().toRequestBody("application/json".toMediaType())).build()).hostedBytes()
-        val text = JSONObject(String(body, Charsets.UTF_8)).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content").trim()
+        val req = request("chat/completions", key).post(data.toString().toRequestBody("application/json".toMediaType())).build()
+        val result = StringBuilder()
+        callbackFlow<String> {
+            val call = http.newCall(req)
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) { close(HostedFailure("No se pudo completar el streaming de Groq. Revisa la red.")) }
+                override fun onResponse(call: Call, response: Response) {
+                    try {
+                        response.use { reply ->
+                            if (!reply.isSuccessful) throw HostedPolicy.failure(reply.code, reply.header("Retry-After"))
+                            require(reply.header("Content-Type").orEmpty().startsWith("text/event-stream"))
+                            val source = requireNotNull(reply.body).source()
+                            var received = 0L; var done = false; var characters = 0
+                            while (!isClosedForSend && !source.exhausted()) {
+                                val line = source.readUtf8LineStrict(65536)
+                                received += line.length; require(received <= 1048576)
+                                if (!line.startsWith("data:")) continue
+                                val event = line.removePrefix("data:").trim()
+                                if (event == "[DONE]") { done = true; break }
+                                val part = GroqStream.content(event)
+                                characters += part.length; require(characters <= 4000)
+                                if (part.isNotEmpty() && trySendBlocking(part).isFailure) break
+                            }
+                            if (!done && !isClosedForSend) throw HostedFailure("Groq interrumpió la respuesta. El texto parcial sigue visible.")
+                        }
+                        close()
+                    } catch (problem: Exception) { close(problem as? HostedFailure ?: HostedFailure("Streaming Groq inválido o demasiado grande.")) }
+                }
+            })
+            awaitClose { call.cancel() }
+        }.collect { part -> result.append(part); delta(part) }
+        val text = result.toString().trim()
         if (text.isEmpty() || text.length > 4000) throw HostedFailure("Respuesta vacía o demasiado larga para voz. Prueba una petición más breve.")
         return text
     }
@@ -111,29 +150,47 @@ object QwenSpaceContract {
     }
 }
 
-class QwenSpaceApi(private val http: OkHttpClient = OkHttpClient.Builder().retryOnConnectionFailure(false).followRedirects(false).followSslRedirects(false)
-    .callTimeout(150, TimeUnit.SECONDS).readTimeout(140, TimeUnit.SECONDS).build()) {
-    suspend fun probe() {
-        val request = Request.Builder().url("${QwenSpaceContract.origin}/gradio_api/info").build()
-        try { QwenSpaceContract.verifyInfo(JSONObject(String(http.newCall(request).hostedBytes(), Charsets.UTF_8))) }
+class QwenSpaceApi(private val http: OkHttpClient = HostedHttp.qwen) {
+    private val probeLock = Mutex()
+    private var verifiedAt = 0L
+    suspend fun probe(force: Boolean = true, metrics: VoiceLatency? = null) = probeLock.withLock {
+        val now = System.nanoTime() / 1000000
+        if (!force && verifiedAt != 0L && now - verifiedAt < 300000) return@withLock
+        val request = Request.Builder().url("${QwenSpaceContract.origin}/gradio_api/info").tag(VoiceLatency::class.java, metrics).build()
+        try { QwenSpaceContract.verifyInfo(JSONObject(String(http.newCall(request).hostedBytes(), Charsets.UTF_8))); verifiedAt = now }
+        catch (cancel: CancellationException) { throw cancel }
         catch (problem: HostedFailure) { throw problem }
         catch (_: Exception) { throw HostedFailure("El Space no expone el contrato CustomVoice documentado. Servicio no disponible.") }
     }
-    suspend fun synthesize(profile: AssistantProfile, text: String, status: (String) -> Unit): PcmAudio {
+    suspend fun synthesize(profile: AssistantProfile, text: String, status: (String) -> Unit, metrics: VoiceLatency? = null): PcmAudio {
         if (text.length > 1000) throw HostedFailure("El texto supera los 1000 caracteres admitidos por esta integración Qwen. La respuesta sigue visible; pide una respuesta más breve o elige Android TTS.")
-        probe() // comprobar contrato y opciones antes de transmitir texto
+        probe(force = false, metrics = metrics) // solo metadatos no sensibles, TTL 5 minutos; nunca caché de texto/audio
         status("Qwen3-TTS · enviando una solicitud a la cola pública…")
         val base = "${QwenSpaceContract.origin}/gradio_api/call/${QwenSpaceContract.function}"
-        val submission = Request.Builder().url(base).post(QwenSpaceContract.data(profile, text).toString().toRequestBody("application/json".toMediaType())).build()
+        val submission = Request.Builder().url(base).tag(VoiceLatency::class.java, metrics).post(QwenSpaceContract.data(profile, text).toString().toRequestBody("application/json".toMediaType())).build()
+        val submitted = System.nanoTime()
         val id = JSONObject(String(http.newCall(submission).hostedBytes(), Charsets.UTF_8)).getString("event_id")
         require(id.matches(Regex("[a-fA-F0-9-]{16,64}")))
-        status("Qwen3-TTS · en cola / generando; hasta 150 segundos. Puedes cancelar.")
+        metrics?.add(VoiceStage.TTS_SUBMIT, (System.nanoTime() - submitted) / 1000000)
+        status("Qwen3-TTS · esperando cola/generación. Puedes cancelar.")
         // Gradio publica eventos SSE, no un audio inmediato. Lectura acotada y cancelable.
-        val eventBytes = http.newCall(Request.Builder().url("$base/$id").build()).hostedBytes()
+        val waiting = System.nanoTime()
+        val eventBytes = http.newCall(Request.Builder().url("$base/$id").tag(VoiceLatency::class.java, metrics).build()).hostedBytes()
+        metrics?.add(VoiceStage.TTS_WAIT_COMBINED, (System.nanoTime() - waiting) / 1000000)
         val data = QwenSpaceContract.result(String(eventBytes, Charsets.UTF_8))
         val audio = data.optJSONObject(0) ?: throw HostedFailure("Qwen3-TTS no devolvió audio. Revisa cuota y disponibilidad en el Space oficial.")
         val url = QwenSpaceContract.fileUrl(audio.getString("url"))
-        val bytes = http.newCall(Request.Builder().url(url).build()).hostedBytes(16777216)
+        val download = System.nanoTime()
+        val bytes = http.newCall(Request.Builder().url(url).tag(VoiceLatency::class.java, metrics).build()).hostedBytes(16777216)
+        metrics?.add(VoiceStage.TTS_DOWNLOAD, (System.nanoTime() - download) / 1000000)
         return VoiceSynthesisContract.wav(bytes)
+    }
+}
+
+object GroqStream {
+    fun content(data: String): String {
+        val event = JSONObject(data)
+        if (event.has("error")) throw HostedFailure("Groq rechazó el turno durante el streaming.")
+        return event.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("delta")?.optString("content").orEmpty()
     }
 }

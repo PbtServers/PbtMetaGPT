@@ -13,6 +13,7 @@ class AlternativeSpeech(private val context: Context, private val scope: Corouti
     private val status: (String) -> Unit, private val error: (String) -> Unit,
 ) {
     private val player = PcmPlayer()
+    private val android = AndroidVoiceEngine(context)
     private val http = OkHttpClient.Builder().followRedirects(false).followSslRedirects(false).callTimeout(60, java.util.concurrent.TimeUnit.SECONDS).build()
     private val queue = SpeechTaskQueue(scope, ::synthesize, player::play, player::stop, status, error)
     fun speak(profile: AssistantProfile, text: String, finished: () -> Unit = {}) = queue.speak(profile, text, finished)
@@ -21,9 +22,9 @@ class AlternativeSpeech(private val context: Context, private val scope: Corouti
         when (profile.ttsEngine) {
             "qwen_space" -> {
                 check(HostedSettings(context).qwenAuthorized) { "Autoriza el envío de texto a Qwen3-TTS en la biblioteca de voces." }
-                QwenSpaceApi().probe()
+                HostedHttp.qwenApi.probe()
             }
-            "android" -> AndroidVoiceEngine(context).verify(profile)
+            "android" -> android.verify(profile)
             "sherpa_vits" -> {
                 val pack = withContext(Dispatchers.IO) { VoicePackageStore(File(context.filesDir, "voces")).describe(profile.ttsVoice) }
                 LocalModelClient(context).checkHardware(pack)
@@ -43,9 +44,9 @@ class AlternativeSpeech(private val context: Context, private val scope: Corouti
     suspend fun synthesize(profile: AssistantProfile, text: String): PcmAudio = when (profile.ttsEngine) {
         "qwen_space" -> {
             check(HostedSettings(context).qwenAuthorized) { "Falta autorización para transmitir texto al Space Qwen3-TTS." }
-            QwenSpaceApi().synthesize(profile, text) { message -> scope.launch { status(message) } }
+            HostedHttp.qwenApi.synthesize(profile, text) { message -> scope.launch { status(message) } }
         }
-        "android" -> AndroidVoiceEngine(context).synthesize(profile, text)
+        "android" -> android.synthesize(profile, text)
         "sherpa_vits" -> LocalModelClient(context).synthesize(VoicePackageStore(File(context.filesDir, "voces")), profile.ttsVoice, text, profile.speed)
         "openai_tts" -> {
             check(VoiceSynthesisContract.speechAvailable()) { "El proveedor ha anunciado la retirada de este endpoint. Selecciona Realtime u otro motor." }
@@ -63,7 +64,7 @@ class AlternativeSpeech(private val context: Context, private val scope: Corouti
         }
         else -> throw IllegalArgumentException("La voz Realtime usa exclusivamente su audio nativo.")
     }
-    fun stop() = queue.stop()
+    fun stop() { queue.stop(); android.close() }
 }
 
 internal suspend fun Call.awaitPcm(): ByteArray = suspendCancellableCoroutine { continuation ->

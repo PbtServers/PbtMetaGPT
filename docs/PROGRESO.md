@@ -1,5 +1,21 @@
 # Seguimiento de PbtMetaGPT
 
+## Optimización de voz, interfaz simplificada e icono profesional · 28/10/2026
+
+**28 % de esta nueva intervención**, independiente del 70 % anterior. Inicio medido 23:07 UTC del 27/10 (00:07 en Madrid del 28/10). Primera prioridad: streaming, métricas, conexiones y síntesis anticipada; todavía no se afirma menor latencia física ni superioridad de un proveedor. [Detalle y metodología](OPTIMIZACION_VOZ_UI.md).
+
+| Subfase | Avance/peso | Pendiente |
+| --- | ---: | --- |
+| Auditoría y latencia real | 12/25 | Instrumentación numérica añadida; falta benchmark remoto y primer sonido en dispositivo |
+| Canalización de voz | 10/15 | Seis JVM locales correctas; compilación/streaming real y latencia acústica pendientes |
+| Inicio, chat y biblioteca | 0/20 | Se hará después de la primera subfase de voz |
+| Tres propuestas e icono | 0/20 | Se hará tras la interfaz; conservar azul #388BFF ya presente |
+| Compatibilidad y preferencias | 3/10 | Archivos previos preservados y migración v1/v2→v3 implementada; instrumentadas pendientes |
+| Pruebas y publicación | 3/10 | 31 Python, 19 Node y seis JVM nuevas correctas; CI completa y APK nuevas pendientes |
+| **Total** | **28/100** | **Experimental; sin medición física nueva** |
+
+Estimación inicial restante: 45–75 minutos para implementación/revisión/CI, condicionada por servicios y runners; aceptación física sin estimación fiable hasta disponer de Nothing/00R6 y cuenta Groq Free. No se guardan conversaciones en métricas ni se envían grabaciones a pruebas remotas.
+
 ## Servicios online gratuitos sin infraestructura propia · 27/10/2026
 
 **70 % de esta ampliación; experimental, sin aceptación de extremo a extremo.** No sustituye ni incrementa el 85 % histórico de otra intervención. Inicio medido: 21:54 UTC; corte de seguimiento 22:33 UTC (unos 39 minutos). La estimación comunicada de 20–35 minutos corresponde al cierre de revisión/documentación/publicación desde el mensaje de estado de las 22:06 UTC; no a la aceptación real, que depende de cuenta Free y hardware.

@@ -30,9 +30,11 @@ data class AssistantProfile(
     val ttsVoice: String = "",
     val ttsPackage: String = "",
     val pitch: Double = 1.0,
+    val voiceMode: String = "rapida",
 ) {
     val phrase get() = (activationPhrases.firstOrNull { it.primary && it.enabled } ?: activationPhrases.firstOrNull { it.enabled })?.rendered(name) ?: "Sin frases activas"
     fun validated(): AssistantProfile {
+        require(voiceMode in setOf("rapida", "natural", "personalizada")) { "Modo de voz no compatible." }
         require(name.trim().length in 2..40 && name.trim().any(Char::isLetter) && name.all { it.isLetterOrDigit() || it == ' ' || it == '-' }) { "El nombre debe tener entre 2 y 40 letras, números, espacios o guiones." }
         require(listOf(userName, description, personality, tone, humor, vocabulary, instructions).all { it.length <= 4000 }) { "Cada campo admite hasta 4000 caracteres." }
         require(listOf(name, userName, description, personality, tone, humor, vocabulary, instructions).none(SecretPatterns::contains)) { "No guardes claves API en los perfiles ni en sus instrucciones." }
@@ -72,10 +74,10 @@ data class AssistantProfile(
         .put("activationPhrases", JSONArray().apply { activationPhrases.forEach { put(it.json()) } })
         .put("tolerantActivation", tolerantActivation).put("avatar", avatar).put("confirmationSound", confirmationSound)
         .put("welcomeMessage", welcomeMessage).put("sessionMinutes", sessionMinutes).put("ttsEngine", ttsEngine)
-        .put("ttsVoice", ttsVoice).put("ttsPackage", ttsPackage).put("pitch", pitch)
+        .put("ttsVoice", ttsVoice).put("ttsPackage", ttsPackage).put("pitch", pitch).put("voiceMode", voiceMode)
 
     companion object {
-        private val fields = setOf("id", "name", "userName", "description", "personality", "tone", "formal", "humor", "vocabulary", "instructions", "voice", "language", "detailed", "speed", "activationPhrases", "tolerantActivation", "avatar", "confirmationSound", "welcomeMessage", "sessionMinutes", "ttsEngine", "ttsVoice", "ttsPackage", "pitch")
+        private val fields = setOf("id", "name", "userName", "description", "personality", "tone", "formal", "humor", "vocabulary", "instructions", "voice", "language", "detailed", "speed", "activationPhrases", "tolerantActivation", "avatar", "confirmationSound", "welcomeMessage", "sessionMinutes", "ttsEngine", "ttsVoice", "ttsPackage", "pitch", "voiceMode")
         fun parse(j: JSONObject, validate: Boolean = true): AssistantProfile {
             require(j.keys().asSequence().all { it in fields }) { "El perfil contiene campos desconocidos. No se admiten credenciales." }
             return AssistantProfile(j.getString("id"), j.getString("name"), j.optString("userName"), j.optString("description"),
@@ -84,17 +86,18 @@ data class AssistantProfile(
                 activationPhrases = if (j.has("activationPhrases")) j.getJSONArray("activationPhrases").let { a -> (0 until a.length()).map { ActivationPhrase.parse(a.getJSONObject(it)) } } else listOf(ActivationPhrase(id = "principal", primary = true)),
                 tolerantActivation = j.optBoolean("tolerantActivation"), avatar = j.optString("avatar"), confirmationSound = j.optBoolean("confirmationSound"),
                 welcomeMessage = j.optString("welcomeMessage"), sessionMinutes = j.optInt("sessionMinutes", 10), ttsEngine = j.optString("ttsEngine", "realtime"),
-                ttsVoice = j.optString("ttsVoice"), ttsPackage = j.optString("ttsPackage"), pitch = j.optDouble("pitch", 1.0)).let { if (validate) it.validated() else it }
+                ttsVoice = j.optString("ttsVoice"), ttsPackage = j.optString("ttsPackage"), pitch = j.optDouble("pitch", 1.0),
+                voiceMode = j.optString("voiceMode", VoiceModes.forEngine(j.optString("ttsEngine", "realtime")))).let { if (validate) it.validated() else it }
         }
         fun export(profiles: List<AssistantProfile>): String {
-            val text = JSONObject().put("version", 2).put("profiles", JSONArray().apply { profiles.forEach { put(it.validated().json()) } }).toString(2)
+            val text = JSONObject().put("version", 3).put("profiles", JSONArray().apply { profiles.forEach { put(it.validated().json()) } }).toString(2)
             require(text.toByteArray(Charsets.UTF_8).size <= 262144) { "Los perfiles superan los 256 KiB. Reduce las instrucciones o el número de perfiles." }
             return text
         }
         fun import(text: String): List<AssistantProfile> {
             require(text.length <= 262144) { "El archivo supera los 256 KiB." }
             val root = JSONObject(text)
-            require(root.keys().asSequence().toSet() == setOf("version", "profiles") && root.getInt("version") in 1..2) { "Formato de perfiles no compatible." }
+            require(root.keys().asSequence().toSet() == setOf("version", "profiles") && root.getInt("version") in 1..3) { "Formato de perfiles no compatible." }
             val list = root.getJSONArray("profiles")
             require(list.length() in 1..50) { "Importa entre 1 y 50 perfiles." }
             return (0 until list.length()).map { parse(list.getJSONObject(it)) }

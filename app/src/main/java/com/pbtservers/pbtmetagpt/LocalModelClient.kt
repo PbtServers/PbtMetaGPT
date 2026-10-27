@@ -9,7 +9,6 @@ import java.io.File
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-data class PcmAudio(val bytes: ByteArray, val sampleRate: Int)
 
 class LocalModelClient(private val context: Context) {
     fun checkHardware(pack: VoicePackage) {

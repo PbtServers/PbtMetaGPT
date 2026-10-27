@@ -240,7 +240,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() { super.onStart(); foreground = true; refreshDiagnostics(); glasses.registrationReturn() }
     override fun onStop() {
         foreground = false; wake.stop(); localAudio.stop()
-        if (!ContinuousWakeService.running) { voice.stop(); app.hosted.stop(); app.connection = null }
+        if (!ContinuousWakeService.running) { voice.stop(); app.hosted.clear(); app.connection = null }
         glasses.stopCapture(); glasses.disconnect(); super.onStop()
     }
 }

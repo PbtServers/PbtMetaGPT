@@ -12,10 +12,19 @@ import kotlin.coroutines.resumeWithException
 data class AndroidVoice(val engine: String, val name: String, val language: String)
 
 class AndroidVoiceEngine(private val context: Context) {
+    private var retained: TextToSpeech? = null
+    private var retainedPackage = ""
+    private suspend fun session(packageName: String): TextToSpeech {
+        if (retained != null && retainedPackage == packageName) return retained!!
+        close()
+        return open(packageName).also { retained = it; retainedPackage = packageName }
+    }
+    fun close() { retained?.stop(); retained?.shutdown(); retained = null; retainedPackage = "" }
+
     suspend fun verify(profile: AssistantProfile) = withTimeout(15000) {
-        val tts = open(profile.ttsPackage)
+        val tts = session(profile.ttsPackage)
         try { require(tts.voices.orEmpty().any { it.name == profile.ttsVoice && !it.isNetworkConnectionRequired && "notInstalled" !in it.features.orEmpty() }) { "La voz seleccionada no es una voz local instalada." } }
-        finally { tts.shutdown() }
+        catch (problem: Exception) { close(); throw problem }
     }
     private suspend fun open(packageName: String): TextToSpeech = withContext(Dispatchers.Main.immediate) {
         val available = context.packageManager.queryIntentServices(android.content.Intent(TextToSpeech.Engine.INTENT_ACTION_TTS_SERVICE), 0)
@@ -44,7 +53,7 @@ class AndroidVoiceEngine(private val context: Context) {
     }
     suspend fun synthesize(profile: AssistantProfile, text: String): PcmAudio = withTimeout(60000) {
         require(text.length in 1..4000 && !SecretPatterns.contains(text)) { "Texto no permitido para síntesis." }
-        val tts = open(profile.ttsPackage)
+        val tts = session(profile.ttsPackage)
         val file = File.createTempFile("voz-", ".wav", context.cacheDir)
         try {
             val voice = tts.voices.orEmpty().firstOrNull { it.name == profile.ttsVoice && !it.isNetworkConnectionRequired && "notInstalled" !in it.features.orEmpty() }
@@ -60,6 +69,6 @@ class AndroidVoiceEngine(private val context: Context) {
             require(tts.synthesizeToFile(text, Bundle(), file, java.util.UUID.randomUUID().toString()) == TextToSpeech.SUCCESS) { "No se pudo solicitar síntesis al motor Android." }
             completed.await()
             withContext(Dispatchers.IO) { require(file.length() <= 16777216); VoiceSynthesisContract.wav(file.readBytes()) }
-        } finally { tts.stop(); tts.shutdown(); file.delete() }
+        } finally { tts.stop(); file.delete() }
     }
 }

@@ -1,4 +1,4 @@
-name: Prueba real de Qwen online
+name: Latencia real de voz online
 on:
   workflow_dispatch:
   push:
@@ -11,19 +11,34 @@ concurrency:
   cancel-in-progress: false
 jobs:
   qwen-real:
-    name: API y audio Qwen reales sin mocks ni token
+    name: Comparación real Qwen sin mocks ni token
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-java@v4
         with:
-          python-version: '3.12'
-      - name: Una muestra sintética en el Space oficial, sin reintentos
-        run: python tools/probar_servicios_online.py --qwen --solo-qwen --informe diagnosticos-locales/qwen-real.json
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: python3 tools/preparar_sherpa.py
+      - name: Dos síntesis reales con el cliente Kotlin de la app, sin reintentos
+        id: medir
+        env:
+          PBT_QWEN_LIVE: '1'
+        run: bash ./gradlew --no-daemon testDebugUnitTest --tests '*QwenLivePerformanceTest'
+      - name: 'PCM disponible: completo ${{ steps.medir.outputs.completo_ms }} ms; primer fragmento ${{ steps.medir.outputs.fragmento_ms }} ms'
+        run: echo "La métrica mide disponibilidad PCM, no sonido físico ni Bluetooth."
       - name: Conservar resultado incluso si cuota o servicio rechazan la prueba
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: evidencia-qwen-real
-          path: diagnosticos-locales/qwen-real.json
+          name: evidencia-latencia-real
+          path: |
+            app/build/reports/qwen-latencia-real.json
+            app/build/test-results/testDebugUnitTest/
