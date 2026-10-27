@@ -97,8 +97,11 @@ class ModelVoiceService : Service() {
                     ParcelFileDescriptor.AutoCloseOutputStream(audio).use { output ->
                         var written = 0L
                         var failed = false
-                        loaded.generateWithConfigAndCallback("", generation) { samples ->
-                            try {
+                        // JNI busca invoke(float[]) -> Integer. Una lambda indy de Kotlin solo
+                        // expone invoke(Object) -> Object y provoca NoSuchMethodError/aborto nativo.
+                        loaded.generateWithConfigAndCallback("", generation, object : (FloatArray) -> Int {
+                            @androidx.annotation.Keep
+                            override fun invoke(samples: FloatArray): Int = try {
                                 written += samples.size * 2L
                                 require(written <= 16777216)
                                 val bytes = ByteArray(samples.size * 2)
@@ -108,7 +111,7 @@ class ModelVoiceService : Service() {
                                 }
                                 output.write(bytes); 1
                             } catch (_: Exception) { failed = true; 0 }
-                        }
+                        })
                         check(!failed) { "Síntesis cancelada o fuera de límite." }
                     }
                     reply.send(Message.obtain(null, 3))
