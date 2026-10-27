@@ -210,6 +210,8 @@ class SetupInstrumentedTest {
             assertEquals("qwen_space", saved.ttsEngine)
             assertFalse(HostedSettings(context).qwenAuthorized)
             assertFalse((context.applicationContext as PbtApplication).hosted.busy.value)
+            instrumentation.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+            compose.onNodeWithText("Hablar").assertIsDisplayed()
         }
     }
 

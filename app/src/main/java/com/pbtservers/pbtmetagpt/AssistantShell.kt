@@ -61,6 +61,15 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
     var hadSession by remember { mutableStateOf(false) }
     var pendingStart by remember { mutableStateOf(false) }
     val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.activity.compose.BackHandler(enabled = !wizard && page != "Inicio") {
+        returnToWake = false; consent = false; wake.stop()
+        page = when (page) {
+            "Conversación", "Asistentes", "Voz", "Ajustes" -> "Inicio"
+            "Personalidad", "Nombre del asistente" -> "Asistentes"
+            "Biblioteca de voces" -> "Voz"
+            else -> "Ajustes"
+        }
+    }
     DisposableEffect(owner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
@@ -399,7 +408,7 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
         }
         if (!wizard) NavigationBar {
             listOf("Inicio" to R.drawable.ic_home, "Asistentes" to R.drawable.ic_assistants,
-                "Voz" to R.drawable.ic_voice, "Ajustes" to R.drawable.ic_glasses).forEach { (destination, icon) ->
+                "Voz" to R.drawable.ic_voice, "Ajustes" to R.drawable.ic_settings).forEach { (destination, icon) ->
                 NavigationBarItem(selected = NavigationSection.forPage(page) == destination, onClick = {
                     returnToWake = false; consent = false
                     wake.stop()
