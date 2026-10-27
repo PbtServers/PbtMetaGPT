@@ -21,9 +21,9 @@ object KeyCipher {
     }
 }
 
-class KeyVault(context: Context) {
-    private val preferences = context.getSharedPreferences("credenciales_cifradas", Context.MODE_PRIVATE)
-    private val alias = "PbtMetaGPT.OpenAI.v1"
+class KeyVault(context: Context, private val externalTts: Boolean = false) {
+    private val preferences = context.getSharedPreferences(if (externalTts) "credenciales_tts_cifradas" else "credenciales_cifradas", Context.MODE_PRIVATE)
+    private val alias = if (externalTts) "PbtMetaGPT.ExternalTts.v1" else "PbtMetaGPT.OpenAI.v1"
     private fun store() = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
     private fun key(): SecretKey = (store().getKey(alias, null) as? SecretKey) ?: KeyGenerator.getInstance("AES", "AndroidKeyStore").run {
         init(KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
@@ -33,7 +33,7 @@ class KeyVault(context: Context) {
     }
     fun exists() = preferences.contains("ciphertext")
     @Synchronized fun save(value: String) {
-        require(value.matches(Regex("sk-[A-Za-z0-9_-]{20,500}"))) { "Introduce una clave API personal válida de OpenAI." }
+        require(if (externalTts) value.matches(Regex("[A-Za-z0-9_.=/-]{8,1024}")) else value.matches(Regex("sk-[A-Za-z0-9_-]{20,500}"))) { "Introduce una credencial válida para este proveedor." }
         val plain = value.toByteArray(Charsets.UTF_8)
         try {
             val (iv, ciphertext) = KeyCipher.encrypt(key(), plain)

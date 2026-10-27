@@ -4,7 +4,7 @@ Actualización: 27 de octubre de 2026. Objetivo: ampliación de v0.4.0 con activ
 
 ## Estado inicial de la ampliación
 
-- Progreso ponderado: **55 %**. Fases: BYOK 20/25, configuración/perfiles 12/15, activación 10/20, motores/voz 4/20, integración 5/10, pruebas/documentación 4/10. Incluye implementación nueva aún pendiente de CI; la validación física sigue pendiente.
+- Progreso ponderado: **57 %**. Fases: BYOK 20/25, configuración/perfiles 12/15, activación 10/20, motores/voz 6/20, integración 5/10, pruebas/documentación 4/10. La implementación de motores está aún pendiente de compilar/probar; no implica que la síntesis esté acreditada.
 - Fase actual: esquema y controles de activación múltiple implementados; comienza la síntesis modular. Compilación de prueba `0.4.1-dev` (código 5), ampliación experimental de v0.4.0.
 - Último commit publicado antes de este bloque: `d85185c`. El commit que contiene esta actualización guarda el bloque de frases/perfiles; consultar su SHA con `git log` y su propia CI.
 - Compilación de la base: correcta. [CI 40484660913](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40484660913).
@@ -32,6 +32,8 @@ No hay SDK Android local, clave de pago ni hardware validado en el entorno. La c
 
 Bloque de frases: esquema JSON v2 migrable desde v1; lista sin cuota de número (presupuesto total 256 KiB); activar/desactivar, principal, nombre automático, tolerancia textual opcional, prueba escrita y prueba de micrófono sin OpenAI. `ActivationGate` consume una sola coincidencia y rechaza callbacks antiguos y ambigüedad entre perfiles. El motor acústico continúa siendo Android on-device, solo visible y por idioma. Avatar textual, bienvenida, sonido y duración quedan en cada perfil. Los motores alternativos permanecen bloqueados hasta completar su ejecutor y su integración.
 
-Próxima tarea: runtime Sherpa ONNX 2.0.1 verificado por SHA-256, biblioteca de paquetes VITS con pronunciaciones explícitas, ejecutores Android/API y ruta Realtime de salida textual. Ejecutar CI del bloque de frases y corregir cualquier fallo antes de ampliar declaraciones de soporte.
+Bloque de biblioteca: runtime oficial Sherpa ONNX 2.0.1 fijado por SHA-256; instalador ZIP limitado a datos con hashes/metadatos, diccionario y símbolos; proceso Android aislado para inferencia; ejecutores Android/Speech/API, PCM y cancelación. Siguen desconectados de Realtime y bloqueados por la comprobación de motor. Documentación del formato en `BIBLIOTECA_DE_VOCES.md`. Último commit previo publicado: `3bfe7ca`; su trabajo JVM/Lint/debug pasó en CI 40486820650. Nuevos tests de biblioteca pendientes de su CI.
+
+Próxima tarea: corregir CI del bloque de biblioteca, conectar el texto Realtime sin audio nativo al sintetizador, completar la pantalla Biblioteca y probar con un modelo real autorizado en emulador (sin confundir muestras PCM con escucha física).
 
 Leer este documento, comprobar `git status`, `git log` y CI del HEAD; continuar por el esquema de frases/perfiles y seleccionar un runtime de modelo local verificable. Mantener actualizada esta sección en cada bloque, sin dar por probada la síntesis real por pruebas de JSON.

@@ -18,3 +18,5 @@ diagnosticos-locales/
 .DS_Store
 __pycache__/
 *.pyc
+*.aar
+*.descarga

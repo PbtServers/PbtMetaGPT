@@ -34,7 +34,9 @@ jobs:
       - name: Probar el backend sin llamadas reales
         run: node --test backend/*.test.mjs
       - name: Compilar, analizar y probar Android
-        run: bash ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+        run: |
+          python3 tools/preparar_sherpa.py
+          bash ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
       - name: Comprobar ausencia de claves privadas en fuentes y APK
         run: |
           python3 -m unittest discover -s tools -p 'test_*.py'
@@ -64,6 +66,8 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
+      - name: Preparar runtime de síntesis verificado
+        run: python3 tools/preparar_sherpa.py
       - name: Habilitar KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules

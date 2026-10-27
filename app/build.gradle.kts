@@ -30,6 +30,7 @@ android {
 }
 kotlin { compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17 } }
 dependencies {
+    implementation(files("libs/sherpa-onnx-2.0.1.aar"))
     implementation("com.meta.wearable:mwdat-core:1.0.1")
     implementation("com.meta.wearable:mwdat-camera:1.0.1")
     implementation("androidx.activity:activity-compose:1.13.0")
