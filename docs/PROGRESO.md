@@ -31,6 +31,14 @@ El parche renombra únicamente esa variable local y sus dos usos a `microphoneGa
 
 Verificado localmente: 19 JVM de políticas/diario correctas, 9 Python y 19 Node correctas, 77 archivos Kotlin sin errores sintácticos, README sin diferencias y seis archivos previos idénticos a sus copias. Gradle Java17 sigue sin SDK Android; la preparación de Sherpa sigue bloqueada por red. Estas verificaciones no acreditan la compilación Android ni sustituyen la CI del correctivo. **Se mantiene el 35 %** hasta validar nuevas etapas Android; acústica y cierres físicos continúan pendientes.
 
+### Bloqueo del escáner de APK después del correctivo
+
+La [ejecución 40558091837](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40558091837) de `46eae50` supera compilación Android, JVM, Lint, Python, Node y backend/contenedores. La barrera posterior de secretos rechaza `classes4.dex`; API35/API36 y APK final quedan omitidos. No se reutilizan como prueba los resultados de otro SHA.
+
+No hay copia conservada de la APK/DEX en los artifacts ni en el equipo de la usuaria. El mensaje antiguo no permite determinar qué patrón ni clase coincidió: no se afirma que sea una clave real ni un falso positivo. Se incorpora diagnóstico de patrón, posición, longitud, huella y atribución DEX/JAR/AAR sin imprimir candidatos. Los patrones y todos los rechazos originales se conservan; no hay exclusiones ni eliminación de dependencias. CI guardará metadatos en el artifact de informes incluso cuando el escáner rechace la APK. Detalle y siguiente decisión: [DIAGNOSTICO_ESCANER.md](DIAGNOSTICO_ESCANER.md).
+
+Verificación de esta intervención: **20 Python correctas**, incluidas once regresiones nuevas; fuentes sin coincidencias, README intacto y seis archivos anteriores conservados. **Se mantiene el 35 %**. Faltan reconstruir el artefacto, identificar la coincidencia real, resolverla con evidencias y ejecutar ambos emuladores antes de publicar APK.
+
 ## Intervención de interfaz y errores · 27/10/2026
 
 Tarea independiente del **85 % funcional** documentado abajo. Base `654d06d`; README profesional conservado con una referencia breve añadida. Detalle: [CORRECCIONES_INTERFAZ.md](CORRECCIONES_INTERFAZ.md).

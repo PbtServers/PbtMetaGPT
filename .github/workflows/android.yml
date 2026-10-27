@@ -40,7 +40,7 @@ jobs:
       - name: Comprobar ausencia de claves privadas en fuentes y APK
         run: |
           python3 -m unittest discover -s tools -p 'test_*.py'
-          python3 tools/comprobar_secretos.py app/build/outputs/apk/debug/app-debug.apk
+          python3 tools/comprobar_secretos.py --informe app/build/reports/seguridad/hallazgos.json app/build/outputs/apk/debug/app-debug.apk
       - name: Publicar informes
         if: always()
         uses: actions/upload-artifact@v4
@@ -95,7 +95,7 @@ jobs:
           name: informes-emulador-api-${{ matrix.api }}
           path: app/build/reports/androidTests/
       - name: Verificar APK final sin claves privadas
-        run: python3 tools/comprobar_secretos.py app/build/outputs/apk/debug/app-debug.apk
+        run: python3 tools/comprobar_secretos.py --informe app/build/reports/seguridad/hallazgos.json app/build/outputs/apk/debug/app-debug.apk
   contenedores:
     name: Backend Docker y proxy
     runs-on: ubuntu-latest
@@ -154,7 +154,7 @@ jobs:
         run: |
           python3 tools/preparar_sherpa.py
           bash ./gradlew --no-daemon assembleDebug
-          python3 tools/comprobar_secretos.py app/build/outputs/apk/debug/app-debug.apk
+          python3 tools/comprobar_secretos.py --informe app/build/reports/seguridad/hallazgos.json app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4
         with:
           name: PbtMetaGPT-v0.4.1-dev-debug

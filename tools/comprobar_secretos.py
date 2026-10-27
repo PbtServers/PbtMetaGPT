@@ -1,9 +1,14 @@
 """Comprueba patrones de credenciales sin imprimir nunca la coincidencia."""
 import pathlib
+import argparse
+import hashlib
+import json
+import os
 import re
 import subprocess
 import sys
 import zipfile
+from atribuir_secretos import attribute_dex, safe_label
 
 PATTERNS = [re.compile(rb"sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{24,}"),
             # Los parsers PEM (p. ej., mbedTLS de Meta) incluyen las etiquetas literales.
@@ -15,19 +20,51 @@ def sensitive(data):
     return any(pattern.search(data) for pattern in PATTERNS)
 
 
+def describe_matches(data):
+    """Metadatos exclusivamente: no incluir el candidato, contexto ni texto DEX."""
+    names = ("OPENAI_API_KEY", "PEM_PRIVATE_KEY")
+    return [{"patron": names[number], "offset": match.start(), "longitud": len(match.group()),
+             "sha256": hashlib.sha256(match.group()).hexdigest()}
+            for number, pattern in enumerate(PATTERNS) for match in pattern.finditer(data)]
+
+
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--informe", type=pathlib.Path, help="JSON de metadatos sin candidatos ni contexto")
+    parser.add_argument("--dependencias-cache", type=pathlib.Path, help="Caché Gradle para atribución exacta por huella")
+    parser.add_argument("--dexdump", type=pathlib.Path, help="dexdump oficial del SDK Android")
+    parser.add_argument("apk", nargs="*")
+    args = parser.parse_args()
     findings = []
     for name in subprocess.check_output(["git", "ls-files", "-z"]).decode().split("\0"):
-        if name and pathlib.Path(name).is_file() and sensitive(pathlib.Path(name).read_bytes()):
-            findings.append(name)
-    for apk in sys.argv[1:]:
+        if name and pathlib.Path(name).is_file():
+            for match in describe_matches(pathlib.Path(name).read_bytes()):
+                findings.append({"archivo": safe_label(name), **match})
+    for apk in args.apk:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
-                if entry.filename.endswith("modelo-prueba.zip") or sensitive(archive.read(entry)):
-                    findings.append(f"{apk}:{entry.filename}")
+                data = archive.read(entry)
+                matches = describe_matches(data)
+                metadata = None
+                if matches and entry.filename.endswith(".dex"):
+                    cache = args.dependencias_cache
+                    if cache is None and os.environ.get("GRADLE_USER_HOME"):
+                        cache = pathlib.Path(os.environ["GRADLE_USER_HOME"]) / "caches/modules-2/files-2.1"
+                    metadata = attribute_dex(data, matches, PATTERNS, cache, args.dexdump)
+                for match in matches:
+                    findings.append({"archivo": safe_label(f"{apk}:{entry.filename}"), **match,
+                                     **({"analisis_dex": metadata} if metadata else {})})
+                if entry.filename.endswith("modelo-prueba.zip"):
+                    findings.append({"archivo": safe_label(f"{apk}:{entry.filename}"), "patron": "FIXTURE_NO_DISTRIBUIBLE"})
+    report = {"version": 1, "resultado": "RECHAZADO" if findings else "SIN_COINCIDENCIAS", "hallazgos": findings,
+              "nota": "Una referencia de clase o dependencia no demuestra un falso positivo. Ningún hallazgo queda excluido."}
+    if args.informe:
+        args.informe.parent.mkdir(parents=True, exist_ok=True)
+        args.informe.write_text(json.dumps(report, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
     if findings:
         print("Comprobación rechazada. Revisar estos archivos (contenido oculto):")
-        print("\n".join(findings))
+        for finding in findings:
+            print(json.dumps(finding, ensure_ascii=True))
         return 1
     print("Sin patrones de claves privadas en archivos versionados ni APK indicadas. No es una garantía contra todos los formatos de secreto.")
     return 0
