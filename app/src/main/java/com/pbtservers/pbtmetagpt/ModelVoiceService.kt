@@ -5,24 +5,21 @@ import android.content.Intent
 import android.os.*
 import android.os.Process
 import com.k2fsa.sherpa.onnx.*
-import java.io.FileOutputStream
-import android.system.Os
-import android.system.OsConstants
+import android.content.res.AssetFileDescriptor
+import android.content.res.Configuration
+import android.content.res.loader.AssetsProvider
+import android.content.res.loader.ResourcesLoader
+import android.content.res.loader.ResourcesProvider
+import java.util.concurrent.FutureTask
+import java.util.concurrent.TimeUnit
 
 /** JNI de modelos de usuario en UID aislado, sin Internet, Keystore ni acceso a datos de la app. */
 class ModelVoiceService : Service() {
-    // Reabrir /proc/self/fd de un archivo privado de otro UID puede ser rechazado.
-    // Copiar sus datos autorizados a memfd propio conserva el aislamiento sin abrir permisos del archivo.
-    private fun memoryCopy(source: ParcelFileDescriptor, limit: Long): ParcelFileDescriptor {
-        val descriptor = Os.memfd_create("voz_datos", OsConstants.MFD_CLOEXEC)
-        val reader = try { ParcelFileDescriptor.dup(descriptor) } catch (problem: Exception) { Os.close(descriptor); throw problem }
-        try {
-            FileOutputStream(descriptor).use { output -> ParcelFileDescriptor.AutoCloseInputStream(source).use { input ->
-                val buffer = ByteArray(65536); var count = 0L
-                while (true) { val n = input.read(buffer); if (n < 0) break; count += n; require(count <= limit); output.write(buffer, 0, n) }
-            } }
-            return reader
-        } catch (problem: Exception) { reader.close(); throw problem }
+    private fun <T> onMain(block: () -> T): T {
+        if (Looper.myLooper() == Looper.getMainLooper()) return block()
+        val task = FutureTask<T> { block() }
+        Handler(Looper.getMainLooper()).post(task)
+        return task.get(5, TimeUnit.SECONDS)
     }
     private val messenger = Messenger(object : Handler(Looper.getMainLooper()) {
         override fun handleMessage(message: Message) {
@@ -32,8 +29,9 @@ class ModelVoiceService : Service() {
             val reply = message.replyTo ?: return
             Thread({
                 var engine: OfflineTts? = null
-                var modelMemory: ParcelFileDescriptor? = null
-                var tokensMemory: ParcelFileDescriptor? = null
+                var loader: ResourcesLoader? = null
+                var provider: ResourcesProvider? = null
+                var modelResources: android.content.res.Resources? = null
                 val model = data.getParcelable<ParcelFileDescriptor>("model")
                 val tokens = data.getParcelable<ParcelFileDescriptor>("tokens")
                 val audio = data.getParcelable<ParcelFileDescriptor>("audio")
@@ -41,13 +39,29 @@ class ModelVoiceService : Service() {
                 try {
                     require(model != null && tokens != null && audio != null)
                     stage = 2
-                    val modelData = memoryCopy(model, 268435456); modelMemory = modelData
+                    require(model.statSize in 1L..268435456L && tokens.statSize in 1L..2097152L)
+                    // API pública: el runtime lee datos por AssetManager, sin reabrir rutas /proc
+                    // prohibidas al UID aislado y sin conceder acceso al directorio privado.
+                    val loadedResources = onMain {
+                        val assetProvider = ResourcesProvider.empty(object : AssetsProvider {
+                            override fun loadAssetFd(path: String, accessMode: Int): AssetFileDescriptor? {
+                                val source = when (path) {
+                                    "assets/model.onnx", "model.onnx" -> model
+                                    "assets/tokens.txt", "tokens.txt" -> tokens
+                                    else -> return null
+                                }
+                                return AssetFileDescriptor(ParcelFileDescriptor.dup(source.fileDescriptor), 0, source.statSize)
+                            }
+                        })
+                        provider = assetProvider
+                        val assetLoader = ResourcesLoader().apply { addProvider(assetProvider) }; loader = assetLoader
+                        createConfigurationContext(Configuration(resources.configuration)).resources.also { modelResources = it; it.addLoaders(assetLoader) }
+                    }
                     stage = 3
-                    val tokenData = memoryCopy(tokens, 2097152); tokensMemory = tokenData
                     val config = OfflineTtsConfig(model = OfflineTtsModelConfig(vits = OfflineTtsVitsModelConfig(
-                        model = "/proc/self/fd/${modelData.fd}", tokens = "/proc/self/fd/${tokenData.fd}"), numThreads = 2, debug = false, provider = "cpu"))
+                        model = "model.onnx", tokens = "tokens.txt"), numThreads = 2, debug = false, provider = "cpu"))
                     stage = 4
-                    val loaded = OfflineTts(config = config); engine = loaded
+                    val loaded = OfflineTts(assetManager = loadedResources.assets, config = config); engine = loaded
                     val rate = loaded.sampleRate(); require(rate in 8000..48000)
                     reply.send(Message.obtain(null, 1).apply { arg1 = rate })
                     val phones = requireNotNull(data.getIntArray("phonemes"))
@@ -90,7 +104,7 @@ class ModelVoiceService : Service() {
                 }
                 finally {
                     runCatching { engine?.release() }; runCatching { audio?.close() }; runCatching { model?.close() }; runCatching { tokens?.close() }
-                    runCatching { modelMemory?.close() }; runCatching { tokensMemory?.close() }
+                    runCatching { onMain { loader?.let { modelResources?.removeLoaders(it); it.clearProviders() }; provider?.close() } }
                     // Proceso por petición: elimina estado nativo y cualquier grafo que no coopere tras cancelar.
                     Handler(Looper.getMainLooper()).postDelayed({ Process.killProcess(Process.myPid()) }, 100)
                 }

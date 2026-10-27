@@ -50,6 +50,16 @@ Ejemplo de manifiesto (los tres hashes deben sustituirse por SHA-256 reales):
 
 Ejemplo de entrada TSV: `hola` seguido de tabulador y sus fonemas exactos. No se proporciona una pronunciación universal: debe coincidir con los tokens del modelo. No se distribuyen modelos de actores ni se considera una casilla de autorización prueba legal de derechos. Utiliza modelos propios o autorizados, revisando datos de entrenamiento, licencia y procedencia.
 
+## Preparar un paquete propio
+
+`tools/empaquetar_voz.py` calcula los hashes y crea el ZIP sin ejecutar el modelo. Requiere Python 3.10 o posterior. Ejemplo con archivos preparados y autorizados por su propietario:
+
+```sh
+python tools/empaquetar_voz.py --model model.onnx --tokens tokens.txt --lexicon lexicon.tsv --output mi-voz.zip --name "Mi personaje" --language es-ES --license "Licencia del propietario" --source "Procedencia documentada" --sample hola --ram-mib 2048 --confirmo-autorizacion
+```
+
+La herramienta rechaza sobrescribir archivos existentes; no convierte formatos ni verifica que unos pesos generen voz. Importa después el ZIP desde **Biblioteca de voces**, revisa compatibilidad y ejecuta la muestra antes de asociarlo al asistente. El diccionario debe cubrir las respuestas que se quieran pronunciar. No se incluyen claves del teléfono en este proceso.
+
 ## Seguridad y requisitos
 
 Se verifican entradas ZIP, CRC, tamaño descomprimido, hashes, metadatos ONNX VITS/Piper, símbolos y cobertura del texto de muestra. Se instala primero en una carpeta temporal y solo se publica atómicamente si termina la revisión. Las pruebas estructurales no cargan pesos y **no acreditan inferencia**. Un modelo estructuralmente válido puede fallar al ejecutar: su muestra es una comprobación separada.

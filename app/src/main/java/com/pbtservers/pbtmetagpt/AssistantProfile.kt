@@ -35,7 +35,7 @@ data class AssistantProfile(
     fun validated(): AssistantProfile {
         require(name.trim().length in 2..40 && name.trim().any(Char::isLetter) && name.all { it.isLetterOrDigit() || it == ' ' || it == '-' }) { "El nombre debe tener entre 2 y 40 letras, números, espacios o guiones." }
         require(listOf(userName, description, personality, tone, humor, vocabulary, instructions).all { it.length <= 4000 }) { "Cada campo admite hasta 4000 caracteres." }
-        require(listOf(name, userName, description, personality, tone, humor, vocabulary, instructions).none { Regex("sk-[A-Za-z0-9_-]{20,}").containsMatchIn(it) }) { "No guardes claves API en los perfiles ni en sus instrucciones." }
+        require(listOf(name, userName, description, personality, tone, humor, vocabulary, instructions).none(SecretPatterns::contains)) { "No guardes claves API en los perfiles ni en sus instrucciones." }
         require(voice in (if (ttsEngine == "openai_tts") RealtimeSettings.speechVoices else RealtimeSettings.voices) && speed.isFinite() && speed in 0.25..1.5) { "Voz o velocidad no compatible con el motor elegido." }
         require(language.matches(Regex("[a-z]{2,3}(-[A-Za-z]{2,8})?"))) { "Usa un idioma como es-ES." }
         require(id.length in 1..80) { "Identificador de perfil no válido." }

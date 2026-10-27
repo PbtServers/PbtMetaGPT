@@ -28,6 +28,7 @@ class AssistantProfileTest {
         injected.getJSONArray("profiles").getJSONObject(0).put("token", "no permitido")
         assertTrue(runCatching { AssistantProfile.import(injected.toString()) }.isFailure)
         assertTrue(runCatching { AssistantProfile(name = "Jarvis", instructions = "sk-" + "x".repeat(30)).validated() }.isFailure)
+        assertTrue(runCatching { AssistantProfile.export(listOf(AssistantProfile(name = "Jarvis", instructions = "Bearer " + "x".repeat(30)))) }.isFailure)
         assertFalse(valid.contains("api_key"))
     }
     @Test fun `modelos voces y velocidad solo aceptan contrato compatible`() {

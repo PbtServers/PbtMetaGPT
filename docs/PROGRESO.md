@@ -35,4 +35,6 @@ El modelo necesita pronunciaciones para todas las palabras; no se distribuye un 
 
 ## Próxima tarea concreta
 
+Actualización del bloqueo: `002eb06`, CI 40494561151, compila y supera Lint/42 JVM/19 Node/5 Python/Docker, pero mantiene 6/7 Android. La causa ya está identificada: error 13 al reabrir `/proc/self/fd` desde el UID aislado. Este bloque sustituye esa apertura por assets de solo lectura suministrados mediante API pública ResourcesProvider/AssetsProvider, sin ampliar permisos ni retirar aislamiento. Incluye validación de tokens Bearer en instrucciones exportables, documentación de empaquetado y registro de resultados. Progreso mantenido en 65 % hasta repetir la inferencia; último commit publicado anterior a este bloque: `002eb06`.
+
 Publicar el bloque integrado, revisar CI de HEAD y la prueba nativa LJSpeech, corregir fallos, completar diagnóstico/documentación y publicar la APK de prueba del commit final. No crear Release estable. Al reanudar: leer este archivo y AGENTS, comprobar estado local/remoto y CI antes de repetir trabajo. Continuar guardando y haciendo push por cada bloque significativo.
