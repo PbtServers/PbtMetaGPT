@@ -29,6 +29,7 @@ jobs:
       - run: python3 tools/preparar_sherpa.py
       - name: Dos síntesis reales con el cliente Kotlin de la app, sin reintentos
         id: medir
+        shell: bash
         env:
           PBT_QWEN_LIVE: '1'
         run: bash ./gradlew --no-daemon testDebugUnitTest --tests '*QwenLivePerformanceTest' 2>&1 | tee compilacion.log

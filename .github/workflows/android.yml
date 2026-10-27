@@ -35,6 +35,7 @@ jobs:
         run: node --test backend/*.test.mjs
       - name: Compilar, analizar y probar Android
         id: compilacion
+        shell: bash
         run: |
           python3 tools/preparar_sherpa.py
           bash ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug 2>&1 | tee compilacion.log
