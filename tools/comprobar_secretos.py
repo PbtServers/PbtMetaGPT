@@ -36,6 +36,7 @@ def main():
     parser.add_argument("apk", nargs="*")
     args = parser.parse_args()
     findings = []
+    classified = []
     for name in subprocess.check_output(["git", "ls-files", "-z"]).decode().split("\0"):
         if name and pathlib.Path(name).is_file():
             for match in describe_matches(pathlib.Path(name).read_bytes()):
@@ -52,12 +53,16 @@ def main():
                         cache = pathlib.Path(os.environ["GRADLE_USER_HOME"]) / "caches/modules-2/files-2.1"
                     metadata = attribute_dex(data, matches, PATTERNS, cache, args.dexdump)
                 for match in matches:
+                    if match.get("clasificacion") == "IDENTIFICADOR_METODO_NO_EJECUTABLE":
+                        classified.append({"archivo": safe_label(f"{apk}:{entry.filename}"), **match})
+                        continue
                     findings.append({"archivo": safe_label(f"{apk}:{entry.filename}"), **match,
                                      **({"analisis_dex": metadata} if metadata else {})})
                 if entry.filename.endswith("modelo-prueba.zip"):
                     findings.append({"archivo": safe_label(f"{apk}:{entry.filename}"), "patron": "FIXTURE_NO_DISTRIBUIBLE"})
-    report = {"version": 1, "resultado": "RECHAZADO" if findings else "SIN_COINCIDENCIAS", "hallazgos": findings,
-              "nota": "Una referencia de clase o dependencia no demuestra un falso positivo. Ningún hallazgo queda excluido."}
+    report = {"version": 2, "resultado": "RECHAZADO" if findings else "SIN_COINCIDENCIAS",
+              "hallazgos": findings, "identificadores_metodo_verificados": classified,
+              "nota": "Solo los identificadores de metodo DEX sin referencias const-string verificadas quedan clasificados; los restantes hallazgos bloquean."}
     if args.informe:
         args.informe.parent.mkdir(parents=True, exist_ok=True)
         args.informe.write_text(json.dumps(report, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
@@ -66,7 +71,8 @@ def main():
         for finding in findings:
             print(json.dumps(finding, ensure_ascii=True))
         return 1
-    print("Sin patrones de claves privadas en archivos versionados ni APK indicadas. No es una garantía contra todos los formatos de secreto.")
+    print(f"Escaneo aceptado: {len(classified)} coincidencias clasificadas exclusivamente como identificadores de metodo DEX.")
+    print("Sin patrones de claves privadas ejecutables detectados. No es una garantía contra todos los formatos de secreto.")
     return 0
 
 

@@ -335,11 +335,27 @@ def attribute_dex(data, findings, patterns, cache=None, dexdump=None):
     if not dexdump and sdk:
         candidate = pathlib.Path(sdk) / "build-tools" / "36.0.0" / ("dexdump.exe" if os.name == "nt" else "dexdump")
         dexdump = candidate if candidate.is_file() else None
+    verified_instructions = False
     if dexdump:
         try:
             references = dexdump_references(data, numbers, dexdump)
+            verified_instructions = True
             for finding in findings:
                 finding["clases_const_string"] = sorted({c for number in finding["indices_string_dex"] for c in references.get(number, [])})
         except (OSError, ValueError):
             return {"estado": "DEXDUMP_NO_DISPONIBLE", "clases_declaradas": len(index.classes)}
+    for finding in findings:
+        # Fail closed: only a substring inside an exclusively method-name string
+        # may be ignored, and only after checking executable string loads.
+        indices = finding["indices_string_dex"]
+        references = [ref for n in indices for ref in index.metadata_references.get(n, [])]
+        finding["clasificacion"] = "IDENTIFICADOR_METODO_NO_EJECUTABLE" if (
+            finding["patron"] == "OPENAI_API_KEY"
+            and verified_instructions and len(indices) == 1
+            and references and all(ref["uso"] == "nombre_metodo" for ref in references)
+            and not finding["clases_valores_estaticos"]
+            and not finding.get("clases_const_string")
+            and index.strings[indices[0]][0] <= finding["offset"]
+            and finding["offset"] + finding["longitud"] <= index.strings[indices[0]][1]
+        ) else "RECHAZAR"
     return {"estado": "ATRIBUCION_PARCIAL" if not dexdump else "ANALIZADO", "clases_declaradas": len(index.classes)}

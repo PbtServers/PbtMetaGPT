@@ -1,5 +1,11 @@
 # Seguimiento de PbtMetaGPT
 
+## Correctivo estructural de identificadores DEX · 27/10/2026
+
+**35 % de estabilización; 85 % funcional histórico, sin incremento.** Sobre `472d00a` se clasifican exclusivamente coincidencias OpenAI contenidas en un `string_id` referenciado solo por `method_ids`, sin valores estáticos ni referencias `const-string` verificadas mediante el desensamblador oficial. Si el DEX, el desensamblador o las referencias no son concluyentes, continúa el rechazo. No hay excepciones por hash, clase, biblioteca o nombre de archivo; los patrones OpenAI y PEM permanecen idénticos. El JSON conserva metadatos de los identificadores clasificados sin revelar cadenas.
+
+**Pruebas locales:** 29 Python, 16 Node y escaneo de fuentes correctos, sin APK local ni SDK Android disponible. Queda comprobar la clasificación de los cinco índices originales del DEX reconstruido en CI, las pruebas instrumentadas de Android 15/16 y el artifact experimental del mismo SHA. README y seis archivos anteriores intactos; ninguna validación física de audio, Vosk o Meta Glasses 00R6.
+
 ## Nueva estabilización de audio y escucha persistente · 27/10/2026
 
 **35 % de esta nueva tarea**, independiente del 85 % general y del 60 % de la intervención anterior. Base `f9daabd`, cuya [CI 40542139078](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40542139078) está correcta. No valida el código añadido aquí ni el audio real. Dispositivo comunicado: Nothing Phone 3a Lite, Android 16, Nothing OS 4.1 Beta; gafas Meta Glasses 00R6. Detalle, límites y protocolo sin ADB: [ESTABILIZACION_AUDIO.md](ESTABILIZACION_AUDIO.md).

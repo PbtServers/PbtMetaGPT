@@ -194,6 +194,57 @@ class AtribucionSecretosTest(unittest.TestCase):
         self.assertEqual(1, len(fingerprints))
         self.assertEqual(5, len(containers))
 
+    def test_identificador_metodo_solo_se_acepta_con_desensamblado_verificado(self):
+        candidate = b"sk-" + b"y" * 27
+        data = metadata_fixture(b"prefijoA" + candidate + b"$sufijo", "nombre_metodo")
+        findings = describe_matches(data)
+        with patch("atribuir_secretos.dexdump_references", return_value={1: []}):
+            attribute_dex(data, findings, PATTERNS, dexdump="dexdump")
+        self.assertEqual("IDENTIFICADOR_METODO_NO_EJECUTABLE", findings[0]["clasificacion"])
+        self.assertEqual(30, findings[0]["longitud"])
+        self.assertNotIn(candidate.decode(), json.dumps(findings))
+
+    def test_const_string_y_ausencia_de_dexdump_mantienen_el_bloqueo(self):
+        candidate = b"sk-" + b"y" * 27
+        data = metadata_fixture(b"prefijoA" + candidate + b"$sufijo", "nombre_metodo")
+        no_sdk = describe_matches(data)
+        with patch.dict("os.environ", {"ANDROID_HOME": "", "ANDROID_SDK_ROOT": ""}):
+            attribute_dex(data, no_sdk, PATTERNS)
+        self.assertEqual("RECHAZAR", no_sdk[0]["clasificacion"])
+        loaded = describe_matches(data)
+        with patch("atribuir_secretos.dexdump_references", return_value={1: ["Lpruebas/Origen;"]}):
+            attribute_dex(data, loaded, PATTERNS, dexdump="dexdump")
+        self.assertEqual("RECHAZAR", loaded[0]["clasificacion"])
+
+    def test_credenciales_en_valores_dex_o_metadatos_no_metodo_rechazadas(self):
+        for role in ("nombre_campo", "descriptor_tipo", "archivo_fuente", "valor_anotacion"):
+            with self.subTest(role=role):
+                data = metadata_fixture(self.candidate, role)
+                findings = describe_matches(data)
+                with patch("atribuir_secretos.dexdump_references", return_value={1: []}):
+                    attribute_dex(data, findings, PATTERNS, dexdump="dexdump")
+                self.assertEqual("RECHAZAR", findings[0]["clasificacion"])
+        data = dex_fixture(self.candidate, static=True)
+        findings = describe_matches(data)
+        with patch("atribuir_secretos.dexdump_references", return_value={1: []}):
+            attribute_dex(data, findings, PATTERNS, dexdump="dexdump")
+        self.assertEqual("RECHAZAR", findings[0]["clasificacion"])
+
+    def test_cli_acepta_solo_metodo_confirmado_y_rechaza_const_string(self):
+        candidate = b"sk-" + b"y" * 27
+        data = metadata_fixture(b"prefijoA" + candidate + b"$sufijo", "nombre_metodo")
+        with tempfile.TemporaryDirectory() as root:
+            apk = pathlib.Path(root) / "app.apk"
+            with zipfile.ZipFile(apk, "w") as archive:
+                archive.writestr("classes4.dex", data)
+            args = ["comprobar_secretos.py", str(apk)]
+            with patch("sys.argv", args), patch("comprobar_secretos.subprocess.check_output", return_value=b""), patch("atribuir_secretos.dexdump_references", return_value={1: []}), patch.dict("os.environ", {"ANDROID_HOME": "", "ANDROID_SDK_ROOT": ""}), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(1, main())  # Sin verificación de desensamblado.
+            with patch("sys.argv", ["comprobar_secretos.py", "--dexdump", "dexdump", str(apk)]), patch("comprobar_secretos.subprocess.check_output", return_value=b""), patch("atribuir_secretos.dexdump_references", return_value={1: []}), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(0, main())
+            with patch("sys.argv", ["comprobar_secretos.py", "--dexdump", "dexdump", str(apk)]), patch("comprobar_secretos.subprocess.check_output", return_value=b""), patch("atribuir_secretos.dexdump_references", return_value={1: ["Lpruebas/Origen;"]}), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(1, main())
+
     def test_metadatos_corruptos_no_eliminan_el_rechazo(self):
         for role, offset in (("nombre_metodo", 136 + 4), ("valor_anotacion", 148 + 20)):
             with self.subTest(role=role):
