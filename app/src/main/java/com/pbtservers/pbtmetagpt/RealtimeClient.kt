@@ -130,7 +130,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     mutable.update { it.copy(route = routeLabel, status = "Conectando con OpenAI…") }
                     android.util.Log.i("PbtStart", "WEBRTC_INITIALIZE")
                     (appContext as? PbtApplication)?.journal?.record(Check.REALTIME, Fault.WEBRTC_INITIALIZE)
-                    PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions.builder(appContext).createInitializationOptions())
+                    WebRtcBootstrap.ensure(appContext)
                     android.util.Log.i("PbtStart", "AUDIO_MODULE_CREATE")
                     (appContext as? PbtApplication)?.journal?.record(Check.MICROPHONE, Fault.AUDIO_MODULE_CREATE)
                     val audioModule = JavaAudioDeviceModule.builder(appContext)
@@ -159,11 +159,13 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     (appContext as? PbtApplication)?.journal?.record(Check.REALTIME, Fault.PEER_FACTORY_CREATE)
                     val createdFactory = PeerConnectionFactory.builder().setAudioDeviceModule(audioModule).createPeerConnectionFactory()
                     factory = createdFactory
+                    android.util.Log.i("PbtStart", "PEER_CONNECTION_CREATE")
                     val connection = createdFactory.createPeerConnection(
                         PeerConnection.RTCConfiguration(emptyList()).apply { sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN },
                         observer(current),
                     ) ?: throw IllegalStateException("No se pudo preparar WebRTC.")
                     peer = connection
+                    android.util.Log.i("PbtStart", "PEER_CONNECTION_READY")
                     connection.setAudioRecording(false)
                     if (usesAlternative()) connection.setAudioPlayout(false)
                     if (testOnly || sample || imageOnly) {
@@ -195,10 +197,12 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                             }
                         })
                     }
+                    android.util.Log.i("PbtStart", "SDP_OFFER_CREATE")
                     val offer = connection.offer()
                     stage = Check.SDP
                     diagnostics.record(Check.SDP, CheckStatus.RUNNING, "Oferta de audio creada; esperando respuesta de OpenAI.")
                     connection.setDescription(offer, local = true)
+                    android.util.Log.i("PbtStart", "SDP_LOCAL_SET")
                     val request = Request.Builder().url("https://api.openai.com/v1/realtime/calls")
                         .header("Authorization", "Bearer $secret")
                         .post(offer.description.toRequestBody("application/sdp".toMediaType())).build()
@@ -208,6 +212,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     }
                     ensureActive()
                     connection.setDescription(SessionDescription(SessionDescription.Type.ANSWER, answer), local = false)
+                    android.util.Log.i("PbtStart", "SDP_REMOTE_SET")
                     diagnostics.record(Check.SDP, CheckStatus.OK, "OpenAI ha aceptado el SDP. Falta confirmar transporte y sesión.", "SDP_ACCEPTED")
                 }
                 if (!state.value.active) timeout = scope.launch {

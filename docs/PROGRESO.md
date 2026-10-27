@@ -1,5 +1,13 @@
 # Seguimiento de PbtMetaGPT
 
+## Corrección de inicialización Realtime e icono · 27/10/2026
+
+**70 % de intervención técnica local acreditado; no de reparación física.** El cierre comunicado ocurre cuando aparece «Conectando con OpenAI…», antes de que el usuario obtenga una sesión operativa. En `RealtimeClient.kt` la inicialización global `PeerConnectionFactory.initialize` se repetía por conexión; el nuevo `WebRtcBootstrap` la ejecuta una sola vez por proceso, con sincronización y posibilidad de reintentar tras excepción. Hay tres regresiones JVM para llamadas repetidas, concurrentes y fallo recuperable del inicializador. Se añadieron marcadores de las etapas de creación de conexión y SDP sin incluir credenciales, SDP ni mensajes externos. Es una reparación preventiva de un defecto de ciclo de vida comprobado en el código; no identifica por sí misma el `SIGABRT` o cierre físico.
+
+Icono renovado como recurso vectorial: P dorada de formas simples sobre azul oscuro; el detalle interno de gafas/chat permanece casi imperceptible. Variante monocromática conservada y máscaras adaptativas sin alterar. Contratos del icono incluidos en las pruebas Python.
+
+**Evidencia local:** 29 Python y 16 Node correctas; escáner de fuentes sin hallazgos y `git diff --check` correcto. Falta obtener resultado Android completo del commit nuevo, ejecutar instrumentadas de API35/API36, verificar la APK experimental y obtener el registro de cierre del teléfono para atribuir causalidad. El README y seis archivos locales previos siguen intactos. Progreso de estabilización histórica 35 % y funcional anterior 85 %, sin sumarse por estas verificaciones. No se acredita audio, Vosk ni Meta Glasses 00R6.
+
 ## Correctivo estructural de identificadores DEX · 27/10/2026
 
 **35 % de estabilización; 85 % funcional histórico, sin incremento.** Sobre `472d00a` se clasifican exclusivamente coincidencias OpenAI contenidas en un `string_id` referenciado solo por `method_ids`, sin valores estáticos ni referencias `const-string` verificadas mediante el desensamblador oficial. Si el DEX, el desensamblador o las referencias no son concluyentes, continúa el rechazo. No hay excepciones por hash, clase, biblioteca o nombre de archivo; los patrones OpenAI y PEM permanecen idénticos. El JSON conserva metadatos de los identificadores clasificados sin revelar cadenas.
