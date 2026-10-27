@@ -1,5 +1,11 @@
 # Seguimiento de PbtMetaGPT
 
+## Permiso de red WebRTC y nuevo icono · 27/10/2026
+
+**65 % de intervención técnica, validación física pendiente.** El informe real del Nothing Phone 3a Lite indica `SecurityException` por falta de `android.permission.ACCESS_NETWORK_STATE` durante `org.webrtc.NetworkMonitorAutoDetect`, seguida de aborto JNI (`SIGABRT`). Se ha añadido el permiso normal en el manifiesto principal, una prueba Python de regresión y comprobación del permiso real con `aapt dump permissions` tanto en la APK de validación como en la de publicación. El código de WebRTC permanece intacto hasta comprobar este defecto específico. Se requiere reinstalar la APK y comprobar en el dispositivo que ya no aparece el mismo aborto.
+
+Icono: sustitución de la P anterior por gafas blancas con conversación verde integrada, fondo negro, variante monocromática y área segura Android. El verde `#9DE9D0` procede de la paleta principal ya definida en `PbtTheme.kt`. README y seis archivos locales anteriores preservados; no hay verificación física de Meta Glasses 00R6.
+
 ## Corrección de inicialización Realtime e icono · 27/10/2026
 
 **70 % de intervención técnica local acreditado; no de reparación física.** El cierre comunicado ocurre cuando aparece «Conectando con OpenAI…», antes de que el usuario obtenga una sesión operativa. En `RealtimeClient.kt` la inicialización global `PeerConnectionFactory.initialize` se repetía por conexión; el nuevo `WebRtcBootstrap` la ejecuta una sola vez por proceso, con sincronización y posibilidad de reintentar tras excepción. Hay tres regresiones JVM para llamadas repetidas, concurrentes y fallo recuperable del inicializador. Se añadieron marcadores de las etapas de creación de conexión y SDP sin incluir credenciales, SDP ni mensajes externos. Es una reparación preventiva de un defecto de ciclo de vida comprobado en el código; no identifica por sí misma el `SIGABRT` o cierre físico.

@@ -1,9 +1,9 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <!-- P dorada con dos curvas casi ocultas en el espacio interior. -->
+    <!-- Gafas y conversación: símbolo plano dentro de la zona segura. -->
     <group android:scaleX="0.85" android:scaleY="0.85" android:pivotX="54" android:pivotY="54">
-        <path android:fillColor="#E6B95E" android:fillType="evenOdd"
-            android:pathData="M38,27 L57,27 Q78,27 78,45 Q78,64 56,64 L47,64 L47,81 L38,81 Z M47,36 L47,55 L56,55 Q69,55 69,45 Q69,36 56,36 Z"/>
-        <path android:fillColor="#E6B95E"
-            android:pathData="M52,49 Q56,52 60,49 Q63,47 66,49 L66,50 Q63,48 60,51 Q56,54 52,51 Z"/>
+        <path android:fillColor="#FFFFFF" android:fillType="evenOdd"
+            android:pathData="M25,40 Q25,37 29,37 L44,37 Q49,37 50,42 L51,44 Q54,41 57,44 L58,42 Q59,37 64,37 L79,37 Q83,37 83,40 L83,55 Q83,67 70,67 Q58,67 57,55 L56,50 Q54,47 52,50 L51,55 Q50,67 38,67 Q25,67 25,55 Z M31,44 L31,55 Q31,61 38,61 Q45,61 45,55 L45,44 Z M63,44 L63,55 Q63,61 70,61 Q77,61 77,55 L77,44 Z"/>
+        <path android:fillColor="#9DE9D0"
+            android:pathData="M65,47 Q65,45 68,45 L73,45 Q75,45 75,47 L75,53 Q75,55 73,55 L70,55 L67,58 L67,55 Q65,55 65,53 Z"/>
     </group>
 </vector>

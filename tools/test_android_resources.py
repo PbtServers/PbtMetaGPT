@@ -11,6 +11,12 @@ A = "{http://schemas.android.com/apk/res/android}"
 
 
 class AndroidResourcesTest(unittest.TestCase):
+    def test_webrtc_network_monitor_permission_declared(self):
+        manifest = ET.parse(ROOT / "app/src/main/AndroidManifest.xml").getroot()
+        permissions = {p.attrib[A + "name"] for p in manifest.findall("uses-permission")}
+        self.assertIn("android.permission.ACCESS_NETWORK_STATE", permissions)
+        self.assertIn("android.permission.INTERNET", permissions)
+
     def test_manifest_resolves_both_adaptive_icons_on_api31_and33(self):
         app = ET.parse(ROOT / "app/src/main/AndroidManifest.xml").getroot().find("application")
         colors = {c.attrib["name"] for c in ET.parse(RES / "values/colors.xml").getroot()}

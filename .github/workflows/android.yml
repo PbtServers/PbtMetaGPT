@@ -41,6 +41,7 @@ jobs:
         run: |
           python3 -m unittest discover -s tools -p 'test_*.py'
           python3 tools/comprobar_secretos.py --informe app/build/reports/seguridad/hallazgos.json app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump permissions app/build/outputs/apk/debug/app-debug.apk | grep -F "android.permission.ACCESS_NETWORK_STATE"
       - name: Publicar informes
         if: always()
         uses: actions/upload-artifact@v4
@@ -155,6 +156,7 @@ jobs:
           python3 tools/preparar_sherpa.py
           bash ./gradlew --no-daemon assembleDebug
           python3 tools/comprobar_secretos.py --informe app/build/reports/seguridad/hallazgos.json app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump permissions app/build/outputs/apk/debug/app-debug.apk | grep -F "android.permission.ACCESS_NETWORK_STATE"
       - uses: actions/upload-artifact@v4
         with:
           name: PbtMetaGPT-v0.4.1-dev-debug
