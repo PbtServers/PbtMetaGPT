@@ -37,12 +37,16 @@ class ModelVoiceService : Service() {
                 val model = data.getParcelable<ParcelFileDescriptor>("model")
                 val tokens = data.getParcelable<ParcelFileDescriptor>("tokens")
                 val audio = data.getParcelable<ParcelFileDescriptor>("audio")
+                var stage = 1
                 try {
                     require(model != null && tokens != null && audio != null)
+                    stage = 2
                     val modelData = memoryCopy(model, 268435456); modelMemory = modelData
+                    stage = 3
                     val tokenData = memoryCopy(tokens, 2097152); tokensMemory = tokenData
                     val config = OfflineTtsConfig(model = OfflineTtsModelConfig(vits = OfflineTtsVitsModelConfig(
                         model = "/proc/self/fd/${modelData.fd}", tokens = "/proc/self/fd/${tokenData.fd}"), numThreads = 2, debug = false, provider = "cpu"))
+                    stage = 4
                     val loaded = OfflineTts(config = config); engine = loaded
                     val rate = loaded.sampleRate(); require(rate in 8000..48000)
                     reply.send(Message.obtain(null, 1).apply { arg1 = rate })
@@ -58,6 +62,7 @@ class ModelVoiceService : Service() {
                         sentences += phones.copyOfRange(start, end); start = end
                     }
                     val generation = GenerationConfig(speed = data.getFloat("speed", 1f), sid = 0, phonemeCodepoints = sentences.toTypedArray())
+                    stage = 5
                     ParcelFileDescriptor.AutoCloseOutputStream(audio).use { output ->
                         var written = 0L
                         var failed = false
@@ -76,7 +81,11 @@ class ModelVoiceService : Service() {
                         check(!failed) { "Síntesis cancelada o fuera de límite." }
                     }
                     reply.send(Message.obtain(null, 3))
-                } catch (_: Throwable) { runCatching { reply.send(Message.obtain(null, 4)) } }
+                } catch (problem: Throwable) {
+                    val type = Diagnostics.sdkCode(problem)
+                    android.util.Log.e("PbtModelo", "Etapa $stage; tipo $type; mensaje original omitido")
+                    runCatching { reply.send(Message.obtain(null, 4).apply { arg1 = stage; this.data = Bundle().apply { putString("type", type) } }) }
+                }
                 finally {
                     runCatching { engine?.release() }; runCatching { audio?.close() }; runCatching { model?.close() }; runCatching { tokens?.close() }
                     runCatching { modelMemory?.close() }; runCatching { tokensMemory?.close() }

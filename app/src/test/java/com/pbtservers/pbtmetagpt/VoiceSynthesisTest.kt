@@ -39,4 +39,12 @@ class VoiceSynthesisTest {
         buffer.putShort(22, 2); assertTrue(runCatching { VoiceSynthesisContract.wav(bytes) }.isFailure)
         assertTrue(runCatching { VoiceSynthesisContract.wav(byteArrayOf(1, 2)) }.isFailure)
     }
+    @Test fun `catalogo por modelo y retirada de Speech no activan compatibilidad falsa`() {
+        assertTrue(VoiceSynthesisContract.speechAvailable(java.time.LocalDate.of(2026, 12, 31)))
+        assertFalse(VoiceSynthesisContract.speechAvailable(java.time.LocalDate.of(2027, 1, 6)))
+        assertTrue(runCatching { AssistantProfile(name = "Jarvis", ttsEngine = "openai_tts", voice = "fable").validated() }.isSuccess)
+        assertTrue(runCatching { AssistantProfile(name = "Jarvis", voice = "fable").validated() }.isFailure)
+        assertTrue(runCatching { AssistantProfile(name = "Jarvis", ttsEngine = "android").validated() }.isFailure)
+        assertTrue(runCatching { AssistantProfile(name = "Jarvis", ttsEngine = "sherpa_vits", ttsVoice = "archivo-cualquiera").validated() }.isFailure)
+    }
 }

@@ -5,9 +5,11 @@ Actualización: 27 de octubre de 2026. Objetivo: ampliación de v0.4.0, compilac
 - Progreso ponderado: **65 %**. BYOK 20/25; configuración/perfiles 13/15; activación múltiple 14/20; motores/voz 9/20; integración 5/10; pruebas/documentación/APK 4/10. Incluye implementación y pruebas con alcances distintos; descuenta la validación física pendiente.
 - Fase actual: integración de Biblioteca y ruta Realtime textual; pruebas con modelo real preparadas, aún sin resultado.
 - Incidencia de CI posterior: `0aee4c6`, ejecución 40489877319, pasó compilación/Lint, 41 JVM, Node y Python; el emulador pasó 5 de 6 pruebas y rechazó el modelo por metadatos. La revisión del runtime oficial confirma que Piper se identifica mediante `comment` y usa `n_speakers`, no los campos inicialmente asumidos. Se corrige el validador y el nombre de instancia Android; no se da la inferencia por superada hasta repetirla.
+- Segundo intento: `1967217`, CI 40491497858, compilación/Lint y JVM correctos; 6 de 7 pruebas Android correctas. El modelo ya supera la importación, pero falla dentro del runtime aislado. Se añaden etapa/tipo de excepción filtrados y log nativo solo de la fixture pública en CI para resolverlo. No se ha eliminado ni omitido la prueba. Último commit publicado antes de este bloque: `1967217`.
 - Último commit publicado antes de este bloque: **4256249**. El commit que contiene esta actualización guarda la siguiente subfase; consultar `git log` y su propia CI.
 - Compilación y pruebas del bloque anterior: [CI 40488236081](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40488236081), tres trabajos correctos. 36 pruebas JVM, 4 Android/emulador, 19 Node, 3 Python; Lint, APK y contenedores correctos.
 - Tiempo transcurrido aproximado: 31 minutos. Estimación restante: 50–90 minutos para pruebas/correcciones/documentación. Hardware y OpenAI de pago no tienen una estimación fiable sin dispositivos ni credenciales.
+- Actualización de tiempo: 55 minutos aproximadamente; estimación restante 35–70 minutos, condicionada al fallo nativo. Porcentaje mantenido en 65 % hasta acreditar inferencia. README actualizado, herramienta de empaquetado y cinco pruebas Python superadas localmente. La compilación del bloque nuevo incorpora 42 JVM y 7 Android declaradas; todavía no es su resultado final.
 
 ## Completado e implementado
 

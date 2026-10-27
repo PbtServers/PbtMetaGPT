@@ -19,6 +19,7 @@ data class ExternalVoiceConfig(val endpoint: String, val model: String, val samp
 }
 
 object VoiceSynthesisContract {
+    fun speechAvailable(day: java.time.LocalDate = java.time.LocalDate.now(java.time.ZoneOffset.UTC)) = day.isBefore(java.time.LocalDate.of(2027, 1, 6))
     fun alternative(profile: AssistantProfile) = profile.ttsEngine != "realtime"
     fun request(profile: AssistantProfile, text: String, endpoint: String, model: String, token: String?): Request {
         ExternalVoiceConfig(endpoint, model).validate()

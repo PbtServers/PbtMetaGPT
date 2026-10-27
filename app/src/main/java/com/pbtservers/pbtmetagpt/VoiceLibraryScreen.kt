@@ -54,7 +54,7 @@ fun VoiceLibraryScreen(context: Context, profile: AssistantProfile, change: (Ass
     Text("Biblioteca de voces", style = MaterialTheme.typography.headlineMedium)
     Text("Las voces son síntesis de IA. Utiliza voces originales o autorizadas. No se incluyen modelos ni clonaciones de actores. Una importación válida no garantiza inferencia ni calidad.")
     listOf("realtime" to "OpenAI Realtime · audio nativo", "android" to "Android TTS · voces locales instaladas", "openai_tts" to "OpenAI Speech · transitorio hasta 06/01/2027", "external" to "API TTS externa · contrato PCM", "sherpa_vits" to "Modelo Piper/VITS · Sherpa local").forEach { (id, title) ->
-        FilterChip(selected = profile.ttsEngine == id, onClick = { stop(); change(profile.copy(ttsEngine = id, ttsVoice = "", ttsPackage = "", pitch = 1.0,
+        FilterChip(selected = profile.ttsEngine == id, enabled = id != "openai_tts" || VoiceSynthesisContract.speechAvailable(), onClick = { stop(); change(profile.copy(ttsEngine = id, ttsVoice = "", ttsPackage = "", pitch = 1.0,
             voice = if (id != "openai_tts" && profile.voice !in RealtimeSettings.voices) "marin" else profile.voice)) }, label = { Text(title) })
     }
     Text("Motor del perfil: ${profile.ttsEngine}. Guarda y abre una sesión nueva para aplicar los cambios.")
@@ -102,13 +102,15 @@ fun VoiceLibraryScreen(context: Context, profile: AssistantProfile, change: (Ass
         Button(onClick = { import.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")) }, enabled = rights && !busy) { Text("Importar paquete de voz compatible") }
         if (packages.isEmpty()) Text("No hay modelos instalados. Consulta docs/BIBLIOTECA_DE_VOCES.md para preparar el paquete; un ONNX aislado no es suficiente.")
         packages.forEach { pack -> Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            val compatible = runCatching { LocalModelClient(context).checkHardware(pack) }.isSuccess
             Text(pack.name, style = MaterialTheme.typography.titleMedium)
             Text("${pack.format} · ${pack.engine} · ${pack.language}")
             Text("RAM declarada: ${pack.minRamMb} MiB · modelo: ${pack.bytes / 1048576} MiB · CPU arm64-v8a/x86_64")
             Text("Licencia: ${pack.license}\nProcedencia: ${pack.source}")
             Text("Estructura validada. La inferencia y la escucha son comprobaciones separadas y dependen del dispositivo.")
+            Text(if (compatible) "El dispositivo cumple los requisitos declarados; no acredita rendimiento ni calidad." else "El dispositivo no cumple los requisitos declarados o Android informa de presión de memoria.")
             Button(onClick = { change(profile.copy(ttsVoice = pack.id, language = pack.language)) }) { Text(if (profile.ttsVoice == pack.id) "Modelo seleccionado" else "Seleccionar modelo") }
-            OutlinedButton(onClick = { stop(); preview(profile.copy(ttsEngine = "sherpa_vits", ttsVoice = pack.id)) }, enabled = !busy && profile.name.isNotBlank()) { Text("Probar inferencia y muestra de este modelo") }
+            OutlinedButton(onClick = { stop(); preview(profile.copy(ttsEngine = "sherpa_vits", ttsVoice = pack.id)) }, enabled = !busy && compatible && profile.name.isNotBlank()) { Text("Probar inferencia y muestra de este modelo") }
             TextButton(onClick = { stop(); operation = scope.launch { busy = true; try { withContext(Dispatchers.IO) { store.delete(pack.id) }; reload(); report("Modelo eliminado y almacenamiento liberado. Los perfiles que lo referencian necesitan elegir otra voz.") } catch (_: Exception) { report("No se pudo eliminar el modelo.") } finally { busy = false } } }, enabled = !busy) { Text("Eliminar modelo y liberar espacio") }
         } } }
     }

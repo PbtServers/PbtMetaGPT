@@ -1,88 +1,102 @@
-# PbtMetaGPT · v0.4.0
+# PbtMetaGPT · 0.4.1-dev
 
-Aplicación Android de código abierto para conversar con OpenAI Realtime desde el móvil y explorar la integración con Ray-Ban Meta mediante el SDK oficial Meta Wearables DAT. Interfaz y documentación en español de España. Identificador: `com.pbtservers.pbtmetagpt`.
+Ampliación experimental de **v0.4.0**: aplicación Android pública y de código abierto para conversar con OpenAI desde el móvil y explorar Ray-Ban Meta mediante el SDK oficial DAT. Interfaz y documentación en español de España. Identificador: `com.pbtservers.pbtmetagpt`.
 
-**El modo directo BYOK no necesita VPS, Docker ni dominio. Cada persona utiliza y paga su propia API de OpenAI.** La suscripción ChatGPT y la facturación de OpenAI API son independientes.
+**BYOK funciona por conexión directa: no necesitas VPS, Docker ni dominio.** Cada persona introduce su propia clave API y asume su consumo. ChatGPT Plus y la facturación de OpenAI API son independientes.
 
-Las funciones están implementadas en código; la validación automática se registra en [VALIDACION.md](docs/VALIDACION.md). No se han realizado llamadas con claves reales, reconocimiento hablado ni pruebas físicas de micrófono, altavoz o gafas durante este desarrollo. No se certifica compatibilidad con ningún modelo de Ray-Ban Meta.
+Esta es una **compilación de prueba**, no una Release estable. Consulta [PROGRESO.md](docs/PROGRESO.md) y [VALIDACION.md](docs/VALIDACION.md) para separar código implementado, pruebas automáticas y pruebas reales pendientes. No se declara compatibilidad completa con ningún modelo de Ray-Ban Meta. La conversación con credenciales reales y la escucha física siguen pendientes de validación.
 
-## Instalar y empezar sin gafas ni servidor
+## Instalar y configurar sin gafas ni backend
 
-1. Abre [GitHub Actions](https://github.com/PbtServers/PbtMetaGPT/actions/workflows/android.yml), selecciona una ejecución correcta del commit deseado y descarga `PbtMetaGPT-v0.4.0-debug` en **Artifacts** (requiere iniciar sesión en GitHub, retención de 14 días).
-2. Descomprime el ZIP e instala `app-debug.apk` en Android 12 o posterior. Autoriza la instalación desde esa fuente. Es una APK de desarrollo, no una publicación firmada para producción. La firma debug de distintos runners puede cambiar; si Android rechaza actualizar, tendrás que desinstalar la anterior y configurar de nuevo los datos locales.
-3. Sigue la bienvenida y lee el aviso BYOK. Crea una clave de proyecto en [OpenAI API](https://platform.openai.com/api-keys), habilita facturación de API, limita sus permisos y supervisa el gasto. No introduzcas tu contraseña de ChatGPT.
-4. En **OpenAI**, guarda tu clave personal y pulsa **Comprobar credenciales sin audio**. El resultado confirma únicamente la emisión de una credencial temporal; la voz se verifica por separado. Los errores se muestran sin revelar la respuesta original del proveedor.
-5. En **Asistentes**, elige **Crear Personalizado** y escribe, por ejemplo, **Jarvis**. No se impone ningún nombre. Guarda el nombre, cómo quieres que se dirija a ti, personalidad, descripción, forma de hablar, formalidad, humor, vocabulario e instrucciones.
-6. En **Voz**, guarda una voz oficial y su velocidad. Puedes escuchar una muestra con el micrófono apagado; consume API. Los cambios se aplican en una sesión nueva. Las instrucciones de expresión son preferencias, no una garantía de imitación.
-7. Autoriza el micrófono y pulsa **Iniciar conversación** en Inicio o Conversación. Sin Bluetooth se solicita el altavoz del móvil. Espera a **Escuchando** antes de hablar. Pregunta varias veces sin reconectar: el contexto permanece durante la sesión.
-8. **Pausar** mantiene la sesión sin capturar; **Interrumpir** cancela la respuesta; **Finalizar** o salir de la app libera recursos y contexto local. No se guardan conversaciones ni audio en archivos.
+1. En [GitHub Actions](https://github.com/PbtServers/PbtMetaGPT/actions/workflows/android.yml), selecciona una ejecución correcta del commit que quieras probar y descarga `PbtMetaGPT-v0.4.1-dev-debug` en Artifacts. Requiere iniciar sesión; retención de APK de 14 días.
+2. Descomprime e instala `app-debug.apk` en Android 12 o posterior. Es una firma debug; puede cambiar entre runners. Si Android rechaza actualizar, exporta los perfiles, desinstala la anterior y configura de nuevo. Las claves nunca se exportan.
+3. Sigue la bienvenida y lee el aviso BYOK. Crea una clave de proyecto en [OpenAI API](https://platform.openai.com/api-keys), activa facturación, limita permisos y supervisa el gasto. No introduzcas tu contraseña de ChatGPT.
+4. En **OpenAI**, guarda la clave cifrada y comprueba credenciales sin audio. Recibir un secreto temporal no demuestra voz, WebRTC ni hardware. Puedes comprobar, sustituir y eliminar la clave.
+5. Crea un asistente **Personalizado**, sin nombre impuesto, o elige una plantilla opcional Jarvis, Friday o PbtAdmin. Guarda nombre, avatar de emoji/iniciales, cómo te llama, personalidad, instrucciones, estilo, formalidad, humor, vocabulario, idioma y extensión.
+6. En **Voz** o **Biblioteca de voces**, elige motor y voz/modelo. Escucha una muestra antes de guardar. Las muestras de proveedores de pago consumen API; las locales no necesitan clave de síntesis ni backend. La conversación posterior sí utiliza OpenAI.
+7. Autoriza el micrófono y pulsa **Iniciar conversación**. Espera a **Escuchando** antes de pedir algo. Puedes seguir preguntando en la misma sesión sin repetir la activación. Pausar conserva contexto; interrumpir cancela respuesta/audio; finalizar libera recursos. No hay historial persistente.
 
-La configuración inicial guía bienvenida, privacidad, clave, comprobación, personaje, nombre, frase, voz, personalidad, permisos, gafas opcionales y prueba de conversación. Puedes volver a los pasos anteriores y utilizar los ajustes posteriormente.
+La bienvenida guía clave, comprobación, personaje, nombre, frase, voz, personalidad, permisos, gafas opcionales y conversación. Puedes modificar todo posteriormente. La duración máxima de sesión (1–60 minutos), bienvenida opcional y confirmación sonora se guardan por personaje. La duración acota consumo y recursos; no constituye un límite absoluto de gasto.
 
-## «Atento [nombre]»
+## Frases de activación por perfil
 
-En **Activación por voz**, selecciona tu asistente, concede el permiso y autoriza expresamente la escucha local. Activa una ventana de espera y di únicamente **«Atento Jarvis»**, si así se llama tu asistente. Espera la confirmación visual de conexión antes de hacer la petición. La confirmación sonora es opcional.
+**Activación por voz** permite añadir, editar, eliminar, habilitar/deshabilitar y elegir una frase principal. Puedes añadir automáticamente el nombre o escribir la frase completa: «Atento Jarvis», «Escucha Jarvis», «Atención Jarvis», «Oye Jarvis», «Jarvis» u otra. Renombrar el asistente modifica solo las frases con nombre automático.
 
-- Solo se crea `SpeechRecognizer.createOnDeviceSpeechRecognizer`; no hay fallback remoto ni reconocimiento continuo con OpenAI. Se necesita un motor local y su modelo de idioma instalados por el sistema.
-- No se entrenan modelos por personaje. En Android 13 o posterior se sugieren el nombre y la frase al motor mediante biasing, que puede ignorarlo. El nombre se compara con el mejor resultado final, ignorando mayúsculas y tildes. Se tolera una edición en nombres de al menos cinco caracteres y una sola palabra; «Atento» debe reconocerse completo. Se rechazan frases concatenadas y resultados parciales. La normalización admite caracteres latinos y dígitos; no cubre todos los alfabetos. Puede haber falsos positivos entre nombres muy parecidos y falsos negativos con nombres inventados; no es autenticación.
-- Ventanas de hasta dos minutos, reinicios con pausas y límite de intentos sin resultado. Android no diseña este reconocedor para escucha permanente: puede haber huecos, consumo de batería, modelos ausentes y restricciones del fabricante. El mecanismo requiere pruebas habladas en cada teléfono.
-- El reconocedor elige la ruta de captura Android. No se atribuye su entrada a las gafas ni se garantiza una ruta concreta. Prueba primero con Bluetooth desconectado; la prueba local de micrófono de Diagnóstico corresponde a otro capturador y no acredita esta ruta.
-- Al reconocer la frase se destruye el reconocedor antes de abrir WebRTC. No se conserva ni se envía a OpenAI el audio de detección; haz la petición después de que conecte. Durante la conversación no repitas la frase.
-- Finalizar una sesión activada por voz vuelve a abrir una ventana local mientras sigan el consentimiento y la app visible. Navegar a otra pantalla o salir desactiva esa escucha; volver no activa sensores. El control de desactivación inmediata está en Activación por voz. El indicador de escucha permanece visible.
-- No hay servicio de fondo, escucha con la pantalla bloqueada, modificación del firmware ni sustitución de «Hey Meta». Si no hay reconocedor compatible, utiliza el botón manual.
+No hay una cuota de número de frases. Los perfiles tienen un presupuesto conjunto de 256 KiB, cada frase admite 160 caracteres y las sugerencias al reconocedor se acotan a 32 Ki caracteres por la comunicación Binder de Android. Ese límite de sugerencias no elimina frases de la comparación final.
 
-## Perfiles y voces
+- Se usa exclusivamente `SpeechRecognizer.createOnDeviceSpeechRecognizer`, nunca OpenAI ni un reconocedor remoto como detector. Necesitas motor local y modelo de idioma instalados. No se entrenan modelos por frase; la capacidad de reconocer nombres inventados depende del motor.
+- Activa expresamente una ventana de escucha con la app visible. Hay indicador, parada inmediata, máximo de dos minutos, pausas de rearme, timeout y límite de errores. Android no diseña este reconocedor para escucha permanente; puede haber huecos y consumo de batería. No hay servicio de fondo, escucha con pantalla bloqueada ni sustitución de «Hey Meta».
+- El motor no expone sensibilidad acústica. Se ofrece coincidencia textual exacta o una diferencia en la última palabra larga; se ignoran mayúsculas y tildes. La normalización inicial admite caracteres latinos/dígitos. Las frases cortas, una sola palabra o nombres parecidos aumentan falsos positivos. No es autenticación.
+- Se evalúa solo el mejor resultado final completo. Se rechazan peticiones concatenadas, ambigüedad entre personajes y callbacks antiguos/duplicados. Puedes escuchar las frases de varios asistentes del **mismo idioma**; una coincidencia inequívoca selecciona el perfil y su motor/voz.
+- Cada frase tiene comparación escrita y prueba local con micrófono sin abrir OpenAI. No confundas una prueba textual con precisión acústica.
+- El sistema elige la ruta del reconocedor. No se atribuye a DAT ni se garantiza micrófono de las gafas. Prueba primero con Bluetooth apagado. No se guarda ni envía el audio de detección; el reconocedor se destruye antes de conectar WebRTC. Haz la petición cuando aparezca **Escuchando**.
+- Una sesión iniciada por activación puede abrir otra ventana local al finalizar mientras siga autorizado y visible. Navegar o salir desactiva esa continuidad; regresar no activa sensores.
 
-Puedes crear, editar, seleccionar, duplicar, eliminar, exportar e importar hasta 50 asistentes. Jarvis, Friday y PbtAdmin son plantillas opcionales de estilo; no reproducen identidades, interpretaciones ni voces originales. **Personalizado** empieza sin nombre.
+## Biblioteca y motores de síntesis
 
-Los perfiles incluyen descripción, instrucciones, personalidad, tono, tratamiento, humor, vocabulario, voz, idioma y extensión habitual. Los archivos JSON se seleccionan con el gestor de documentos de Android. La importación valida versión, tamaño, campos y valores; asigna nuevos identificadores y no sustituye perfiles existentes. La exportación incluye únicamente esos campos, nunca el almacén de claves; las instrucciones personales se exportan sin cifrar. No pegues credenciales en ningún campo de personalidad.
+| Motor | Ruta implementada y controles |
+| --- | --- |
+| OpenAI Realtime | Voz nativa WebRTC, contexto de sesión, voz oficial, velocidad e instrucciones de expresión. No puede cambiar voz tras emitir audio: reconecta. |
+| Android TTS | Voz que el proveedor declara instalada y local; velocidad y tono solicitados mediante su API. Necesita motor/idioma instalados; comprobar comportamiento y privacidad del proveedor. |
+| OpenAI Speech | Texto → `gpt-4o-mini-tts` → PCM. Requiere clave BYOK incluso con conversación en modo servidor. **Transitorio: retirada anunciada para 06/01/2027**; predeterminado recomendado dentro de la app: Realtime. |
+| API TTS externa | HTTPS configurable, modelo/voz por perfil y token cifrado separado. Debe cumplir el contrato JSON/PCM de la pantalla. Requiere autorización explícita de envío de respuestas a ese proveedor. |
+| Sherpa ONNX 2.0.1 | Modelo Piper/VITS local con símbolos y pronunciaciones explícitas; CPU de 64 bits, velocidad y requisitos de RAM/almacenamiento. No admite ONNX arbitrario ni fonemizador universal. |
 
-El modelo fijado es `gpt-realtime`. Voces documentadas: `marin`, `cedar`, `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`. La velocidad admite 0,25–1,5×. No se muestran controles de tono acústico, clonación ni parámetros no soportados. El perfil se congela al iniciar; la captura espera la confirmación `session.updated`. La disponibilidad efectiva depende del acceso de tu proyecto y de la API.
+La **entrada de voz**, conversación OpenAI, respuesta textual, síntesis y reproducción están separadas. Con un motor alternativo Realtime produce solo texto y su pista de salida se deshabilita. Se sintetiza únicamente una respuesta completada, con un solo trabajo/reproductor y descarte de resultados tardíos al cancelar. Durante síntesis/reproducción alternativa se apaga el micrófono para evitar realimentación; puedes interrumpir con el botón y volver a escuchar. El texto completo generado permanece en el contexto remoto aunque interrumpas su lectura.
 
-## Privacidad y BYOK
+Esta ruta aumenta latencia, memoria y, según el proveedor, coste. La síntesis admite respuestas de hasta 4000 caracteres y PCM de hasta 16 MiB, con límites de tiempo. No se muestra tono o expresividad como un parámetro universal: solo controles implementados por el adaptador. Cambiar idioma de conversación no reentrena la pronunciación de una voz local.
 
-La clave personal se cifra mediante AES-GCM con IV aleatorio por escritura y datos asociados; la clave de cifrado no exportable reside en Android Keystore. Puedes sustituirla y eliminarla en **OpenAI**; ambas acciones cierran sesiones. La eliminación borra el registro cifrado y su alias de Keystore. Si este queda invalidado, vuelve a introducir tu clave. Se deshabilitan las copias de seguridad y las capturas de pantalla del sistema.
+Realtime ofrece `marin`, `cedar`, `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`. Speech añade `fable`, `onyx`, `nova`. El catálogo se valida por motor; voces externas y modelos locales usan identificadores propios. No se clonan ni prometen voces de actores o interpretaciones originales. Las plantillas de personajes son inspiración de estilo.
 
-**Una clave permanente en un cliente móvil puede extraerse si se compromete el proceso o el dispositivo, aunque esté cifrada en disco.** Durante la solicitud existe temporalmente en memoria y se transmite exclusivamente por HTTPS a OpenAI. Keystore no elimina ese riesgo. Usa proyectos separados, permisos reducidos, supervisión y revocación inmediata ante pérdida del teléfono. Los presupuestos de API no deben asumirse como un corte absoluto de gasto.
+### Importar un modelo propio compatible
 
-No se incluyen claves privadas en código, recursos, APK, logs ni CI. No hay interceptores HTTP de registro. Diagnóstico exporta observaciones y códigos filtrados, no cuerpos del proveedor, claves, URL personales, nombres de dispositivos, transcripciones ni imágenes. La comprobación de patrones de secretos es una protección adicional y no detecta todos los formatos posibles.
+Necesitas un ZIP `sherpa-piper-phonemes-v1` con **voz.json, model.onnx, tokens.txt y lexicon.tsv**. El manifiesto contiene formato, motor/versión, idioma, licencia, procedencia, autorización, requisitos y hashes. Consulta [BIBLIOTECA_DE_VOCES.md](docs/BIBLIOTECA_DE_VOCES.md) para el esquema y la preparación mediante `tools/empaquetar_voz.py`.
 
-El audio de conversaciones autorizadas y las imágenes confirmadas se envían a OpenAI. Sus condiciones determinan el tratamiento remoto; cerrar la sesión no solicita borrado al proveedor. Los perfiles se guardan localmente. Revisa las instrucciones importadas antes de utilizarlas.
+La importación valida estructura, integridad, límites y metadatos antes de publicar el paquete. La inferencia se ejecuta en un proceso aislado, con runtime oficial fijado por SHA-256, sin cargar bibliotecas del paquete ni acceder a credenciales. Un modelo que pasa esa revisión puede fallar al ejecutar: **probar su muestra es una comprobación independiente**, y escucharla físicamente también.
 
-## Backend opcional
+El diccionario debe contener cada palabra/número; una respuesta fuera de vocabulario produce error sin inventar pronunciación ni cambiar de voz automáticamente. Solo se usa el hablante 0 del modelo. El botón de eliminar libera sus archivos; los perfiles que lo referencian deberán elegir otra voz. No se incluyen modelos en la APK principal ni en perfiles exportados. No se distribuyen modelos de actores clonados ni se considera una declaración de autorización prueba legal de derechos.
 
-Desactiva **Conexión directa** en OpenAI para utilizar la alternativa con servidor. Introduce su dirección HTTPS y un token personal opaco, conservado solo en memoria. La clave de OpenAI permanece en el backend, que autentica y limita la emisión. Consulta [backend/README.md](backend/README.md) y [despliegue Ubuntu con Compose y Caddy](deploy/README.md). No necesitas desplegarlo para BYOK.
+## Privacidad, claves y exportaciones
 
-El perfil se aplica a la sesión WebRTC mediante `session.update`, también en modo servidor. Los límites de emisión del backend no constituyen una política inmutable de instrucciones en el canal cliente ni garantizan un límite de gasto. No se admiten URL HTTP ni redirecciones de autenticación.
+Las claves se cifran con AES-256-GCM, IV aleatorio, autenticación y clave no exportable de Android Keystore. OpenAI y el proveedor TTS tienen alias/almacenes separados. La clave OpenAI solo se envía al host oficial; nunca se reenvía automáticamente a una API externa. Puedes borrar el token externo y revocar la autorización del proveedor por separado. No hay claves privadas en recursos, APK, repositorio ni CI.
 
-## Conectar Ray-Ban Meta
+**Una clave permanente en un móvil puede extraerse si se compromete el dispositivo o el proceso, aunque esté cifrada en disco.** Durante una petición existe en memoria. Keystore no elimina ese riesgo: usa proyectos separados, permisos reducidos, supervisión y revocación en el proveedor ante pérdida del teléfono. Borrar localmente no revoca la clave remota. Se deshabilitan copias de seguridad, capturas de pantalla y analítica/crash reporting opcionales de DAT.
 
-En **Dispositivos**, permite Bluetooth, registra la aplicación en Meta AI y conecta una sesión DAT. Necesitas gafas emparejadas, Meta AI y modo de desarrollador o una aplicación autorizada por Meta. El artifact usa el identificador DAT `0` de desarrollo. La distribución pública mediante Meta requiere sus autorizaciones, cuenta, región, modelo y firmware compatibles.
+Las exportaciones de asistentes incluyen configuración y referencias de voz, nunca almacenes de claves ni datos de conexión de proveedores. Las instrucciones personales se exportan sin cifrar; revísalas. Los perfiles importados se validan y reciben identificadores nuevos; las referencias de modelos/motores deben reasociarse en otro teléfono.
 
-DAT confirma conexión solo con el estado `STARTED`. El audio de conversación utiliza las rutas de comunicación Android/WebRTC, con preferencia Bluetooth opcional; no se implementa acceso directo a micrófonos a través de `mwdat-speech`. **Entrada y salida deben verificarse por separado con hardware**. Si la ruta Bluetooth no está disponible se indica el uso del teléfono.
+No se persisten conversaciones ni audio de activación. Android TTS puede generar un WAV temporal privado, eliminado al terminar/cancelar y limpiado al iniciar tras un cierre inesperado. Las conversaciones autorizadas y fotos confirmadas se envían a OpenAI; una API TTS autorizada recibe el texto de respuesta. Cerrar no solicita borrado al proveedor. Diagnóstico exporta descripciones y códigos filtrados, no claves, URL personales, cuerpos de error, transcripciones, muestras ni fotos.
 
-Para visión: autoriza una captura puntual, concede el permiso DAT, revisa la foto local y confirma por segunda vez su envío durante una conversación activa. La cámara se cierra al capturar, cancelar o salir. No se envía vídeo ni se guardan fotos en la galería. Si Meta AI pide permiso o te saca de la aplicación, vuelve a conectar y solicita de nuevo la captura; no se activan sensores al regresar. La imagen se reduce y puede perder detalles pequeños.
+## Ray-Ban Meta y backend opcional
 
-**Diagnóstico** ofrece estados reales de permisos, Bluetooth, DAT, cámara, HTTPS, credenciales, SDP, ICE, canal de datos y audio nativo. Sus pruebas locales de nivel y tono no certifican inteligibilidad ni el funcionamiento de las gafas. [Protocolo de pruebas reales](docs/PRUEBAS_REALES.md).
+En **Dispositivos**, concede Bluetooth, registra con Meta AI y conecta DAT. Necesitas gafas emparejadas, Meta AI, cuenta/región/modelo/firmware compatibles y modo de desarrollador o autorización de Meta. La APK usa el identificador DAT `0` de desarrollo. La conexión solo se confirma con `STARTED`; eso no acredita audio o cámara.
 
-## Compilar y verificar
+La conversación usa rutas de comunicación Android, con preferencia Bluetooth opcional y alternativa del teléfono. La salida TTS usa esa misma ruta solicitada; **entrada y salida deben comprobarse por separado**. No se promete escucha permanente mediante las gafas ni acceso directo a sus micrófonos por `mwdat-speech`.
 
-Java 17, Gradle Wrapper 8.14.1, AGP 8.11.1, Kotlin 2.2.21, Android SDK 36 y Build Tools 36.0.0. Android mínimo API 31, destino 36. Meta DAT core/camera 1.0.1 en Maven Central; WebRTC comunitario `io.github.webrtc-sdk:android:150.7871.01`. No hace falta token de GitHub Packages.
+La cámara requiere captura puntual autorizada, vista previa y segunda confirmación de envío. Se cierra al capturar/cancelar/salir; no se sube vídeo. Si Meta AI pide permisos fuera de la app, vuelve a conectar y solicita la captura de nuevo. No se activan sensores al regresar.
 
-Crea `local.properties` (no versionado) con `sdk.dir` y, si procede, los valores públicos de registro `mwdat_application_id` y `mwdat_client_token`. No son lugar para la clave OpenAI. Configura el esquema de retorno `pbtmetagpt` conforme al registro DAT.
+Puedes desactivar modo directo en OpenAI para usar [backend HTTPS opcional](backend/README.md), con token opaco y clave OpenAI solo en servidor. [Ubuntu/Compose/Caddy](deploy/README.md). Los perfiles se aplican en la sesión cliente; los límites de emisión no constituyen una política inmutable de instrucciones ni garantizan gasto máximo.
+
+## Compilación y pruebas
+
+Java 17, Android SDK/Build Tools 36, Gradle 8.14.1, AGP 8.11.1, Kotlin 2.2.21. Mínimo API 31; destino 36. DAT core/camera 1.0.1 en Maven Central y WebRTC comunitario `150.7871.01`. Configura `local.properties` con `sdk.dir`; los datos públicos DAT opcionales no son lugar para claves OpenAI.
 
 ```powershell
+python tools/preparar_sherpa.py
 .\gradlew.bat --no-daemon testDebugUnitTest lintDebug assembleDebug
 node --test backend/*.test.mjs
+python -m unittest discover -s tools -p 'test_*.py'
 python tools/comprobar_secretos.py app/build/outputs/apk/debug/app-debug.apk
-# Con un emulador Android iniciado:
+# Para pruebas Android con fixture y emulador iniciado:
+python tools/preparar_modelo_prueba.py
 .\gradlew.bat connectedDebugAndroidTest
 ```
 
-En Linux/macOS usa `./gradlew`. La APK se genera en `app/build/outputs/apk/debug/app-debug.apk`. El [workflow](.github/workflows/android.yml) ejecuta JVM, Lint, debug, análisis de patrones de secretos, backend, contenedores y pruebas instrumentadas de Keystore/persistencia en emulador. Publica la APK después de superar los tres trabajos. CI no usa claves reales ni acredita sensores físicos o conectividad de pago. [Arquitectura](docs/ARQUITECTURA.md).
+En Linux/macOS usa `./gradlew`. Los scripts de runtime/fixture descargan únicamente las versiones fijadas y verifican sus hashes. La fixture no se sube a Git ni forma parte de la APK principal. Las pruebas estructurales usan datos ficticios; la prueba nativa usa un modelo LJSpeech de procedencia revisada y solo acredita PCM, sin prueba auditiva.
 
-## Fuentes oficiales
+[Actions](.github/workflows/android.yml) prueba JVM, Python, Node, Lint, debug, contenedores, seguridad y Android/emulador. Solo publica la APK después de superar los tres trabajos. Un commit de desarrollo, una APK de prueba y una versión estable son estados distintos. Mantén el [protocolo real](docs/PRUEBAS_REALES.md) y la [arquitectura](docs/ARQUITECTURA.md) como referencias para validar el dispositivo.
 
-- [OpenAI Docs: WebRTC](https://developers.openai.com/api/docs/guides/realtime-webrtc) y [credenciales temporales, voces y velocidad](https://developers.openai.com/api/reference/resources/realtime/subresources/client_secrets/methods/create).
-- [Android: SpeechRecognizer y límites](https://developer.android.com/reference/android/speech/SpeechRecognizer), [opciones de reconocimiento](https://developer.android.com/reference/android/speech/RecognizerIntent) y [Keystore](https://developer.android.com/privacy-and-security/keystore).
-- [Meta DAT Android y muestras](https://github.com/facebook/meta-wearables-dat-android) y [Wearables Developer Center](https://wearables.developer.meta.com/docs/develop/dat/).
+## Referencias oficiales
+
+- [OpenAI Docs: WebRTC](https://developers.openai.com/api/docs/guides/realtime-webrtc), [sesiones](https://developers.openai.com/api/docs/guides/realtime-conversations), [secretos temporales](https://developers.openai.com/api/reference/resources/realtime/subresources/client_secrets/methods/create) y [Speech/retirada anunciada](https://developers.openai.com/api/docs/guides/text-to-speech).
+- [Android: reconocimiento y límites](https://developer.android.com/reference/android/speech/SpeechRecognizer), [síntesis](https://developer.android.com/reference/android/speech/tts/TextToSpeech) y [Keystore](https://developer.android.com/privacy-and-security/keystore).
+- [Meta DAT Android](https://github.com/facebook/meta-wearables-dat-android) y [Sherpa ONNX 2.0.1](https://github.com/k2-fsa/sherpa-onnx/releases/tag/v2.0.1).

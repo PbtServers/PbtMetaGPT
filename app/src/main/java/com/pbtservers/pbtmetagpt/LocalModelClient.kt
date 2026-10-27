@@ -12,10 +12,14 @@ import kotlin.coroutines.resumeWithException
 data class PcmAudio(val bytes: ByteArray, val sampleRate: Int)
 
 class LocalModelClient(private val context: Context) {
+    fun checkHardware(pack: VoicePackage) {
+        val info = ActivityManager.MemoryInfo().also { context.getSystemService(ActivityManager::class.java).getMemoryInfo(it) }
+        if (!Build.SUPPORTED_ABIS.any { it in setOf("arm64-v8a", "x86_64") } || info.totalMem / 1048576 < pack.minRamMb || info.lowMemory)
+            throw DiagnosticFailure("TTS_HARDWARE", "Este dispositivo no cumple la arquitectura o memoria requerida por el modelo, o Android informa de presión de memoria.")
+    }
     suspend fun synthesize(store: VoicePackageStore, id: String, text: String, speed: Double): PcmAudio = withTimeout(60000) {
         val pack = withContext(Dispatchers.IO) { store.describe(id) }
-        val info = ActivityManager.MemoryInfo().also { context.getSystemService(ActivityManager::class.java).getMemoryInfo(it) }
-        require(Build.SUPPORTED_ABIS.any { it in setOf("arm64-v8a", "x86_64") } && info.totalMem / 1048576 >= pack.minRamMb && !info.lowMemory) { "Este dispositivo no cumple la arquitectura o memoria requerida por el modelo." }
+        checkHardware(pack)
         val phonemes = withContext(Dispatchers.IO) { PronunciationLexicon.load(store.file(id, "lexicon.tsv"), store.file(id, "tokens.txt")).phonemes(text) }
         val pipe = ParcelFileDescriptor.createPipe()
         val model = ParcelFileDescriptor.open(store.file(id, "model.onnx"), ParcelFileDescriptor.MODE_READ_ONLY)
@@ -24,7 +28,11 @@ class LocalModelClient(private val context: Context) {
         var remote: Messenger? = null
         var bound = false
         val handler = Handler(Looper.getMainLooper()) { msg ->
-            when (msg.what) { 1 -> ready.complete(msg.arg1); 3 -> finished.complete(Unit); 4 -> { val failure = IllegalStateException("El runtime aislado rechazó el modelo o la síntesis."); ready.completeExceptionally(failure); finished.completeExceptionally(failure) } }
+            when (msg.what) { 1 -> ready.complete(msg.arg1); 3 -> finished.complete(Unit); 4 -> {
+                val stage = msg.arg1.coerceIn(1, 5); val type = Diagnostics.safeCode(msg.data.getString("type").orEmpty())
+                val failure = DiagnosticFailure("TTS_STAGE_${stage}_$type", "El runtime aislado rechazó el modelo o la síntesis (etapa $stage, tipo $type). No se muestra el mensaje original.")
+                ready.completeExceptionally(failure); finished.completeExceptionally(failure)
+            } }
             true
         }
         val reply = Messenger(handler)

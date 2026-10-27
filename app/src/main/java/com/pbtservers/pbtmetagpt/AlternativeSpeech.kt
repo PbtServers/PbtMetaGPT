@@ -20,21 +20,27 @@ class AlternativeSpeech(private val context: Context, private val scope: Corouti
         profile.validated()
         when (profile.ttsEngine) {
             "android" -> AndroidVoiceEngine(context).verify(profile)
-            "sherpa_vits" -> withContext(Dispatchers.IO) { VoicePackageStore(File(context.filesDir, "voces")).describe(profile.ttsVoice) }
+            "sherpa_vits" -> {
+                val pack = withContext(Dispatchers.IO) { VoicePackageStore(File(context.filesDir, "voces")).describe(profile.ttsVoice) }
+                LocalModelClient(context).checkHardware(pack)
+            }
             "external" -> {
                 val settings = VoiceApiSettings(context)
                 if (!settings.authorized()) throw DiagnosticFailure("TTS_AUTHORIZATION", "Autoriza y guarda el proveedor TTS externo antes de enviar texto.")
                 settings.load().validate()
                 val vault = KeyVault(context, externalTts = true); if (vault.exists()) vault.read()
             }
-            "openai_tts" -> KeyVault(context).read()
+            "openai_tts" -> {
+                if (!VoiceSynthesisContract.speechAvailable()) throw DiagnosticFailure("TTS_RETIRED", "OpenAI ha anunciado la retirada de Speech. Elige Realtime u otro motor.")
+                KeyVault(context).read()
+            }
         }
     }
     suspend fun synthesize(profile: AssistantProfile, text: String): PcmAudio = when (profile.ttsEngine) {
         "android" -> AndroidVoiceEngine(context).synthesize(profile, text)
         "sherpa_vits" -> LocalModelClient(context).synthesize(VoicePackageStore(File(context.filesDir, "voces")), profile.ttsVoice, text, profile.speed)
         "openai_tts" -> {
-            check(java.time.LocalDate.now(java.time.ZoneOffset.UTC).isBefore(java.time.LocalDate.of(2027, 1, 6))) { "El proveedor ha anunciado la retirada de este endpoint. Selecciona Realtime u otro motor." }
+            check(VoiceSynthesisContract.speechAvailable()) { "El proveedor ha anunciado la retirada de este endpoint. Selecciona Realtime u otro motor." }
             val request = VoiceSynthesisContract.request(profile, text, "https://api.openai.com/v1/audio/speech", "gpt-4o-mini-tts", KeyVault(context).read())
             PcmAudio(http.newCall(request).awaitPcm(), 24000)
         }
