@@ -138,7 +138,8 @@ class SetupInstrumentedTest {
             compose.onNodeWithText("Más ajustes").performClick()
             compose.onNode(hasText("Biblioteca de voces") and hasClickAction()).performClick()
             RealtimeSettings.voices.forEach { voice ->
-                compose.onNodeWithText(voice).performScrollTo().performClick().assertIsSelected()
+                // El resumen también muestra el nombre: solo el chip es clicable.
+                compose.onNode(hasText(voice) and hasClickAction()).performScrollTo().performClick().assertIsSelected()
                 compose.onNodeWithText("Guardar motor y voz en el asistente").performScrollTo().performClick()
                 compose.onNodeWithText("Entendido").performClick()
                 assertEquals(voice, ProfileStore(context).load().single().voice)
