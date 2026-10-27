@@ -462,7 +462,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
 
     private suspend fun credential(baseUrl: String, accessToken: String): String {
         directKey?.let { readKey ->
-            val selected = profile
+            val selected = sessionProfile ?: profile
             diagnostics.record(Check.BACKEND, CheckStatus.PENDING, "Modo directo: no se utiliza un backend propio.", "DIRECT_MODE")
             diagnostics.record(Check.CREDENTIAL, CheckStatus.RUNNING, "Solicitando una credencial temporal directamente a OpenAI, sin backend propio.")
             val request = DirectCredentials.request(readKey(), selected)
@@ -521,6 +521,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
         if (recordControl && (state.value.active || state.value.connecting)) diagnostics.record(Check.CONTROL, CheckStatus.WARNING, "Cierre de sesión y liberación de audio solicitados; no se reanuda automáticamente.", "STOP_REQUESTED")
         generation++
         pendingImage = null
+        sessionProfile = null
         imageOnly = false; sampleOnly = false; diagnosticOnly = false
         generating = false; outputPlaying = false
         currentResponse = ""; suppressed.clear(); texts.clear(); releasePart { alternative.stop() }

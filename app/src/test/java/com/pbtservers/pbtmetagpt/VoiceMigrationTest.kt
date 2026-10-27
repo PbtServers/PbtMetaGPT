@@ -4,6 +4,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class VoiceMigrationTest {
+    @Test fun rapidaDesdeUnaVozExclusivaNoArrastraUnaConfiguracionIncompatible() {
+        val special = AssistantProfile(name = "Luna", ttsEngine = "openai_tts", voice = "onyx", voiceMode = "personalizada")
+        val rapid = VoiceModes.choose(special, "rapida").validated()
+        assertEquals("rapida", rapid.voiceMode)
+        assertEquals(special.name, rapid.name)
+        assertTrue(rapid.voice in RealtimeSettings.voices)
+        assertEquals(special.activationPhrases, rapid.activationPhrases)
+    }
     @Test fun perfilesAntiguosConservanMotorVozYModeloSinImponerRapida() {
         val original = AssistantProfile(name = "Luna", ttsEngine = "qwen_space", ttsVoice = "Ryan", ttsPackage = "1.7B")
         val old = original.json().apply { remove("voiceMode") }

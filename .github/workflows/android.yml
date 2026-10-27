@@ -14,6 +14,8 @@ jobs:
     name: Pruebas y APK debug
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    outputs:
+      resumen: ${{ steps.resumen.outputs.resumen }}
     steps:
       - uses: actions/checkout@v4
       - name: Preparar Java 17
@@ -73,6 +75,21 @@ jobs:
       - name: 'Seguridad: ${{ steps.seguridad.outputs.resumen }}'
         if: failure()
         run: echo 'Metadatos de atribución exclusivamente; los hallazgos siguen bloqueando la APK.'
+      - name: Contar pruebas JVM y conservar evidencia numérica
+        if: always()
+        id: resumen
+        run: |
+          python3 - <<'PY'
+          import os,json,xml.etree.ElementTree as ET
+          from pathlib import Path
+          counts={'tests':0,'failures':0,'errors':0,'skipped':0}
+          for p in Path('app/build/test-results/testDebugUnitTest').glob('TEST-*.xml'):
+              r=ET.parse(p).getroot()
+              for k in counts: counts[k]+=int(r.attrib.get(k,0))
+          summary=json.dumps(counts,separators=(',',':'))
+          p=Path('app/build/reports/resumen-jvm.json');p.parent.mkdir(parents=True,exist_ok=True);p.write_text(summary)
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out: out.write('resumen='+summary+'\n')
+          PY
       - name: Publicar informes
         if: always()
         uses: actions/upload-artifact@v4
@@ -90,6 +107,8 @@ jobs:
         api: [35, 36]
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    outputs:
+      resumen: ${{ steps.resumen.outputs.resumen }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -120,11 +139,31 @@ jobs:
           disable-animations: true
           ram-size: 4096M
           script: bash tools/probar_android.sh
+      - name: Resumir resultados del emulador sin logs de usuario
+        if: always()
+        id: resumen
+        env:
+          API: ${{ matrix.api }}
+        run: |
+          python3 - <<'PY'
+          import os,json,xml.etree.ElementTree as ET
+          from pathlib import Path
+          r={'api':int(os.environ['API']),'tests':0,'fallos':[]}
+          for p in Path('app/build/outputs/androidTest-results/connected').rglob('TEST-*.xml'):
+              root=ET.parse(p).getroot();r['tests']+=int(root.attrib.get('tests',0))
+              for case in root.findall('testcase'):
+                  if case.find('failure') is not None or case.find('error') is not None: r['fallos'].append(case.attrib.get('name',''))
+          summary=json.dumps(r,ensure_ascii=True,separators=(',',':'))
+          p=Path('app/build/reports/androidTests/resumen.json');p.parent.mkdir(parents=True,exist_ok=True);p.write_text(summary)
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out:
+              out.write('resumen='+summary+'\n')
+              out.write('cantidad='+str(r['tests'])+'\nfallos='+str(len(r['fallos']))+'\n')
+          PY
       - name: Publicar informe del emulador
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: informes-emulador-api-${{ matrix.api }}
+          name: informes-emulador-api-${{ matrix.api }}-${{ steps.resumen.outputs.cantidad }}-pruebas-${{ steps.resumen.outputs.fallos }}-fallos
           path: app/build/reports/androidTests/
       - name: Verificar APK final sin claves privadas
         run: python3 tools/comprobar_secretos.py --informe app/build/reports/seguridad/hallazgos.json app/build/outputs/apk/debug/app-debug.apk
@@ -194,3 +233,10 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+  evidencia:
+    if: always()
+    needs: [validar, emulador]
+    name: 'Evidencia: JVM ${{ needs.validar.outputs.resumen }}; último emulador ${{ needs.emulador.outputs.resumen }}'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Los informes de cada API se conservan por separado. Este resumen no sustituye las verificaciones obligatorias.'
