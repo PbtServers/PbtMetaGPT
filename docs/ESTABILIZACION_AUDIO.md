@@ -68,6 +68,10 @@ Colores Material semánticos; el rediseño no acredita por sí solo contraste ni
 - Java 17 localizado. Gradle JVM/Lint/APK/instrumentadas bloqueado por **SDK location not found**. Descarga de Sherpa y Git HTTPS bloqueados por la red del entorno. La matriz CI conserva Android 15/API35 y añade Android 16/API36; solo publica la APK final si ambos emuladores, JVM/Lint y backend/contenedores pasan.
 - No se han ejecutado captura acústica, API de pago ni sensores reales. Sin compatibilidad física nueva acreditada y sin Release estable.
 
+## Estado de publicación
+
+Implementación local `0328564`. Git HTTPS no conecta con GitHub y la escritura por el conector devuelve HTTP403. Master remoto sigue en `f9daabd`; Actions no tiene una ejecución del nuevo SHA. No hay APK nueva validada. No se publica una Release estable ni se reutiliza una APK anterior como evidencia de estos cambios.
+
 ## Aceptación física pendiente
 
 | Recorrido en Nothing / 00R6 | Qué registrar | Estado |
