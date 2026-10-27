@@ -1,0 +1,8 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Símbolo original: conversación, onda de voz y destello de inteligencia. -->
+    <group android:scaleX="0.85" android:scaleY="0.85" android:pivotX="54" android:pivotY="54">
+    <path android:fillColor="#9DE9D0" android:fillType="evenOdd" android:pathData="M36,30 L69,30 Q80,30 80,41 L80,63 Q80,74 69,74 L51,74 L36,83 L36,74 Q27,73 27,63 L27,41 Q27,30 36,30 Z M37,36 Q33,36 33,42 L33,62 Q33,68 39,68 L42,68 L42,73 L49,68 L68,68 Q74,68 74,62 L74,42 Q74,36 68,36 Z" />
+    <path android:fillColor="#9DE9D0" android:pathData="M40,47 Q40,45 42,45 Q44,45 44,47 L44,57 Q44,59 42,59 Q40,59 40,57 Z M49,42 Q49,40 51,40 Q53,40 53,42 L53,62 Q53,64 51,64 Q49,64 49,62 Z M58,47 Q58,45 60,45 Q62,45 62,47 L62,57 Q62,59 60,59 Q58,59 58,57 Z" />
+    <path android:fillColor="#B6C5FF" android:pathData="M75,23 L77,28 L82,30 L77,32 L75,37 L73,32 L68,30 L73,28 Z" />
+    </group>
+</vector>

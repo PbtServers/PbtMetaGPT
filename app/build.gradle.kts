@@ -19,7 +19,7 @@ android {
         versionName = "0.4.1-dev"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["mwdat_application_id"] = local.getProperty("mwdat_application_id", "0")
-        manifestPlaceholders["mwdat_client_token"] = local.getProperty("mwdat_client_token", "")
+        manifestPlaceholders["mwdat_client_token"] = local.getProperty("mwdat_client_token", "0")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

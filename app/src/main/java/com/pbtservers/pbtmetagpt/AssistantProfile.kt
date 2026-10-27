@@ -72,7 +72,7 @@ data class AssistantProfile(
 
     companion object {
         private val fields = setOf("id", "name", "userName", "description", "personality", "tone", "formal", "humor", "vocabulary", "instructions", "voice", "language", "detailed", "speed", "activationPhrases", "tolerantActivation", "avatar", "confirmationSound", "welcomeMessage", "sessionMinutes", "ttsEngine", "ttsVoice", "ttsPackage", "pitch")
-        fun parse(j: JSONObject): AssistantProfile {
+        fun parse(j: JSONObject, validate: Boolean = true): AssistantProfile {
             require(j.keys().asSequence().all { it in fields }) { "El perfil contiene campos desconocidos. No se admiten credenciales." }
             return AssistantProfile(j.getString("id"), j.getString("name"), j.optString("userName"), j.optString("description"),
                 j.optString("personality"), j.optString("tone"), j.optBoolean("formal"), j.optString("humor"), j.optString("vocabulary"),
@@ -80,7 +80,7 @@ data class AssistantProfile(
                 activationPhrases = if (j.has("activationPhrases")) j.getJSONArray("activationPhrases").let { a -> (0 until a.length()).map { ActivationPhrase.parse(a.getJSONObject(it)) } } else listOf(ActivationPhrase(id = "principal", primary = true)),
                 tolerantActivation = j.optBoolean("tolerantActivation"), avatar = j.optString("avatar"), confirmationSound = j.optBoolean("confirmationSound"),
                 welcomeMessage = j.optString("welcomeMessage"), sessionMinutes = j.optInt("sessionMinutes", 10), ttsEngine = j.optString("ttsEngine", "realtime"),
-                ttsVoice = j.optString("ttsVoice"), ttsPackage = j.optString("ttsPackage"), pitch = j.optDouble("pitch", 1.0)).validated()
+                ttsVoice = j.optString("ttsVoice"), ttsPackage = j.optString("ttsPackage"), pitch = j.optDouble("pitch", 1.0)).let { if (validate) it.validated() else it }
         }
         fun export(profiles: List<AssistantProfile>): String {
             val text = JSONObject().put("version", 2).put("profiles", JSONArray().apply { profiles.forEach { put(it.validated().json()) } }).toString(2)

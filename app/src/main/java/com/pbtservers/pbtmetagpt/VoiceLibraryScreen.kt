@@ -16,7 +16,7 @@ import java.io.File
 
 @Composable
 fun VoiceLibraryScreen(context: Context, profile: AssistantProfile, change: (AssistantProfile) -> Unit,
-    save: () -> Unit, preview: (AssistantProfile) -> Unit, stop: () -> Unit, report: (String) -> Unit,
+    save: () -> Unit, preview: (AssistantProfile) -> Unit, stop: () -> Unit, report: (String) -> Unit, compact: Boolean = false,
 ) {
     val scope = rememberCoroutineScope()
     val store = remember { VoicePackageStore(File(context.filesDir, "voces")) }
@@ -25,6 +25,8 @@ fun VoiceLibraryScreen(context: Context, profile: AssistantProfile, change: (Ass
     var busy by remember { mutableStateOf(false) }
     var operation by remember { mutableStateOf<Job?>(null) }
     var rights by remember { mutableStateOf(false) }
+    var advanced by remember { mutableStateOf(!compact) }
+    var engineMenu by remember { mutableStateOf(false) }
     val settings = remember { VoiceApiSettings(context) }
     var config by remember { mutableStateOf(settings.load()) }
     var externalConsent by remember { mutableStateOf(false) }
@@ -37,7 +39,14 @@ fun VoiceLibraryScreen(context: Context, profile: AssistantProfile, change: (Ass
         onDispose { owner.lifecycle.removeObserver(observer); operation?.cancel() }
     }
     suspend fun reload() { packages = withContext(Dispatchers.IO) { store.list() } }
-    LaunchedEffect(Unit) { reload() }
+    LaunchedEffect(profile.ttsEngine) {
+        if (profile.ttsEngine == "sherpa_vits") {
+            try { reload() }
+            catch (cancel: CancellationException) { throw cancel }
+            catch (_: java.io.IOException) { report("No se pudo leer la biblioteca local. Comprueba el almacenamiento y vuelve a intentarlo.") }
+            catch (_: SecurityException) { report("Android no permite acceder a la biblioteca local.") }
+        }
+    }
     val import = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             stop(); operation = scope.launch {
@@ -53,16 +62,29 @@ fun VoiceLibraryScreen(context: Context, profile: AssistantProfile, change: (Ass
     }
     Text("Biblioteca de voces", style = MaterialTheme.typography.headlineMedium)
     Text("Las voces son síntesis de IA. Utiliza voces originales o autorizadas. No se incluyen modelos ni clonaciones de actores. Una importación válida no garantiza inferencia ni calidad.")
-    listOf("realtime" to "OpenAI Realtime · audio nativo", "android" to "Android TTS · voces locales instaladas", "openai_tts" to "OpenAI Speech · transitorio hasta 06/01/2027", "external" to "API TTS externa · contrato PCM", "sherpa_vits" to "Modelo Piper/VITS · Sherpa local").forEach { (id, title) ->
-        FilterChip(selected = profile.ttsEngine == id, enabled = id != "openai_tts" || VoiceSynthesisContract.speechAvailable(), onClick = { stop(); change(profile.copy(ttsEngine = id, ttsVoice = "", ttsPackage = "", pitch = 1.0,
-            voice = if (id != "openai_tts" && profile.voice !in RealtimeSettings.voices) "marin" else profile.voice)) }, label = { Text(title) })
+    val engines = listOf("realtime" to "OpenAI Realtime · audio nativo", "android" to "Android TTS · voces locales instaladas", "openai_tts" to "OpenAI Speech · transitorio hasta 06/01/2027", "external" to "API TTS externa · contrato PCM", "sherpa_vits" to "Modelo Piper/VITS · Sherpa local")
+    if (compact) Box {
+        OutlinedButton(onClick = { engineMenu = true }) { Text("Motor: ${VoiceSynthesisContract.label(profile.ttsEngine)}") }
+        DropdownMenu(expanded = engineMenu, onDismissRequest = { engineMenu = false }) {
+            engines.forEach { (id, title) -> DropdownMenuItem(text = { Text(title) },
+                enabled = id != "openai_tts" || VoiceSynthesisContract.speechAvailable(),
+                onClick = { stop(); change(VoiceSelection.engine(profile, id)); engineMenu = false }) }
+        }
+    } else engines.forEach { (id, title) ->
+        FilterChip(selected = profile.ttsEngine == id, enabled = id != "openai_tts" || VoiceSynthesisContract.speechAvailable(), onClick = { stop(); change(VoiceSelection.engine(profile, id)) }, label = { Text(title) })
     }
     Text("Motor del perfil: ${VoiceSynthesisContract.label(profile.ttsEngine)}. Guarda y abre una sesión nueva para aplicar los cambios.")
     if (profile.ttsEngine in listOf("realtime", "openai_tts")) {
         Text("Voces oficiales")
-        (if (profile.ttsEngine == "openai_tts") RealtimeSettings.speechVoices else RealtimeSettings.voices).forEach { id -> FilterChip(selected = profile.voice == id, onClick = { change(profile.copy(voice = id)) }, label = { Text(id) }) }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            VoiceSelection.catalog(profile.ttsEngine).forEach { id -> FilterChip(selected = profile.voice == id, onClick = {
+                stop()
+                android.util.Log.i("PbtVoice", "OFFICIAL_VOICE_SELECTED")
+                change(VoiceSelection.official(profile, id))
+            }, label = { Text(id) }) }
+        }
         if (profile.ttsEngine == "openai_tts") Text("Este endpoint está anunciado como obsoleto y requiere tu clave BYOK de OpenAI, incluso si la conversación usa servidor. La muestra y la síntesis consumen cuota adicional. Usa Realtime para evitar esta ruta transitoria.")
-        OutlinedTextField(profile.tone, { change(profile.copy(tone = it.take(4000))) }, label = { Text("Instrucciones de tono y expresión") }, modifier = Modifier.fillMaxWidth())
+        if (advanced) OutlinedTextField(profile.tone, { change(profile.copy(tone = it.take(4000))) }, label = { Text("Instrucciones de tono y expresión") }, modifier = Modifier.fillMaxWidth())
     }
     if (profile.ttsEngine == "android") {
         Text("Solo se ofrecen voces que el motor declara instaladas y sin requisito de red. Su comportamiento y privacidad dependen también del proveedor Android.")
@@ -114,13 +136,16 @@ fun VoiceLibraryScreen(context: Context, profile: AssistantProfile, change: (Ass
             TextButton(onClick = { stop(); operation = scope.launch { busy = true; try { withContext(Dispatchers.IO) { store.delete(pack.id) }; reload(); report("Modelo eliminado y almacenamiento liberado. Los perfiles que lo referencian necesitan elegir otra voz.") } catch (_: Exception) { report("No se pudo eliminar el modelo.") } finally { busy = false } } }, enabled = !busy) { Text("Eliminar modelo y liberar espacio") }
         } } }
     }
+    TextButton(onClick = { advanced = !advanced }) { Text(if (advanced) "Ocultar ajustes avanzados de voz" else "Ajustes avanzados de voz") }
+    if (advanced) {
     Text("Velocidad: ${"%.2f".format(java.util.Locale.ROOT, profile.speed)}×")
     Slider(profile.speed.toFloat(), { change(profile.copy(speed = it.toDouble())) }, valueRange = 0.25f..1.5f)
     OutlinedTextField(profile.language, { change(profile.copy(language = it.take(30))) }, label = { Text("Idioma de conversación del perfil") }, modifier = Modifier.fillMaxWidth())
     if (profile.ttsEngine in listOf("android", "sherpa_vits", "external")) Text("Cambiar el idioma de conversación no reentrena la voz: la pronunciación depende del idioma y vocabulario del motor/modelo elegido.")
+    }
     Button(onClick = { stop(); save() }, enabled = !busy) { Text("Guardar motor y voz en el asistente") }
     Button(onClick = { stop(); preview(profile) }, enabled = !busy && profile.name.isNotBlank()) { Text("Escuchar muestra (puede consumir API)") }
     OutlinedButton(onClick = { operation?.cancel(); stop() }) { Text("Cancelar operación y audio pendiente") }
     if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-    Text("La conversación alternativa espera el texto y la síntesis antes de reproducir. Durante la reproducción se apaga su micrófono para evitar realimentación; puedes interrumpir con el botón. No se promete la ruta de las gafas sin probarla.")
+    if (!compact || advanced) Text("La conversación alternativa espera el texto y la síntesis antes de reproducir. Durante la reproducción se apaga su micrófono para evitar realimentación; puedes interrumpir con el botón. No se promete la ruta de las gafas sin probarla.")
 }

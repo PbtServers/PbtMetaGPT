@@ -47,7 +47,7 @@ class LocalAudioDiagnostics(private val context: Context, private val scope: Cor
             val expected = if (bluetooth) routed?.type in listOf(AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLE_HEADSET)
                 else routed?.type == AudioDeviceInfo.TYPE_BUILTIN_MIC
             diagnostics.record(Check.LOCAL_MIC, if (rms > 80 && expected) CheckStatus.OK else CheckStatus.WARNING,
-                "Se han leído $samples muestras locales; nivel RMS ${rms.toInt()}; entrada: $routeText. Esto no verifica que la voz sea inteligible ni que proceda de unas Ray-Ban.", if (expected) "SAMPLES_READ" else "ROUTE_MISMATCH")
+                "Se han leído $samples muestras locales; nivel RMS ${rms.toInt()}; entrada: $routeText. Esto no verifica que la voz sea inteligible ni que proceda de las gafas Meta.", if (expected) "SAMPLES_READ" else "ROUTE_MISMATCH")
         } finally { runCatching { recorder.stop() }; recorder.release(); record = null }
     }
 

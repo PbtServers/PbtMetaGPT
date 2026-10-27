@@ -9,7 +9,7 @@ import android.media.AudioDeviceCallback
 import android.os.Handler
 import android.os.Looper
 
-/** Ruta de comunicación Android. No afirma que un dispositivo Bluetooth sea una Ray-Ban. */
+/** Ruta Android por capacidades de comunicación; sin deducir marca o modelo del nombre. */
 class AudioRoute(context: Context, private val onInterrupted: (String) -> Unit) {
     private val manager = context.getSystemService(AudioManager::class.java)
     private var previousMode = AudioManager.MODE_NORMAL
@@ -37,16 +37,13 @@ class AudioRoute(context: Context, private val onInterrupted: (String) -> Unit) 
         started = true
         manager.mode = AudioManager.MODE_IN_COMMUNICATION
         val devices = manager.availableCommunicationDevices
-        val bluetooth = if (preferBluetooth) devices.firstOrNull {
-            it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || it.type == AudioDeviceInfo.TYPE_BLE_HEADSET
-        } else null
-        val target = bluetooth ?: devices.firstOrNull { it.type == if (speaker) AudioDeviceInfo.TYPE_BUILTIN_SPEAKER else AudioDeviceInfo.TYPE_BUILTIN_EARPIECE }
-            ?: devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
-        require(target != null && manager.setCommunicationDevice(target)) { "No se pudo seleccionar una ruta de audio. Comprueba los permisos y el dispositivo." }
-        bluetoothDeviceId = bluetooth?.id
+        val targetId = AudioRoutePolicy.choose(devices.map { AudioCandidate(it.id, it.type) }, preferBluetooth, speaker)
+        val target = devices.firstOrNull { it.id == targetId }
+        if (preferBluetooth && target == null) throw DiagnosticFailure("AUDIO_BLUETOOTH_UNAVAILABLE", "No hay ruta Bluetooth de comunicación compatible. Puedes utilizar el micrófono y altavoz del móvil.")
+        if (target == null || !manager.setCommunicationDevice(target)) throw DiagnosticFailure("AUDIO_ROUTE_UNAVAILABLE", "Android no pudo seleccionar la ruta solicitada. Puedes reintentar con el micrófono y altavoz del móvil.")
+        bluetoothDeviceId = if (preferBluetooth) target.id else null
         manager.registerAudioDeviceCallback(devicesCallback, Handler(Looper.getMainLooper()))
-        return if (bluetooth != null) "Bluetooth solicitado: ${bluetooth.productName}. Comprueba entrada y salida."
-            else if (preferBluetooth) "Sin ruta Bluetooth disponible: se utilizará el teléfono."
+        return if (preferBluetooth) "Bluetooth solicitado: ${target.productName}. Comprueba entrada y salida."
             else "Audio del teléfono"
     }
 
@@ -57,9 +54,13 @@ class AudioRoute(context: Context, private val onInterrupted: (String) -> Unit) 
         started = false
         manager.unregisterAudioDeviceCallback(devicesCallback)
         bluetoothDeviceId = null
-        manager.clearCommunicationDevice()
-        previousDevice?.let { runCatching { manager.setCommunicationDevice(it) } }
-        manager.mode = previousMode
-        manager.abandonAudioFocusRequest(focus)
+        try {
+            manager.clearCommunicationDevice()
+            previousDevice?.let { manager.setCommunicationDevice(it) }
+            manager.mode = previousMode
+        } catch (_: SecurityException) {
+            // El usuario puede revocar Bluetooth durante la sesión; no reabrir la ruta.
+            android.util.Log.w("PbtStart", "AUDIO_PERMISSION_REVOKED_ON_CLOSE")
+        } finally { manager.abandonAudioFocusRequest(focus) }
     }
 }
