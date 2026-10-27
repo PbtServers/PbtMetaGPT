@@ -64,6 +64,7 @@ class VoicePackageStore(private val root: File) {
             hashes.keys().forEach { name -> require(hashes.getString(name).matches(Regex("[a-f0-9]{64}")) && digest(File(staging, name)) == hashes.getString(name)) { "El contenido no coincide con sus hashes." } }
             OnnxMetadata.validate(File(staging, "model.onnx"))
             PronunciationLexicon.load(File(staging, "lexicon.tsv"), File(staging, "tokens.txt")).phonemes(metadata.getString("sampleText"))
+            checkActive() // Cancelar durante los hashes/validación tampoco debe publicar una instalación.
             check(staging.renameTo(directory(id))) { "No se pudo publicar el paquete instalado." }
             return describe(id)
         } finally { if (staging.exists()) staging.deleteRecursively() }
@@ -97,10 +98,14 @@ class PronunciationLexicon private constructor(private val words: Map<String, St
     }
     companion object {
         fun load(lexicon: File, tokens: File): PronunciationLexicon {
-            val symbols = tokens.readLines(Charsets.UTF_8).mapNotNull { line ->
-                val symbol = line.substringBeforeLast(' ', "")
-                symbol.codePoints().toArray().singleOrNull()
-            }.toSet()
+            val symbols = mutableSetOf<Int>(); val identifiers = mutableSetOf<Int>()
+            tokens.forEachLine(Charsets.UTF_8) { line ->
+                if (line.isNotBlank()) {
+                    val symbol = line.substringBeforeLast(' ', "").codePoints().toArray().singleOrNull()
+                    val identifier = line.substringAfterLast(' ', "").toIntOrNull()
+                    require(symbol != null && identifier != null && identifier >= 0 && symbols.add(symbol) && identifiers.add(identifier)) { "Tabla de símbolos dañada: cada símbolo y su identificador numérico deben ser únicos." }
+                }
+            }
             require(' '.code in symbols && symbols.size >= 10) { "Tabla de símbolos no compatible." }
             val words = mutableMapOf<String, String>()
             lexicon.forEachLine(Charsets.UTF_8) { line ->

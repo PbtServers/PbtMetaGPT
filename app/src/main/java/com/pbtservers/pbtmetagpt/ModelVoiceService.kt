@@ -5,16 +5,39 @@ import android.content.Intent
 import android.os.*
 import android.os.Process
 import com.k2fsa.sherpa.onnx.*
-import android.content.res.AssetFileDescriptor
 import android.content.res.Configuration
-import android.content.res.loader.AssetsProvider
 import android.content.res.loader.ResourcesLoader
 import android.content.res.loader.ResourcesProvider
+import android.system.Os
+import android.system.OsConstants
+import java.io.FileOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 
 /** JNI de modelos de usuario en UID aislado, sin Internet, Keystore ni acceso a datos de la app. */
 class ModelVoiceService : Service() {
+    // Contenedor interno de dos assets de datos, sin manifiesto, DEX, tablas ni bibliotecas.
+    // El lector nativo de assets recibe el descriptor directamente, nunca una ruta /proc.
+    private fun assetArchive(model: ParcelFileDescriptor, tokens: ParcelFileDescriptor): ParcelFileDescriptor {
+        val descriptor = Os.memfd_create("voz_assets", OsConstants.MFD_CLOEXEC)
+        val reader = try { ParcelFileDescriptor.dup(descriptor) } catch (problem: Exception) { Os.close(descriptor); throw problem }
+        try {
+            ZipOutputStream(FileOutputStream(descriptor)).use { zip ->
+                zip.setLevel(0)
+                listOf(Triple("model.onnx", model, 268435456L), Triple("tokens.txt", tokens, 2097152L)).forEach { (name, source, limit) ->
+                    zip.putNextEntry(ZipEntry("assets/$name"))
+                    ParcelFileDescriptor.AutoCloseInputStream(source).use { input ->
+                        val buffer = ByteArray(65536); var count = 0L
+                        while (true) { val n = input.read(buffer); if (n < 0) break; count += n; require(count <= limit); zip.write(buffer, 0, n) }
+                    }
+                    zip.closeEntry()
+                }
+            }
+            return reader
+        } catch (problem: Throwable) { reader.close(); throw problem }
+    }
     private fun <T> onMain(block: () -> T): T {
         if (Looper.myLooper() == Looper.getMainLooper()) return block()
         val task = FutureTask<T> { block() }
@@ -32,6 +55,7 @@ class ModelVoiceService : Service() {
                 var loader: ResourcesLoader? = null
                 var provider: ResourcesProvider? = null
                 var modelResources: android.content.res.Resources? = null
+                var archive: ParcelFileDescriptor? = null
                 val model = data.getParcelable<ParcelFileDescriptor>("model")
                 val tokens = data.getParcelable<ParcelFileDescriptor>("tokens")
                 val audio = data.getParcelable<ParcelFileDescriptor>("audio")
@@ -40,24 +64,17 @@ class ModelVoiceService : Service() {
                     require(model != null && tokens != null && audio != null)
                     stage = 2
                     require(model.statSize in 1L..268435456L && tokens.statSize in 1L..2097152L)
-                    // API pública: el runtime lee datos por AssetManager, sin reabrir rutas /proc
-                    // prohibidas al UID aislado y sin conceder acceso al directorio privado.
+                    val archiveData = assetArchive(model, tokens); archive = archiveData
+                    // API pública y lector ZIP nativo: sin callbacks Java desde el motor JNI.
                     val loadedResources = onMain {
-                        val assetProvider = ResourcesProvider.empty(object : AssetsProvider {
-                            override fun loadAssetFd(path: String, accessMode: Int): AssetFileDescriptor? {
-                                val source = when (path) {
-                                    "assets/model.onnx", "model.onnx" -> model
-                                    "assets/tokens.txt", "tokens.txt" -> tokens
-                                    else -> return null
-                                }
-                                return AssetFileDescriptor(ParcelFileDescriptor.dup(source.fileDescriptor), 0, source.statSize)
-                            }
-                        })
+                        val assetProvider = ResourcesProvider.loadFromApk(archiveData)
                         provider = assetProvider
                         val assetLoader = ResourcesLoader().apply { addProvider(assetProvider) }; loader = assetLoader
                         createConfigurationContext(Configuration(resources.configuration)).resources.also { modelResources = it; it.addLoaders(assetLoader) }
                     }
                     stage = 3
+                    loadedResources.assets.open("model.onnx").use { require(it.read() >= 0) }
+                    loadedResources.assets.open("tokens.txt").use { require(it.read() >= 0) }
                     val config = OfflineTtsConfig(model = OfflineTtsModelConfig(vits = OfflineTtsVitsModelConfig(
                         model = "model.onnx", tokens = "tokens.txt"), numThreads = 2, debug = false, provider = "cpu"))
                     stage = 4
@@ -105,6 +122,7 @@ class ModelVoiceService : Service() {
                 finally {
                     runCatching { engine?.release() }; runCatching { audio?.close() }; runCatching { model?.close() }; runCatching { tokens?.close() }
                     runCatching { onMain { loader?.let { modelResources?.removeLoaders(it); it.clearProviders() }; provider?.close() } }
+                    runCatching { archive?.close() }
                     // Proceso por petición: elimina estado nativo y cualquier grafo que no coopere tras cancelar.
                     Handler(Looper.getMainLooper()).postDelayed({ Process.killProcess(Process.myPid()) }, 100)
                 }

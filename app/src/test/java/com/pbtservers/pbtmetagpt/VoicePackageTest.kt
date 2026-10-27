@@ -59,6 +59,11 @@ class VoicePackageTest {
             assertArrayEquals("hab".codePoints().toArray(), PronunciationLexicon.load(a, b).phonemes("HOLA"))
             assertTrue(runCatching { PronunciationLexicon.load(a, b).phonemes("desconocida") }.isFailure)
             a.writeText("hola\t☃\n"); assertTrue(runCatching { PronunciationLexicon.load(a, b) }.isFailure)
+            a.writeBytes(f.getValue("lexicon.tsv"))
+            b.writeText(f.getValue("tokens.txt").toString(Charsets.UTF_8).replace("a 1", "a no-numerico"))
+            assertTrue(runCatching { PronunciationLexicon.load(a, b) }.isFailure)
+            b.writeText(f.getValue("tokens.txt").toString(Charsets.UTF_8).replace("a 1", "a 0"))
+            assertTrue(runCatching { PronunciationLexicon.load(a, b) }.isFailure)
         } finally { root.deleteRecursively() }
     }
     @Test fun `protobuf truncado no acredita compatibilidad`() {
@@ -66,6 +71,18 @@ class VoicePackageTest {
         try {
             val file = File(root, "model.onnx")
             listOf(byteArrayOf(), ByteArray(500), structuralOnnx().dropLast(4).toByteArray()).forEach { file.writeBytes(it); assertTrue(runCatching { OnnxMetadata.validate(file) }.isFailure) }
+        } finally { root.deleteRecursively() }
+    }
+    @Test fun `cancelar tras leer el zip impide publicar y limpia archivos temporales`() {
+        val root = Files.createTempDirectory("cancelar-paquete-").toFile(); val store = VoicePackageStore(root)
+        var readFinished = false
+        val input = object : java.io.ByteArrayInputStream(zip(files())) {
+            override fun close() { readFinished = true; super.close() }
+        }
+        try {
+            val result = runCatching { store.install(input) { if (readFinished) throw java.util.concurrent.CancellationException() } }
+            assertTrue(result.exceptionOrNull() is java.util.concurrent.CancellationException)
+            assertTrue(root.listFiles().orEmpty().isEmpty())
         } finally { root.deleteRecursively() }
     }
 }
