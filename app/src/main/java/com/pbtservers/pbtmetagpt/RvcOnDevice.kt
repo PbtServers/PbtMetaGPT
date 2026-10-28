@@ -5,7 +5,6 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
-import android.util.Half
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -165,7 +164,7 @@ class RvcOnDevice(private val store: RvcOnnxStore) : Closeable {
             // valores @HalfFloat desde una lambda genérica ShortArray(size).
             val halfBits = ShortArray(data.size)
             for (index in data.indices) {
-                halfBits[index] = Half.toHalf(data[index])
+                halfBits[index] = RvcHalfBits.encode(data[index])
             }
             OnnxTensor.createTensor(env, ShortBuffer.wrap(halfBits),
                 dimensions, OnnxJavaType.FLOAT16)
@@ -192,7 +191,7 @@ class RvcOnDevice(private val store: RvcOnnxStore) : Closeable {
                     }
                     OnnxJavaType.FLOAT16 -> {
                         val buffer = tensor.byteBuffer.asShortBuffer()
-                        FloatArray(buffer.remaining()) { index -> Half.toFloat(buffer.get(index)) }
+                        FloatArray(buffer.remaining()) { index -> RvcHalfBits.decode(buffer.get(index)) }
                     }
                     else -> throw IllegalArgumentException("Tipo de salida ONNX RVC no compatible.")
                 }
