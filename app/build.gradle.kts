@@ -26,7 +26,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures { compose = true; buildConfig = true }
-    packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+    packaging {
+        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        // Sherpa y ONNX Runtime Android incluyen la misma biblioteca C.
+        // Empaquetar una sola instancia evita MergeNativeLibs duplicado.
+        // Los tests instrumentados deben verificar ambos motores en el mismo proceso.
+        jniLibs.pickFirsts += "lib/**/libonnxruntime.so"
+    }
 }
 kotlin { compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17 } }
 dependencies {
