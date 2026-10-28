@@ -36,6 +36,7 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
                     // Modelo español abierto: permite nombres de su vocabulario sin sesgar todo el ruido a una frase.
                     Recognizer(model, 16000f).use { recognizer ->
                         recognizer.setMaxAlternatives(5)
+                        recognizer.setWords(true)
                         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) throw SecurityException()
                         lease = gatekeeper.acquire(MicrophoneOwner.CONTINUOUS_LOCAL)
                         check(lease != null) { "El micrófono ya está en uso" }
@@ -55,6 +56,7 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
                         try {
                             check(recorder.state == AudioRecord.STATE_INITIALIZED)
                             recorder.startRecording(); check(recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING)
+                            val capturedAt = android.os.SystemClock.elapsedRealtime()
                             cpu.acquire()
                             withContext(Dispatchers.Main) { ready() }
                             val buffer = ShortArray(3200)
@@ -81,6 +83,12 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
                                         else (0 until alternatives.length()).map { alternatives.getJSONObject(it).optString("text") }
                                     val match = gate.acceptUtterance(texts, epoch)
                                     if (match != null) {
+                                        alternatives?.optJSONObject(0)?.optJSONArray("result")?.optJSONObject(0)?.let { word ->
+                                            if (word.has("start")) {
+                                                val latency = (android.os.SystemClock.elapsedRealtime() - capturedAt - (word.optDouble("start") * 1000).toLong()).coerceAtLeast(0)
+                                                withContext(Dispatchers.Main) { LatencyStore(context).record(mapOf(VoiceStage.WAKE_DETECTION to latency)) }
+                                            }
+                                        }
                                         // Primero salir y liberar AudioRecord; el callback se encola después del finally.
                                         val recordingJob = currentCoroutineContext().job
                                         scope.launch(Dispatchers.Main) { recordingJob.join(); detected(match.profile, match.question) }

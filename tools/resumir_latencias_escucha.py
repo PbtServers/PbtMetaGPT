@@ -4,7 +4,7 @@ import json
 import math
 from pathlib import Path
 
-STAGES = ("STOP_DETECTION", "STOP_AUDIO_REQUEST", "FOLLOW_UP_READY")
+STAGES = ("WAKE_DETECTION", "STOP_DETECTION", "STOP_AUDIO_REQUEST", "FOLLOW_UP_READY")
 
 
 def summarize(samples):

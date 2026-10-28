@@ -14,7 +14,7 @@ class WakeSessionPolicy {
     private var hadSession = false
     fun authorize() { epoch++; authorized = true; hadSession = false; phase = ListeningPhase.LOADING }
     fun beginListening(): Int? {
-        if (!authorized) return null
+        if (!authorized || phase !in setOf(ListeningPhase.LOADING, ListeningPhase.RETURNING)) return null
         phase = ListeningPhase.LOADING
         return ++epoch
     }

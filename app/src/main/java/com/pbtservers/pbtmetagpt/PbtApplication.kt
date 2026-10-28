@@ -30,6 +30,7 @@ class PbtApplication : Application() {
     fun openChatGpt() {
         if (handoff?.isActive == true) return
         stopVisibleWake?.invoke()
+        ContinuousWakeService.revokeConsent()
         // Invalidar inmediatamente; esperar la liberación antes del Intent, fuera de la UI.
         hosted.stop(); voice.stop()
         handoff = scope.launch {

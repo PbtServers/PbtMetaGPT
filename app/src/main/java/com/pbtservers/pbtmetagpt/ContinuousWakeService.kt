@@ -61,6 +61,9 @@ class ContinuousWakeService : Service() {
         return START_NOT_STICKY
     }
     private suspend fun listen() {
+        // «Termina» publica el cierre inmediatamente; el AudioRecord anterior
+        // todavía puede estar liberándose. No competir con él al volver a espera.
+        app.hosted.awaitReleased()
         val current = session.beginListening() ?: return
         update(ListeningPhase.LOADING)
         engine.start(candidates, ready = { if (session.ready(current)) update(session.phase) }, detected = { matched, question ->
@@ -110,7 +113,9 @@ class ContinuousWakeService : Service() {
     }
     private fun pause() {
         suspendListening()
-        app.hosted.suspendConversation(); app.voice.stop()
+        app.hosted.suspendConversation()
+        if (app.voice.state.value.active && !app.voice.state.value.paused) app.voice.pauseOrResume()
+        else if (app.voice.state.value.connecting) app.voice.stop()
     }
     private suspend fun prepareConversation() {
         session.preparing()
@@ -168,6 +173,7 @@ class ContinuousWakeService : Service() {
             context.stopService(Intent(context, ContinuousWakeService::class.java))
         }
         suspend fun beforeRealtime() { instance?.prepareConversation() }
+        fun revokeConsent() { instance?.session?.suspendListening(); instance?.activation?.cancel() }
         suspend fun releaseForExternal() {
             instance?.let { service ->
                 service.activation?.cancelAndJoin(); service.activation = null

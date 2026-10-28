@@ -166,6 +166,7 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
         if (returnToWake && vs.active) hadSession = true
         if (returnToWake && hadSession && !vs.active && !vs.connecting) {
             hadSession = false
+            if (provider == "groq") hosted.awaitReleased()
             if (consent && owner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) selected?.let { wake.start(if (allProfiles) listOf(it) + profiles.filter { p -> p.id != it.id } else listOf(it)) }
         }
     }

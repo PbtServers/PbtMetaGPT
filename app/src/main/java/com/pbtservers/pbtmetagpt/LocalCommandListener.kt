@@ -57,7 +57,7 @@ class LocalCommandListener(private val context: Context) {
                             if (!announced) {
                                 announced = true
                                 val source = if (routed.type == AudioDeviceInfo.TYPE_BUILTIN_MIC) "teléfono" else "entrada Android tipo ${routed.type}"
-                                withContext(Dispatchers.Main) { status("Detector local · $source · barge-in experimental${if (aec?.enabled != true) " · sin AEC: Parar durante voz" else ""}") }
+                                withContext(Dispatchers.Main) { status("Interrupción por voz experimental · $source${if (aec?.enabled != true) " · sin control de eco: usa Parar durante voz" else ""}") }
                             }
                         }
                         val n = active.read(buffer, 0, buffer.size, AudioRecord.READ_NON_BLOCKING)

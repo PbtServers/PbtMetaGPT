@@ -366,7 +366,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
             LocalVoiceCommand.END -> stop()
             LocalVoiceCommand.STOP_LISTENING -> {
                 ListeningSettings(context).save(options.copy(background = false))
-                stop(); ContinuousWakeService.stop(context)
+                ContinuousWakeService.stop(context); stop()
                 (context.applicationContext as PbtApplication).stopVisibleWake?.invoke()
             }
             LocalVoiceCommand.CHATGPT -> (context.applicationContext as PbtApplication).openChatGpt()
@@ -404,6 +404,9 @@ class HostedConversation(private val context: Context, private val scope: Corout
         processing.value = false
         mutable.update { it.copy(paused = true, responding = false, connecting = false, status = "Pausado · pulsa Micrófono para reanudar") }
     }
-    suspend fun awaitReleased() { draining?.join(); commands?.join() }
+    suspend fun awaitReleased() {
+        do { val pending = draining; pending?.join() } while (pending !== draining)
+        if (!mutable.value.active) commands?.join()
+    }
     fun clear() { stop(); chat.value = emptyList(); lastAnswer = null; timing.value = emptyMap(); voiceFailure.value = null; mutable.value = VoiceState(status = "Listo") }
 }

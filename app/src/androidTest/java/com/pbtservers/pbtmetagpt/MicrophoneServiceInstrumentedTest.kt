@@ -8,14 +8,19 @@ import android.media.*
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.rule.GrantPermissionRule
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.flowOf
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.Rule
+import org.webrtc.PeerConnectionFactory
+import org.webrtc.audio.JavaAudioDeviceModule
 
 /** Se ejecuta en un segundo bloque de instrumentación con permisos concedidos por CI. */
 class MicrophoneServiceInstrumentedTest {
+    @get:Rule val permissions: GrantPermissionRule = GrantPermissionRule.grant(Manifest.permission.RECORD_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
     private val app get() = context.applicationContext as PbtApplication
@@ -69,7 +74,9 @@ class MicrophoneServiceInstrumentedTest {
         val player = PcmPlayer()
         var recorder: AudioRecord? = null
         var playback: Job? = null
+        var activity: ActivityScenario<MainActivity>? = null
         try {
+            activity = ActivityScenario.launch(MainActivity::class.java)
             route.start(false, speaker = true)
             val minimum = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
             val record = AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, 16000, AudioFormat.CHANNEL_IN_MONO,
@@ -101,11 +108,40 @@ class MicrophoneServiceInstrumentedTest {
             // Se han leído tramas durante la salida real del emulador. No prueba acústica ni Bluetooth.
         } finally {
             player.stop(); playback?.cancelAndJoin()
-            runCatching { recorder?.stop() }; recorder?.release(); route.close(); gate.release(lease)
+            runCatching { recorder?.stop() }; recorder?.release(); route.close(); gate.release(lease); activity?.close()
         }
         assertNull(gate.owner())
     }
     private suspend fun await(condition: () -> Boolean) { withTimeout(20000) { while (!condition()) delay(50) } }
+    @Test fun moduloWebrtcPublicoEntregaPcmLocalSinEnviarAudioARed() = runBlocking<Unit> {
+        val lease = requireNotNull(app.microphone.acquire(MicrophoneOwner.REALTIME))
+        val input = CommandPcmQueue()
+        val route = AudioRoute(context) { fail("Ruta de prueba interrumpida") }
+        var module: JavaAudioDeviceModule? = null
+        var factory: PeerConnectionFactory? = null
+        var activity: ActivityScenario<MainActivity>? = null
+        try {
+            activity = ActivityScenario.launch(MainActivity::class.java)
+            route.start(false, speaker = true)
+            WebRtcBootstrap.ensure(context)
+            val audio = JavaAudioDeviceModule.builder(context).setInputSampleRate(16000)
+                .setAudioBufferCallback { buffer, format, channels, rate, bytes, time ->
+                    input.submit(buffer, format, channels, rate, bytes, android.os.SystemClock.elapsedRealtime()); time
+                }.createAudioDeviceModule().also { module = it }
+            factory = PeerConnectionFactory.builder().setAudioDeviceModule(audio).createPeerConnectionFactory()
+            // Sin PeerConnection, SDP, credenciales ni red: usa la API pública de captura local.
+            audio.requestStartRecording()
+            val frame = withTimeout(10000) { input.frames.receive() }
+            assertEquals(16000, frame.rate); assertTrue(frame.size > 0)
+            input.release(frame)
+            assertNotNull(audio.platformAudioProcessingState)
+            audio.requestStopRecording()
+        } finally {
+            module?.requestStopRecording(); factory?.dispose(); module?.release()
+            input.close(); route.close(); app.microphone.release(lease); activity?.close()
+        }
+        assertNull(app.microphone.owner())
+    }
     private fun shell(command: String) { instrumentation.uiAutomation.executeShellCommand(command).use { descriptor ->
         android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { it.readBytes() }
     } }

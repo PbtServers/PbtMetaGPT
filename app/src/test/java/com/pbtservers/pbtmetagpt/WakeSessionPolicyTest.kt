@@ -4,6 +4,28 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class WakeSessionPolicyTest {
+    @Test fun `termina vuelve a espera y admite tres conversaciones sin otra autorizacion`() {
+        val policy = WakeSessionPolicy().apply { authorize() }
+        repeat(3) {
+            val token = requireNotNull(policy.beginListening())
+            assertTrue(policy.ready(token)); assertTrue(policy.detected(token))
+            policy.preparing(); policy.onVoice(true, false, false)
+            assertNull(policy.beginListening()) // Una conversación viva no puede ceder el micrófono.
+            assertTrue(policy.onVoice(false, false, false))
+            assertTrue(policy.authorized); assertEquals(ListeningPhase.RETURNING, policy.phase)
+            assertFalse(policy.detected(token))
+        }
+        val next = requireNotNull(policy.beginListening())
+        assertTrue(policy.ready(next)); assertEquals(ListeningPhase.LISTENING, policy.phase)
+        policy.stop() // «Deja de escuchar» revoca también el siguiente inicio.
+        assertNull(policy.beginListening())
+    }
+    @Test fun `una preparacion nueva durante la liberacion impide un rearme antiguo`() {
+        val policy = WakeSessionPolicy().apply { authorize(); onVoice(true, false, false) }
+        assertTrue(policy.onVoice(false, false, false))
+        policy.preparing()
+        assertNull(policy.beginListening())
+    }
     @Test fun `sin accion explicita no escucha ni vuelve de una sesion`() {
         val policy = WakeSessionPolicy()
         assertNull(policy.beginListening()); assertFalse(policy.onVoice(true, false, false))

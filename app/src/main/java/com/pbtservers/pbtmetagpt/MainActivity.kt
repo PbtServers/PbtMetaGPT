@@ -97,6 +97,7 @@ class MainActivity : ComponentActivity() {
             PbtTheme(themeMode) {
                 val gs by glasses.state.collectAsStateWithLifecycle()
                 val vs by voice.state.collectAsStateWithLifecycle()
+                val voiceCommands by voice.commandStatus.collectAsStateWithLifecycle()
                 val freeVoice by app.hosted.state.collectAsStateWithLifecycle()
                 val groqSelected = HostedSettings(this).provider == "groq"
                 var captureConsent by remember { mutableStateOf(false) }
@@ -167,7 +168,7 @@ class MainActivity : ComponentActivity() {
                         if (page == "Inicio" || page == "Conversación") Panel("02 · Conversación", "OpenAI API · integración opcional") {
                             Text(vs.status, color = MaterialTheme.colorScheme.primary)
                             Text(vs.route, style = MaterialTheme.typography.bodySmall)
-                            if (vs.phoneFallbackAvailable) OutlinedButton(onClick = { setBluetooth(false); start() }) { Text("Usar micrófono y altavoz del móvil") }
+                            if (vs.phoneFallbackAvailable) OutlinedButton(onClick = { setBluetooth(false); if (vs.active && vs.paused) voice.resumeOnPhone() else start() }) { Text("Usar micrófono y altavoz del móvil") }
                             if (!vs.active && !vs.connecting) {
                                 Text("Selecciona tu asistente y configura la conexión en OpenAI. El modo directo no necesita backend.")
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -185,10 +186,12 @@ class MainActivity : ComponentActivity() {
                             if (vs.active && !vs.imageAnalysis) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Button(onClick = voice::pauseOrResume) { Text(if (vs.paused) "Reanudar" else "Pausar") }
-                                    OutlinedButton(onClick = voice::interrupt, enabled = vs.responding) { Text("Interrumpir") }
+                                    Button(onClick = voice::interrupt, enabled = vs.responding, modifier = Modifier.heightIn(min = 64.dp)) { Text("Parar") }
                                 }
                             }
                             if (vs.active || vs.connecting) OutlinedButton(onClick = voice::stop) { Text(if (vs.connecting) "Cancelar conexión" else "Finalizar conversación") }
+                            if (voiceCommands.isNotBlank()) Text(voiceCommands, style = MaterialTheme.typography.bodySmall)
+                            TextButton(onClick = app::openChatGpt) { Text("Abrir ChatGPT") }
                             if (vs.transcript.isNotBlank()) Text(vs.transcript, style = MaterialTheme.typography.bodyLarge)
                             Text("La pausa conserva el contexto. Con escucha persistente autorizada, el servicio mantiene el control del audio al salir; puedes detenerlo desde su notificación.", style = MaterialTheme.typography.bodySmall)
                         }

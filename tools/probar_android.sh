@@ -13,15 +13,17 @@ mkdir -p app/build/reports/androidTests/sin-microfono
 if [ -d app/build/outputs/androidTest-results/connected ]; then
   cp -R app/build/outputs/androidTest-results/connected/. app/build/reports/androidTests/sin-microfono/
 fi
-adb shell pm grant "$package" android.permission.RECORD_AUDIO || result=1
-adb shell pm grant "$package" android.permission.POST_NOTIFICATIONS || result=1
+# Gradle desinstala la APK al terminar un bloque. GrantPermissionRule concede
+# exclusivamente en la clase de captura después de la instalación del segundo.
 bash ./gradlew --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class="$capture_class" || result=$?
 mkdir -p app/build/reports/androidTests/con-microfono
 if [ -d app/build/outputs/androidTest-results/connected ]; then
   cp -R app/build/outputs/androidTest-results/connected/. app/build/reports/androidTests/con-microfono/
 fi
-adb shell pm revoke "$package" android.permission.RECORD_AUDIO || result=1
-adb shell pm revoke "$package" android.permission.POST_NOTIFICATIONS || result=1
+if adb shell pm path "$package" | grep -q '^package:'; then
+  adb shell pm revoke "$package" android.permission.RECORD_AUDIO || result=1
+  adb shell pm revoke "$package" android.permission.POST_NOTIFICATIONS || result=1
+fi
 if adb shell dumpsys activity services "$package" | grep -E 'ServiceRecord.*ContinuousWakeService'; then
   echo 'El servicio no se ha liberado después de las pruebas y la retirada de permiso.'
   result=1

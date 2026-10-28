@@ -2,6 +2,8 @@ package com.pbtservers.pbtmetagpt
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.media.AudioManager
+import android.os.SystemClock
 import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
@@ -38,7 +40,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     private val http = OkHttpClient.Builder().callTimeout(20, TimeUnit.SECONDS)
         .followRedirects(false).followSslRedirects(false).build()
     private var factory: PeerConnectionFactory? = null
-    private var module: JavaAudioDeviceModule? = null
+    @Volatile private var module: JavaAudioDeviceModule? = null
     private var peer: PeerConnection? = null
     private var channel: DataChannel? = null
     private var source: AudioSource? = null
@@ -47,25 +49,36 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     private var job: Job? = null
     private var timeout: Job? = null
     private var sessionLimit: Job? = null
-    private var generation = 0
+    @Volatile private var generation = 0
+    @Volatile private var localCommands: RealtimeCommandMonitor? = null
+    @Volatile private var echoText = ""
+    private val commandValue = MutableStateFlow("")
+    val commandStatus = commandValue.asStateFlow()
+    private var inactivity: Job? = null
+    private var playbackEpoch = 0L
+    private var alternativeItem = ""
+    private val deletedAlternativeItems = mutableSetOf<String>()
     private val callbacks = NativeCallbackQueue(scope) { generation }
     private var diagnosticOnly = false
     private var sampleOnly = false
     private var imageOnly = false
     private var pendingImage: Bitmap? = null
     private var requestedBluetooth = false
+    private var routeSuspended = false
     private var profile: AssistantProfile? = null
     private var sessionProfile: AssistantProfile? = null
     private var directKey: (() -> String)? = null
     private var configured = false
     private var generating = false
-    private var outputPlaying = false
+    @Volatile private var outputPlaying = false
+    @Volatile private var alternativePlaying = false
     private var currentResponse = ""
     private val suppressed = mutableSetOf<String>()
     private val texts = mutableMapOf<String, String>()
     private fun usesAlternative() = sessionProfile?.let(VoiceSynthesisContract::alternative) == true
     private val alternative = AlternativeSpeech(appContext, scope,
         { message -> if (state.value.active) {
+            if (message.startsWith("Reproduciendo")) alternativePlaying = true
             if (message.startsWith("Reproduciendo")) diagnostics.record(Check.TTS_ENGINE, CheckStatus.OK, "El motor entregó PCM y comenzó su reproducción; falta confirmación auditiva y física.", "PCM_READY")
             else diagnostics.record(Check.TTS_ENGINE, CheckStatus.RUNNING, "El motor está preparando la síntesis alternativa.", "TTS_RUNNING")
             mutable.update { it.copy(status = message, responding = true) }
@@ -76,11 +89,15 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
         this.profile = profile
         this.directKey = directKey
     }
-    private val route = AudioRoute(appContext) { message -> scope.launch {
-        val offerPhone = requestedBluetooth
-        stopInternal(false, message, offerPhone)
+    private val route = AudioRoute(appContext) { message -> scope.launch { suspendAfterAudioLoss(message) } }
+    private fun suspendAfterAudioLoss(message: String) {
+        if (state.value.active && !sampleOnly && !imageOnly) {
+            if (!state.value.paused) pauseOrResume()
+            route.close(); routeSuspended = true
+            mutable.update { it.copy(status = "Pausado · otra aplicación o dispositivo necesita el audio", route = "Ruta liberada · micrófono apagado", phoneFallbackAvailable = requestedBluetooth) }
+        } else stopInternal(false, message, requestedBluetooth)
         error(message)
-    } }
+    }
 
     fun start(baseUrl: String, accessToken: String, bluetooth: Boolean, testOnly: Boolean = false, sample: Boolean = false, image: Bitmap? = null) {
         android.util.Log.i("PbtStart", "REALTIME_START_REQUEST")
@@ -135,6 +152,11 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     android.util.Log.i("PbtStart", "AUDIO_MODULE_CREATE")
                     (appContext as? PbtApplication)?.journal?.record(Check.MICROPHONE, Fault.AUDIO_MODULE_CREATE)
                     val audioModule = JavaAudioDeviceModule.builder(appContext)
+                        .setAudioBufferCallback { buffer, format, channels, rate, bytes, captureTime ->
+                            if (current == generation && state.value.active && !state.value.paused)
+                                localCommands?.input?.submit(buffer, format, channels, rate, bytes, SystemClock.elapsedRealtime())
+                            captureTime // No modificar muestras, posición ni marca de captura del proveedor.
+                        }
                         .setAudioRecordErrorCallback(object : JavaAudioDeviceModule.AudioRecordErrorCallback {
                             private fun failed() = dispatch(current) { diagnostics.record(Check.MICROPHONE, CheckStatus.ERROR, "WebRTC notificó un fallo real de captura.", "NATIVE_RECORD_ERROR"); fail("No se pudo utilizar el micrófono. Comprueba permisos, ruta de audio y otras aplicaciones.") }
                             override fun onWebRtcAudioRecordInitError(message: String) = failed()
@@ -278,6 +300,16 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     private fun receive(text: String) {
         try {
             val event = JSONObject(text)
+            val responseId = event.optString("response_id").ifBlank { event.optJSONObject("response")?.optString("id").orEmpty() }
+            if (responseId.isNotBlank() && responseId in suppressed) {
+                if (usesAlternative()) {
+                    deleteAlternativeItem(event.optJSONObject("item")?.optString("id").orEmpty())
+                    event.optJSONObject("response")?.optJSONArray("output")?.let { output ->
+                        for (i in 0 until output.length()) deleteAlternativeItem(output.optJSONObject(i)?.optString("id").orEmpty())
+                    }
+                }
+                texts.remove(responseId); return
+            }
             when (event.optString("type")) {
                 "session.created" -> {
                     diagnostics.record(Check.REALTIME, CheckStatus.OK, "OpenAI ha enviado session.created por el canal real. Esto no acredita audio ni gafas.", "SESSION_CREATED")
@@ -294,27 +326,34 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     else ready()
                 }
                 "response.created" -> {
+                    playbackEpoch++; echoText = ""; inactivity?.cancel()
                     currentResponse = event.optJSONObject("response")?.optString("id").orEmpty()
                     generating = true
                     mutable.update { it.copy(responding = true, status = if (it.paused) "En pausa · micrófono apagado" else "ChatGPT está respondiendo…") }
                     if (state.value.paused && !sampleOnly) interrupt() else if (!usesAlternative()) peer?.setAudioPlayout(true)
                 }
                 "response.done" -> {
+                    if (responseId.isNotBlank() && responseId != currentResponse) return
                     generating = false
                     val response = event.optJSONObject("response")
                     val id = response?.optString("id").orEmpty()
-                    val cancelled = suppressed.remove(id)
+                    val cancelled = id in suppressed
                     mutable.update { it.copy(responding = outputPlaying, status = if (it.paused && !sampleOnly) "En pausa · micrófono apagado" else if (outputPlaying) "Reproduciendo respuesta…" else if (imageOnly) "Análisis recibido · micrófono apagado" else if (sampleOnly) "Terminando muestra de voz…" else "Escuchando · micrófono encendido") }
                     if (event.optJSONObject("response")?.optString("status") == "failed") {
                         diagnostics.record(Check.PROVIDER, CheckStatus.ERROR, "OpenAI no pudo completar la respuesta.", "RESPONSE_FAILED")
                         error("OpenAI no pudo completar la respuesta. Comprueba cuota y compatibilidad del modelo.")
                     }
                     if (usesAlternative() && response?.optString("status") == "completed" && !cancelled && !state.value.paused) {
+                        alternativeItem = response.optJSONArray("output")?.optJSONObject(0)?.optString("id").orEmpty()
                         val text = responseText(response).ifBlank { texts[id].orEmpty() }
                         if (text.isNotBlank()) speakAlternative(text)
                         else error("OpenAI no devolvió texto para el sintetizador alternativo.")
                     }
                     texts.remove(id)
+                    if (!usesAlternative() && !outputPlaying) armInactivity()
+                }
+                "response.output_item.added" -> {
+                    if (usesAlternative()) alternativeItem = event.optJSONObject("item")?.optString("id").orEmpty()
                 }
                 "output_audio_buffer.started" -> {
                     if (usesAlternative()) { peer?.setAudioPlayout(false); return }
@@ -326,12 +365,13 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     outputPlaying = false
                     mutable.update { it.copy(responding = generating, status = if (imageOnly) "Análisis recibido · micrófono apagado" else if (sampleOnly) "Muestra terminada" else if (it.paused) "En pausa · micrófono apagado" else "Escuchando · micrófono encendido") }
                     if (sampleOnly) { timeout?.cancel(); timeout = scope.launch { delay(500); stop() } }
+                    else if (!generating) armInactivity()
                 }
-                "input_audio_buffer.speech_started" -> if (!state.value.paused) mutable.update { it.copy(status = "Escuchando tu petición…") }
+                "input_audio_buffer.speech_started" -> if (!state.value.paused) { inactivity?.cancel(); mutable.update { it.copy(status = "Escuchando tu petición…") } }
                 "input_audio_buffer.speech_stopped" -> if (!state.value.paused) mutable.update { it.copy(status = "Procesando tu petición…") }
-                "response.output_audio_transcript.delta" -> mutable.update { it.copy(transcript = (it.transcript + event.optString("delta")).takeLast(4000)) }
+                "response.output_audio_transcript.delta" -> { echoText = (echoText + event.optString("delta")).takeLast(16000); mutable.update { it.copy(transcript = (it.transcript + event.optString("delta")).takeLast(4000)) } }
                 "response.output_audio_transcript.done" -> mutable.update { it.copy(transcript = (it.transcript + "\n\n").takeLast(4000)) }
-                "response.output_text.delta" -> mutable.update { it.copy(transcript = (it.transcript + event.optString("delta")).takeLast(4000)) }
+                "response.output_text.delta" -> { echoText = (echoText + event.optString("delta")).takeLast(16000); mutable.update { it.copy(transcript = (it.transcript + event.optString("delta")).takeLast(4000)) } }
                 "response.output_text.done" -> {
                     texts[event.optString("response_id")] = event.optString("text").take(16000)
                     mutable.update { it.copy(transcript = (it.transcript + "\n\n").takeLast(4000)) }
@@ -356,16 +396,23 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     }
 
     private fun speakAlternative(text: String) {
+        alternativePlaying = false
         val selected = sessionProfile ?: return
         val current = generation
+        val currentPlayback = playbackEpoch
         peer?.setAudioRecording(false); microphone?.setEnabled(false); peer?.setAudioPlayout(false)
+        // Captura LOCAL del mismo módulo; pista saliente deshabilitada durante TTS.
+        if (localCommands != null && !state.value.paused && !imageOnly && !sampleOnly) module?.requestStartRecording()
         mutable.update { it.copy(responding = true, status = "Generando voz alternativa · micrófono apagado") }
         alternative.speak(selected, text) {
-            if (current != generation) return@speak
+            if (current != generation || currentPlayback != playbackEpoch) return@speak
+            alternativeItem = ""
+            alternativePlaying = false
             if (sampleOnly) stop()
             else if (state.value.active) {
                 if (!state.value.paused && !imageOnly) { peer?.setAudioRecording(true); microphone?.setEnabled(true) }
                 mutable.update { it.copy(responding = false, status = if (imageOnly) "Análisis recibido · micrófono apagado" else if (it.paused) "En pausa · micrófono apagado" else "Escuchando · micrófono encendido") }
+                armInactivity()
             }
         }
     }
@@ -405,10 +452,12 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     microphone?.setEnabled(true)
                     mutable.update { it.copy(connecting = false, active = true, status = "Escuchando · micrófono encendido", route = it.route + "\n" + route.actualRoute()) }
             sessionProfile?.let { selected ->
-                sessionLimit = scope.launch { delay(selected.sessionMinutes * 60_000L); stop(); error("La sesión ha terminado por su límite de duración configurado.") }
+                if (!ListeningSettings(appContext).load().continuous) sessionLimit = scope.launch { delay(selected.sessionMinutes * 60_000L); stop(); error("La sesión ha terminado por su límite de duración configurado.") }
                 if (selected.welcomeMessage.isNotBlank()) send(JSONObject().put("type", "response.create").put("response", JSONObject()
                     .put("instructions", "Saluda al usuario con este mensaje: ${selected.welcomeMessage}")).toString())
             }
+            startLocalCommands(generation)
+            armInactivity()
         }
     }
 
@@ -416,28 +465,107 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
         it.state() == DataChannel.State.OPEN && it.send(DataChannel.Buffer(ByteBuffer.wrap(json.toByteArray(Charsets.UTF_8)), false))
     } ?: false
 
+    private fun armInactivity() {
+        inactivity?.cancel(); inactivity = null
+        val seconds = ListeningSettings(appContext).load().inactivitySeconds
+        if (seconds > 0 && state.value.active && !state.value.paused && !sampleOnly && !imageOnly)
+            inactivity = scope.launch { delay(seconds * 1000L); stop() }
+    }
+    private fun startLocalCommands(token: Int) {
+        if (localCommands != null || sampleOnly || imageOnly || diagnosticOnly) return
+        val selected = sessionProfile ?: return
+        val options = ListeningSettings(appContext).load()
+        if (!options.interruption || !selected.language.startsWith("es") || !WakeModel(appContext).installed()) {
+            commandValue.value = "Interrupción local no preparada · instala Vosk español o utiliza Parar"
+            return
+        }
+        localCommands = RealtimeCommandMonitor(appContext, scope).also { monitor ->
+            monitor.start(selected.name, options, allowed = { token == generation && state.value.active && !state.value.paused },
+                echoSafe = { text ->
+                    val recording = appContext.getSystemService(AudioManager::class.java).activeRecordingConfigurations.singleOrNull()
+                    val speaking = outputPlaying || alternativePlaying
+                    val aec = runCatching { module?.platformAudioProcessingState?.echoCancellation?.isActive == true }.getOrDefault(false)
+                    val heard = VoiceCommands.normalize(text)
+                    val echo = speaking && heard.isNotEmpty() && " ${VoiceCommands.normalize(echoText)} ".contains(" $heard ")
+                    recording != null && !recording.isClientSilenced && (!speaking || aec) && !echo
+                }, status = { message -> dispatch(token) {
+                    val input = appContext.getSystemService(AudioManager::class.java).activeRecordingConfigurations.singleOrNull()?.audioDevice
+                    commandValue.value = message + when (input?.type) {
+                        android.media.AudioDeviceInfo.TYPE_BUILTIN_MIC -> " · entrada real: teléfono"
+                        null -> " · entrada real sin confirmar"
+                        else -> " · entrada real tipo ${input.type}"
+                    }
+                } }, command = { command, detection ->
+                    dispatch(token) {
+                        LatencyStore(appContext).record(mapOf(VoiceStage.STOP_DETECTION to detection))
+                        when (command) {
+                            LocalVoiceCommand.INTERRUPT -> interrupt()
+                            LocalVoiceCommand.END -> stop()
+                            LocalVoiceCommand.STOP_LISTENING -> {
+                                (appContext as PbtApplication).stopVisibleWake?.invoke()
+                                ContinuousWakeService.stop(appContext)
+                                ListeningSettings(appContext).save(options.copy(background = false))
+                                stop()
+                            }
+                            LocalVoiceCommand.CHATGPT -> (appContext as PbtApplication).openChatGpt()
+                        }
+                    }
+                })
+        }
+    }
     fun pauseOrResume() {
         if (!state.value.active || sampleOnly || imageOnly) return
         val pause = !state.value.paused
+        if (!pause && routeSuspended) {
+            try {
+                val label = route.start(requestedBluetooth, speaker = !requestedBluetooth)
+                routeSuspended = false
+                mutable.update { it.copy(route = label, phoneFallbackAvailable = false) }
+            } catch (_: Exception) {
+                route.close(); error("El audio sigue ocupado. La conversación permanece pausada."); return
+            }
+        }
         mutable.update { it.copy(paused = pause) }
         microphone?.setEnabled(!pause)
         peer?.setAudioRecording(!pause)
         if (pause) interrupt()
+        if (pause) { inactivity?.cancel(); module?.requestStopRecording() } else armInactivity()
         mutable.update { it.copy(paused = pause, status = if (pause) "En pausa · micrófono apagado" else "Escuchando · micrófono encendido") }
+    }
+    fun resumeOnPhone() {
+        if (!state.value.active || !state.value.paused) return
+        requestedBluetooth = false; routeSuspended = true
+        pauseOrResume()
     }
 
     fun interrupt() {
         if (!state.value.active) return
+        val started = SystemClock.elapsedRealtime()
+        playbackEpoch++
+        alternativePlaying = false
         peer?.setAudioPlayout(false)
         alternative.stop()
         if (currentResponse.isNotBlank()) suppressed.add(currentResponse)
+        while (suppressed.size > 64) suppressed.remove(suppressed.first())
         if (generating) send(RealtimeProtocol.event("response.cancel"))
         if (!usesAlternative()) send(RealtimeProtocol.event("output_audio_buffer.clear"))
+        else if (alternativeItem.isNotBlank()) {
+            deleteAlternativeItem(alternativeItem)
+            alternativeItem = ""
+        }
         send(RealtimeProtocol.event("input_audio_buffer.clear"))
-        if (usesAlternative()) {
+        generating = false; outputPlaying = false
+        run {
             if (!state.value.paused && !imageOnly) { peer?.setAudioRecording(true); microphone?.setEnabled(true) }
             mutable.update { it.copy(responding = false, status = if (imageOnly) "Análisis interrumpido · micrófono apagado" else if (it.paused) "En pausa · micrófono apagado" else "Escuchando · micrófono encendido") }
         }
+        armInactivity()
+        LatencyStore(appContext).record(mapOf(VoiceStage.STOP_AUDIO_REQUEST to (SystemClock.elapsedRealtime() - started)))
+    }
+    private fun deleteAlternativeItem(id: String) {
+        if (id.isBlank() || !deletedAlternativeItems.add(id)) return
+        while (deletedAlternativeItems.size > 64) deletedAlternativeItems.remove(deletedAlternativeItems.first())
+        send(JSONObject().put("type", "conversation.item.delete").put("item_id", id).toString())
     }
 
     fun askImage(bitmap: Bitmap, onSent: () -> Unit) {
@@ -521,6 +649,12 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
     private fun stopInternal(recordControl: Boolean, failure: String? = null, offerPhone: Boolean = false) {
         if (recordControl && (state.value.active || state.value.connecting)) diagnostics.record(Check.CONTROL, CheckStatus.WARNING, "Cierre de sesión y liberación de audio solicitados; no se reanuda automáticamente.", "STOP_REQUESTED")
         generation++
+        playbackEpoch++; inactivity?.cancel(); inactivity = null
+        alternativePlaying = false
+        routeSuspended = false
+        localCommands?.stop(); localCommands = null; commandValue.value = ""; echoText = ""; alternativeItem = ""
+        deletedAlternativeItems.clear()
+        releasePart { module?.requestStopRecording() }
         pendingImage = null
         sessionProfile = null
         imageOnly = false; sampleOnly = false; diagnosticOnly = false
