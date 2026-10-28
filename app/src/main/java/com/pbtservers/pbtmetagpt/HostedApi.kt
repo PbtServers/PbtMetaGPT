@@ -51,12 +51,26 @@ internal suspend fun Call.hostedBytes(limit: Int = 1048576): ByteArray = suspend
 }
 
 /** API pública de GroqCloud; no usa servicios de OpenAI aunque el protocolo sea compatible. */
-class GroqApi(private val http: OkHttpClient = HostedHttp.groq) {
-    private fun request(path: String, key: String) = Request.Builder().url("https://api.groq.com/openai/v1/$path")
+class GroqApi(private val http: OkHttpClient = HostedHttp.groq,
+              private val apiBase: String = "https://api.groq.com/openai/v1/") {
+    private fun request(path: String, key: String) = Request.Builder().url("${apiBase}$path")
         .header("Authorization", "Bearer $key")
     suspend fun models(key: String): List<String> {
         val body = JSONObject(String(http.newCall(request("models", key).build()).hostedBytes(), Charsets.UTF_8)).getJSONArray("data")
         return (0 until body.length()).map { body.getJSONObject(it).getString("id") }.sorted()
+    }
+    suspend fun transcribe(key: String, wav: ByteArray): String {
+        require(wav.size in 44..1_000_000 && wav.copyOfRange(0, 4).contentEquals("RIFF".toByteArray(Charsets.US_ASCII)))
+        val payload = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("file", "grabacion.wav", wav.toRequestBody("audio/wav".toMediaType()))
+            .addFormDataPart("model", "whisper-large-v3-turbo")
+            .addFormDataPart("language", "es")
+            .addFormDataPart("response_format", "json")
+            .build()
+        val req = request("audio/transcriptions", key).post(payload).build()
+        val result = JSONObject(String(http.newCall(req).hostedBytes(), Charsets.UTF_8)).optString("text").trim()
+        if (result.isBlank() || result.length > 2000) throw HostedFailure("Groq Whisper no reconoció una petición válida.")
+        return result
     }
     suspend fun answer(key: String, model: String, messages: List<Pair<String, String>>): String {
         return answerStream(key, model, messages) {}
@@ -65,7 +79,7 @@ class GroqApi(private val http: OkHttpClient = HostedHttp.groq) {
     suspend fun analyzeImage(key: String, jpeg: ByteArray, question: String = "Describe esta imagen en español y explica lo importante."): String {
         require(jpeg.size in 100..4_000_000 && jpeg[0] == 0xff.toByte() && jpeg[1] == 0xd8.toByte())
         require(question.length in 1..500 && !SecretPatterns.contains(question))
-        val image = "data:image/jpeg;base64," + android.util.Base64.encodeToString(jpeg, android.util.Base64.NO_WRAP)
+        val image = "data:image/jpeg;base64," + java.util.Base64.getEncoder().encodeToString(jpeg)
         val content = JSONArray().put(JSONObject().put("type", "text").put("text", question))
             .put(JSONObject().put("type", "image_url").put("image_url", JSONObject().put("url", image)))
         val data = JSONObject().put("model", "qwen/qwen3.8-27b").put("max_completion_tokens", 700)

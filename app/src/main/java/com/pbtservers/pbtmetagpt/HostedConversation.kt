@@ -24,15 +24,26 @@ class HostedSettings(context: Context) {
     val model get() = prefs.getString("model", "openai/gpt-oss-20b").orEmpty()
     val authorized get() = prefs.getBoolean("groq_free_authorized", false)
     val qwenAuthorized get() = prefs.getBoolean("qwen_authorized", false)
+    val groqAudioAuthorized get() = prefs.getBoolean("groq_audio_authorized", false)
     fun select(value: String) { require(value in setOf("groq", "openai")); check(prefs.edit().putString("provider", value).commit()) }
     fun saveGroq(model: String, consent: Boolean) { check(prefs.edit().putString("model", HostedPolicy.model(model)).putBoolean("groq_free_authorized", consent).commit()) }
     fun authorizeQwen(value: Boolean) { check(prefs.edit().putBoolean("qwen_authorized", value).commit()) }
+    fun authorizeGroqAudio(value: Boolean) { check(prefs.edit().putBoolean("groq_audio_authorized", value).commit()) }
 }
 
 /** Captura Vosk acotada por turno. Ningún audio sale del dispositivo ni se conserva. */
 class HostedDictation(private val context: Context) {
     suspend fun capture(): String {
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) throw HostedFailure("Falta permiso de micrófono.")
+        val settings = HostedSettings(context)
+        if (settings.provider == "groq" && settings.authorized && settings.groqAudioAuthorized) {
+            val recorded = GroqAudioCapture(context).capture()
+            try {
+                return GroqApi().transcribe(KeyVault(context, provider = "groq").read(), recorded)
+            } finally {
+                recorded.fill(0)
+            }
+        }
         // Usar reconocimiento libre del sistema para frases largas; Vosk permanece
         // disponible cuando Android no tiene un motor on-device instalado.
         val offline = OnDeviceDictation(context)

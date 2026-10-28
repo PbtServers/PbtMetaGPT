@@ -29,6 +29,7 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
 ) {
     val store = remember { ProfileStore(context) }
     val hostedSettings = remember { HostedSettings(context) }
+    var groqAudioEnabled by remember { mutableStateOf(hostedSettings.groqAudioAuthorized) }
     val hosted = remember { (context.applicationContext as PbtApplication).hosted }
     var provider by remember { mutableStateOf(hostedSettings.provider) }
     val preferences = remember { context.getSharedPreferences("configuracion", Context.MODE_PRIVATE) }
@@ -167,11 +168,11 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
         // El reconocimiento no debe arrancar durante la señal de confirmación ni cortar su inicio.
         wakeCueScope.launch {
             if (matched.confirmationSound) {
-                val tone = runCatching { android.media.ToneGenerator(android.media.AudioManager.STREAM_MUSIC, 80) }.getOrNull()
-                if (tone != null) try {
-                    tone.startTone(android.media.ToneGenerator.TONE_PROP_ACK, 180)
-                    delay(280)
-                } finally { tone.release() }
+                try {
+                    WakeConfirmation.play(context,
+                        context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false))
+                } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+                catch (_: Exception) { report("No se pudo reproducir el aviso de activación. Revisa la ruta de audio.") }
             }
             if (!microphoneReady) requestMic() else startSelected(matched, dictate = provider == "groq")
         }
@@ -390,6 +391,18 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                 }
                 "Activación por voz" -> {
                     ListeningControls(configured, microphoneReady, requestMic, stopVisible = { wake.stop(); voice.stop(); hosted.stop(); configure() })
+                    if (provider == "groq") {
+                        Toggle("Dictado preciso con Groq Whisper (envía audio)", groqAudioEnabled) {
+                            stopAll()
+                            try {
+                                hostedSettings.authorizeGroqAudio(it)
+                                groqAudioEnabled = it
+                            } catch (_: Exception) { report("No se pudo guardar la autorización del micrófono remoto."); return@Toggle }
+                            report(if (it) "Whisper activado: el audio de cada petición se enviará a Groq tras detectar la frase o pulsar Dictar."
+                                else "Whisper desactivado: el dictado vuelve al reconocimiento local.")
+                        }
+                        Text("La frase de activación sigue reconociéndose localmente. Solo se envía el audio de la petición posterior si autorizas esta opción. Requiere Internet y consume cuota de Groq, con posible coste según tu plan. Para máxima privacidad, mantenlo desactivado.", style = MaterialTheme.typography.bodySmall)
+                    }
                     if (selected != null) {
                         Toggle("Sonido al reconocer la frase", draft.confirmationSound) { draft = draft.copy(confirmationSound = it) }
                         PhraseEditor(draft, { draft = it; wake.stop() }, test = { phrase ->
