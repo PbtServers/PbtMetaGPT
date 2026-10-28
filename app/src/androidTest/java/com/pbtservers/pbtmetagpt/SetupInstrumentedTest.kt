@@ -155,8 +155,11 @@ class SetupInstrumentedTest {
             compose.onNodeWithText("Continuar").performClick()
             compose.onNodeWithText("Nombre del asistente").performScrollTo().performTextReplacement("Luna")
             abrirAvanzadas()
-            compose.onNodeWithText("marin").performScrollTo().assertIsSelected()
-            compose.onNodeWithText("cedar").performScrollTo()
+            // La prueba valida el callback encolado antes de recomponer,
+            // no el desplazamiento: Android 16 puede invalidar ScrollTo al
+            // cambiar la disposicion de FlowRow tras abrir avanzadas.
+            compose.onNodeWithText("marin").assertIsSelected()
+            compose.onNodeWithText("cedar").assertExists()
             compose.mainClock.autoAdvance = false
             try {
                 compose.onNodeWithText("cedar").performSemanticsAction(SemanticsActions.OnClick) { click -> click() }
@@ -168,7 +171,7 @@ class SetupInstrumentedTest {
             scenario.recreate()
             compose.onNodeWithText("Configuración inicial · 2/3 · Voz").assertIsDisplayed()
             abrirAvanzadas()
-            compose.onNodeWithText("cedar").performScrollTo().assertIsSelected()
+            compose.onNodeWithText("cedar").assertIsSelected()
         }
     }
 

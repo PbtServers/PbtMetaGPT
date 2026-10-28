@@ -16,11 +16,13 @@ class PhotoAnalysisInstrumentedTest {
     @Test fun groqVisionIdentificaProveedorYExigeConfirmacionAntesDeEnviar() {
         val image = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
         var requests = 0
-        compose.setContent { PbtTheme {
+        // El panel real vive en un contenedor vertical. Los hermanos directos
+        // sin layout en una raiz Compose se superponen y consumen el clic.
+        compose.setContent { PbtTheme { Column {
             PhotoAnalysisPanel(image, true, VoiceState(transcript = "Imagen de prueba"), null, provider = "groq",
                 onConfirm = { assertSame(image, it); requests++ },
                 discard = {}, resume = {}, cancel = {})
-        } }
+        } } }
         compose.onNodeWithText("Respuesta de Groq Vision:", substring = true).assertExists()
         compose.onNodeWithText("Preguntar sobre esta foto").performClick()
         compose.waitForIdle()
@@ -29,7 +31,7 @@ class PhotoAnalysisInstrumentedTest {
         // imagenYCredencialesPermitenConfirmarSinSesionNiEnvioAutomatico.
         assertEquals(PhotoAnalysisStatus.READY,
             PhotoAnalysisPolicy.status(true, true, VoiceState(transcript = "Imagen de prueba")))
-        compose.onNodeWithText("Enviar y preguntar").assertExists()
+        compose.onNodeWithText("Enviar y preguntar").assertIsEnabled()
         compose.runOnIdle { assertEquals(0, requests) }
         compose.onNodeWithText("Cancelar").performClick()
         compose.runOnIdle { assertEquals(0, requests) }
