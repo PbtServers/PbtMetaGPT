@@ -2,7 +2,7 @@
 
 ## Escucha, motores neuronales y simplificación · intervención actual 28/10/2026
 
-Base `e263ec42bda840c5cfb6427c945f562d57a086d9`; trabajo exclusivamente en `master`, sin ramas ni worktrees. Se preservan seis archivos locales previos, comprobados por SHA-256 y excluidos de los commits. La versión continúa **0.5.0-rc1**.
+Base `e263ec42bda840c5cfb6427c945f562d57a086d9`; trabajo exclusivamente en `master`, sin ramas ni worktrees. Se preservan seis archivos locales previos, comprobados por SHA-256 y excluidos de los commits. La versión continúa **0.5.0-rc1**. Implementación guardada en el commit local `4a87663`; sin publicación remota ni APK de estos cambios hasta desbloquear los accesos y superar CI.
 
 **Estimación global orientativa: 45 %; objetivo incompleto.** No se mezcla con porcentajes históricos posteriores en este documento ni representa una aprobación de inferencia, calidad o hardware.
 

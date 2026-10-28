@@ -26,4 +26,3 @@ object KokoroCatalog {
     fun verify(file: File, resource: KokoroResource) = file.length() == resource.bytes && digest(file) == resource.sha256
     val spec get() = NeuralVoiceSpec(packageId, source, revision, resources, tokens, 750)
 }
-
