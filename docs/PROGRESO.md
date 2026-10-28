@@ -4,16 +4,16 @@
 
 Base `e263ec42bda840c5cfb6427c945f562d57a086d9`; trabajo exclusivamente en `master`, sin ramas ni worktrees. Se preservan seis archivos locales previos, comprobados por SHA-256 y excluidos de los commits. La versión continúa **0.5.0-rc1**. Implementación publicada desde `4a87663` en `origin/master`; todavía sin APK validada de estos cambios.
 
-**Estimación global orientativa: 55 %; objetivo incompleto.** No se mezcla con porcentajes históricos posteriores en este documento ni representa una aprobación de inferencia, calidad o hardware.
+**Estimación global orientativa: 60 %; objetivo incompleto.** No se mezcla con porcentajes históricos posteriores en este documento ni representa una aprobación de inferencia, calidad o hardware.
 
 | Subfase | Estimación/peso | Evidencia y pendiente |
 | --- | ---: | --- |
 | Auditoría, contratos y procedencia | 20/25 | Fuentes primarias, hashes de pesos, variantes lingüísticas; cerrar compatibilidad de licencias e implementación Android |
 | Activación y captura | 7/15 | Hipótesis, sensibilidad, recuperación, pre-roll/VAD y pregunta concatenada; pruebas acústicas y regresiones Android pendientes |
 | Interfaz y persistencia | 12/20 | Instrumentadas de interfaz y persistencia pasan en ambas APIs; faltan recorridos ampliados y aceptación de uso real |
-| Motores locales | 10/20 | Kokoro auténtico genera PCM y pasa instalación/corrupción/cancelación en ambas APIs; corregir inicialización de la prueba Piper y ejecutarla |
-| Documentación y pruebas locales | 4/10 | JVM, Lint, Python, Node y escáner correctos en CI; falta cierre de instrumentadas y revisión de distribución |
-| CI, APK y aceptación física | 2/10 | Compilación correcta y 34/35 instrumentadas por API; un fallo bloquea APK. Nothing/Ray-Ban no validados |
+| Motores locales | 13/20 | Kokoro y Davefx auténticos generan PCM en API 35/36; falta nueva prueba de selección/reproducción UI y escucha física |
+| Documentación y pruebas locales | 5/10 | 141 JVM (una omitida), Lint, Python, Node y escáner correctos; métricas reales de emulador y evaluación nativa Qwen |
+| CI, APK y aceptación física | 3/10 | API 36: 35/35; API 35: 34/35, fallo de interacción UI bloquea APK. Nothing/Ray-Ban no validados |
 
 La preferencia confirmada por el usuario es **acento de España**: Natural prioriza Piper Davefx `es_ES`, publicado expresamente con esa variante; Kokoro conserva Dora/Alex/Santa sin atribuirles acento peninsular. Android TTS está en Rápida y Qwen remoto en Avanzada. No se sustituye silenciosamente es-ES por una variante americana. Las selecciones antiguas se conservan/migran de categoría. Todo el detalle y las limitaciones están en [VOZ_LOCAL_0.5.0.md](VOZ_LOCAL_0.5.0.md).
 
@@ -34,6 +34,19 @@ Próxima tarea: conseguir SDK y descarga de dependencias o acceso de publicació
 **Primera validación Android ejecutada:** [Actions 40685008359](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40685008359), SHA `85337ab`. El backend y contenedores pasan. La compilación detecta dos errores de contexto de corrutinas en Kotlin y una cabecera UCD no propagada al puente JNI de eSpeak. Se corrigen usando el contexto explícito del servicio, comprobando la cancelación del contexto activo y enlazando el objetivo CMake UCD con sus includes públicos. Las 35 pruebas Python vuelven a pasar. Pendiente repetir compilación, Lint y las instrumentadas API 35/36 con modelos auténticos; no hay aún métricas de inferencia ni APK aprobada.
 
 **Resultado del correctivo `ac97650`:** [Actions 40685869816](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40685869816) supera compilación Android, JVM, Lint, escáner de fuentes/APK, Python y backend/contenedores. En API 35 y 36 pasan **34/35 instrumentadas**, incluidas las de pesos Kokoro auténticos. La única fallida es la inicialización JUnit de Davefx: el último `Log.i` hacía inferir retorno `Int` en vez de `void`. Se fija `runBlocking<Unit>` para ejecutar realmente esa prueba; no se elimina ni se relaja. El script conserva también métricas numéricas sintéticas si otra prueba falla, manteniendo el código de salida original. `bash -n tools/probar_android.sh` correcto. No hay APK publicada de este SHA porque ambas matrices deben pasar completamente. Inferencia Davefx y métricas del teléfono siguen pendientes.
+
+**Resultado `0c83af0`:** [Actions 40687679506](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40687679506): 141 JVM, cero errores/fallos y una omitida; Lint, compilación y escáner correctos. **API 36: 35/35 correctas; API 35: 34/35**. Kokoro y Davefx auténticos pasan en ambas. La bienvenida de API 35 no encuentra el diálogo tras pulsar Guardar: se sustituye la inyección por coordenadas por la acción accesible del mismo botón, manteniendo todas las aserciones de guardado/rotación. Se añade un recorrido de selección Kokoro, reproducción PCM en AudioTrack y recreación sin claves, más error de muestra sin modelo. Esta revisión detecta y corrige que el error de una muestra alternativa solo mostraba aviso y podía terminar como cierre normal: ahora finaliza con estado de error y liberación. Ambas pruebas nuevas quedan pendientes de CI.
+
+Medidas puntuales **del proceso del emulador x86_64**, textos sintéticos y dos hilos; no máximos ni medidas del Nothing:
+
+| Motor/API | Frío / primera PCM | Fragmento caliente | PSS tras generar |
+| --- | ---: | ---: | ---: |
+| Kokoro / 35 | 3300 ms | 1455 ms | 558215 KiB |
+| Kokoro / 36 | 3754 ms | 1271 ms | 560397 KiB |
+| Davefx / 35 | 1177 ms | 145 ms | 344410 KiB |
+| Davefx / 36 | 1626 ms | 186 ms | 327068 KiB |
+
+Los fragmentos fríos y calientes usan textos distintos: no son un benchmark comparativo controlado. El PSS incluye app, bibliotecas y memoria retenida por pruebas previas; no representa memoria exclusiva del modelo. Ninguna cifra acredita primer audio audible, acento ni calor/batería del teléfono. También se documenta el candidato JNI ARM64 Qwen3-TTS/ GGML independiente, CPU y opciones GPU desactivadas por defecto, sin integrarlo ni trasladar sus benchmarks CUDA a Android.
 
 ## Seguimiento de RVC local y límites opcionales · 28/10/2026
 

@@ -36,7 +36,9 @@ class SetupInstrumentedTest {
             compose.onAllNodesWithText("Jarvis", substring = true).assertCountEquals(0)
             compose.onNodeWithText("Continuar").performClick()
             compose.onNodeWithText("Nombre del asistente").performScrollTo().performTextReplacement("Jarvis")
-            compose.onNodeWithText("Guardar voz").performScrollTo().performClick()
+            // El catálogo Android puede añadir filas mientras llega su respuesta.
+            // Accionar el botón por accesibilidad evita pulsar coordenadas antiguas.
+            compose.onNodeWithText("Guardar voz").performScrollTo().performSemanticsAction(SemanticsActions.OnClick) { it() }
             compose.onNodeWithText("Entendido").performClick()
             assertEquals("Jarvis", ProfileStore(context).load().single().name)
             assertFalse(KeyVault(context).exists())

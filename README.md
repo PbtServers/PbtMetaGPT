@@ -61,7 +61,7 @@ La aplicación es de código abierto y también funciona sin gafas. La latencia 
 | Qwen3-TTS remoto | **Implementado, con límites** | Space público, posibles colas y fallos por cuota; prueba de generación remota |
 | Reconocimiento libre offline | **Candidata** | Dictado on-device Android con fallback Vosk si no está disponible |
 | Groq Whisper para dictado | **Opcional y con consentimiento independiente** | Transcripción más precisa en servidor con `whisper-large-v3-turbo`; envía únicamente el audio de la petición, puede consumir cuota o generar costes según plan |
-| Voz neuronal local de España | **Código candidato, inferencia pendiente** | Piper Davefx es_ES integrado; descarga voluntaria, SHA-256 y prueba audible |
+| Voz neuronal local de España | **PCM verificado en emulador API 35/36** | Piper Davefx es_ES integrado; descarga voluntaria, SHA-256 y prueba audible |
 | Kokoro local | **PCM verificado en emulador API 35/36** | Dora, Alex y Santa; español sin variante peninsular acreditada; motor separado de Android TTS |
 | Importación RVC | **Candidata** | ZIP, .pth y .index almacenados sin ejecución; inferencia RVC aún no disponible |
 | BYOK y conexión directa a OpenAI | **Experimental** | Claves protegidas y flujo de credencial temporal; conversación real con clave personal pendiente |
@@ -145,7 +145,7 @@ Se admiten paquetes ZIP `sherpa-piper-phonemes-v1` con `voz.json`, `model.onnx`,
 
 **Natural** prioriza **Piper Davefx es-ES** por el requisito de acento de España. Kokoro local queda como alternativa diferenciada: sus voces españolas no se presentan como peninsulares. **Rápida** contiene exclusivamente las voces Android TTS; con `es-ES` no se sustituye silenciosamente por una variante americana. **Avanzada** conserva Qwen remoto, RVC e importaciones. Seleccionar una voz no la descarga ni reproduce automáticamente.
 
-En **Voces → Natural**, selecciona Davefx y pulsa **Descargar voz de España** (63,2 MB; reserva de instalación 256 MiB). Para Kokoro, pulsa **Otras voces locales · Kokoro** (354 MB; reserva 750 MiB). Ambos comprueban SHA-256, guardan pesos privados y permiten probar, comprobar y eliminar. La compilación y la inferencia Kokoro pasan en emulador; Davefx sigue pendiente de su prueba corregida. **No se afirma todavía calidad, acento audible ni latencia en el teléfono verificados**. Consulta [motores, licencias, hashes y protocolo](docs/VOZ_LOCAL_0.5.0.md).
+En **Voces → Natural**, selecciona Davefx y pulsa **Descargar voz de España** (63,2 MB; reserva de instalación 256 MiB). Para Kokoro, pulsa **Otras voces locales · Kokoro** (354 MB; reserva 750 MiB). Ambos comprueban SHA-256, guardan pesos privados y permiten probar, comprobar y eliminar. La compilación y las inferencias Kokoro/Davefx pasan en emuladores API 35/36; queda una regresión de interacción UI para cerrar la suite. **No se afirma todavía calidad, acento audible ni latencia en el teléfono verificados**. Consulta [motores, licencias, hashes y protocolo](docs/VOZ_LOCAL_0.5.0.md).
 
 **RVC local ONNX (experimental):** cadena optativa Piper/Kokoro → PCM → HuBERT/ContentVec → RMVPE → RVC ONNX → salida. Se conservan los tres modelos y las importaciones; desactivar RVC no los elimina. Añade procesamiento y puede producir artefactos: no se recomienda por defecto ni se declara validado con pesos RVC auténticos o gafas.
 

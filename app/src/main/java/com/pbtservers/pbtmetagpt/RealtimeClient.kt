@@ -70,7 +70,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
             else diagnostics.record(Check.TTS_ENGINE, CheckStatus.RUNNING, "El motor está preparando la síntesis alternativa.", "TTS_RUNNING")
             mutable.update { it.copy(status = message, responding = true) }
         } },
-        { message -> diagnostics.record(Check.TTS_ENGINE, CheckStatus.ERROR, message, "ALTERNATIVE_TTS_ERROR"); error(message) })
+        { message -> diagnostics.record(Check.TTS_ENGINE, CheckStatus.ERROR, message, "ALTERNATIVE_TTS_ERROR"); fail(message) })
     fun configure(profile: AssistantProfile?, directKey: (() -> String)?) {
         check(!state.value.active && !state.value.connecting) { "Finaliza la sesión antes de cambiar su configuración." }
         this.profile = profile
