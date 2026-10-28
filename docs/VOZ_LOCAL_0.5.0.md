@@ -1,6 +1,6 @@
 # Voz local y escucha · candidata 0.5.0-rc1
 
-Esta intervención parte de `e263ec42bda840c5cfb6427c945f562d57a086d9`, exclusivamente en `master`. El correctivo `0c83af0` **compila y supera JVM/Lint/escáner**; Kokoro y Davefx con pesos auténticos generan PCM en emuladores API 35/36. API 36 pasa 35/35 instrumentadas; API 35 conserva un fallo de interacción en bienvenida que se está corrigiendo. No se acredita hardware. No reutilizar resultados de un SHA anterior como evidencia de estos motores. Se conserva la versión candidata.
+Esta intervención parte de `e263ec42bda840c5cfb6427c945f562d57a086d9`, exclusivamente en `master`. El código `b74fab9` **compila y supera JVM/Lint/escáner y 37/37 instrumentadas en cada API 35/36**: [ejecución verificada](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40691905261). Kokoro y Davefx con pesos auténticos generan PCM; la biblioteca reproduce una muestra Kokoro sin claves ni micrófono. Hay medidas de emulador en [PROGRESO.md](PROGRESO.md), no de hardware. La aceptación con el Nothing/Ray-Ban y la revisión de distribución siguen pendientes. Se conserva la versión candidata.
 
 ## Idioma y acento
 

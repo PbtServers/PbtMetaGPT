@@ -2,32 +2,36 @@
 
 ## Escucha, motores neuronales y simplificación · intervención actual 28/10/2026
 
-Base `e263ec42bda840c5cfb6427c945f562d57a086d9`; trabajo exclusivamente en `master`, sin ramas ni worktrees. Se preservan seis archivos locales previos, comprobados por SHA-256 y excluidos de los commits. La versión continúa **0.5.0-rc1**. Implementación publicada desde `4a87663` en `origin/master`; todavía sin APK validada de estos cambios.
+Base `e263ec42bda840c5cfb6427c945f562d57a086d9`; trabajo exclusivamente en `master`, sin ramas ni worktrees. Se preservan seis archivos locales previos, comprobados por SHA-256 y excluidos de los commits. La versión continúa **0.5.0-rc1**. Implementación publicada desde `4a87663` en `origin/master`; validación automática del código `b74fab9` completa en ambas APIs, conservando la candidata.
 
-**Estimación global orientativa: 60 %; objetivo incompleto.** No se mezcla con porcentajes históricos posteriores en este documento ni representa una aprobación de inferencia, calidad o hardware.
+**Estimación global orientativa: 65 %; objetivo incompleto.** No se mezcla con porcentajes históricos posteriores en este documento ni representa una aprobación de inferencia, calidad o hardware.
 
 | Subfase | Estimación/peso | Evidencia y pendiente |
 | --- | ---: | --- |
-| Auditoría, contratos y procedencia | 20/25 | Fuentes primarias, hashes de pesos, variantes lingüísticas; cerrar compatibilidad de licencias e implementación Android |
+| Auditoría, contratos y procedencia | 20/25 | Fuentes primarias, hashes de pesos, variantes lingüísticas; cerrar compatibilidad de licencias y comprobar ARM64 físico |
 | Activación y captura | 7/15 | Hipótesis, sensibilidad, recuperación, pre-roll/VAD y pregunta concatenada; pruebas acústicas y regresiones Android pendientes |
-| Interfaz y persistencia | 12/20 | Instrumentadas de interfaz y persistencia pasan en ambas APIs; faltan recorridos ampliados y aceptación de uso real |
-| Motores locales | 13/20 | Kokoro y Davefx auténticos generan PCM en API 35/36; falta nueva prueba de selección/reproducción UI y escucha física |
+| Interfaz y persistencia | 14/20 | 37 instrumentadas por API, incluida selección y reproducción de Kokoro desde Voces; faltan aceptación de uso real y recorridos con gafas |
+| Motores locales | 14/20 | Kokoro y Davefx auténticos generan PCM en API 35/36; muestra Kokoro reproducida y cancelación comprobada; falta audición física y RVC con voz autorizada |
 | Documentación y pruebas locales | 5/10 | 141 JVM (una omitida), Lint, Python, Node y escáner correctos; métricas reales de emulador y evaluación nativa Qwen |
-| CI, APK y aceptación física | 3/10 | API 36: 35/35; API 35: 34/35, fallo de interacción UI bloquea APK. Nothing/Ray-Ban no validados |
+| CI, APK y aceptación física | 5/10 | API 35 y 36: 37/37 por versión en b74fab9; APK candidata, sin aceptación Nothing/Ray-Ban |
 
 La preferencia confirmada por el usuario es **acento de España**: Natural prioriza Piper Davefx `es_ES`, publicado expresamente con esa variante; Kokoro conserva Dora/Alex/Santa sin atribuirles acento peninsular. Android TTS está en Rápida y Qwen remoto en Avanzada. No se sustituye silenciosamente es-ES por una variante americana. Las selecciones antiguas se conservan/migran de categoría. Todo el detalle y las limitaciones están en [VOZ_LOCAL_0.5.0.md](VOZ_LOCAL_0.5.0.md).
 
-Comprobaciones ejecutadas en esta intervención:
+Comprobaciones actuales: [Actions `b74fab9`](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40691905261). [APK candidata del mismo SHA](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40691905261/artifacts/12818606021), artefacto de 94.034.760 bytes. Los pesos se descargan voluntariamente dentro de la app y no van incluidos en esta APK.
 
-- **19 JVM correctas** del código puro de VAD, recuperación, hipótesis de dictado, segmentación/cancelación de streaming, partición PCM y contratos/hashes de los catálogos. Duración JUnit del último conjunto: **8,237 s**. Compiladas con el compilador Kotlin 2.0.21 incluido en el wrapper y Java 17, sin sustituir la compilación Android Kotlin 2.2.21.
-- **35 Python y 19 Node correctas**; escaneo de patrones de secretos en fuentes correcto. No se han probado servicios con claves reales ni consumido cuotas.
-- Análisis sintáctico Kotlin correcto; **no comprueba tipos, JNI, Compose ni empaquetado**. El número de archivos cambia durante la revisión y no mide cobertura.
-- Gradle con Java 17 falla por **SDK location not found**. Preparación de Sherpa falla por **WinError 10013**; la fuente fijada del fonemizador no puede descargarse por el bloqueo de red. No se omiten para declarar compilación correcta.
-- Git no conecta por HTTPS a `origin`; el conector GitHub rechaza escritura de objetos con **HTTP 403 Resource not accessible by integration**. No existe una ejecución CI ni APK atribuible a estos cambios. La matriz de Actions conserva APIs 35/36 y prepara modelos reales para probar, pero eso **no acredita que se haya ejecutado**.
+- **141 JVM: 140 correctas y una omitida**, sin errores ni fallos. La omitida es el benchmark Qwen remoto que ya requería activación expresa `PBT_QWEN_LIVE=1`; no se consumen cuotas para obtener verde.
+- **37/37 instrumentadas correctas en API 35 y 37/37 en API 36**, con Kokoro y Davefx auténticos. Incluyen instalación, integridad/corrupción, PCM, selección/persistencia, cancelación, coexistencia JNI/ORT y reproducción de una muestra desde la biblioteca. No acreditan acústica ni audio Bluetooth real.
+- **Lint, compilación ARM64/x86_64, escáner de fuentes/APK, 35 Python, 19 Node y backend/contenedores correctos**. No se han usado claves personales ni servicios facturables.
+- El subconjunto local de 19 JVM pasó en 8,237 s con Kotlin 2.0.21/Java 17; CI compila realmente la aplicación con Kotlin 2.2.21 y SDK 36. El análisis sintáctico local no sustituye esas comprobaciones.
+- SDK Android sigue ausente en este equipo; las validaciones Android se ejecutan en Actions. Los problemas iniciales de red y acceso se conservan como historial debajo. Los pushes posteriores han funcionado; el repositorio permanece en master y se preservan los seis archivos previos.
 
-Latencia de conversación, TTFS de los motores, PSS, consumo, temperatura y acento audible **sin medir**. Las nuevas instrumentadas emiten métricas numéricas del emulador cuando se ejecuten; no son resultados ya obtenidos. La inferencia RVC sintética anterior no certifica voz auténtica ni su calidad.
+Hay medidas puntuales TTFS/PSS de emulador más abajo. **Latencia de activación y conversación completa, primer audio audible, PSS máximo, consumo, temperatura y acento en el Nothing siguen sin medir**. La inferencia RVC sintética no certifica voz auténtica ni su calidad. La revisión GPL/eSpeak–términos DAT sigue pendiente antes de distribución estable.
 
-Próxima tarea: conseguir SDK y descarga de dependencias o acceso de publicación para que CI compile y ejecute todas las regresiones; corregir cualquier fallo de tipos/JNI/inferencia. Después comprobar la APK del mismo SHA, escuchar Davefx/Kokoro y ejecutar el protocolo físico en Nothing/Ray-Ban. Estimación de compilación/emuladores una vez desbloqueados: **1–3 horas**, ampliable si hay errores; no hay plazo fiable de entrega mientras continúen los bloqueos. No publicar una Release estable ni declarar aceptación completa por superar únicamente tests.
+Próxima tarea: instalar la APK del SHA validado en Nothing/Ray-Ban, escuchar Davefx/Kokoro, verificar por separado micrófono/salida Bluetooth y ejecutar el protocolo físico. Medir el relevo entre reconocedores, 20 activaciones a volumen normal, cancelación, foto con confirmación y RVC con modelos autorizados. No hay un plazo fiable para la aceptación física sin dispositivo conectado; no convertir en Release estable por superar CI.
+
+### Historial de acceso y correcciones de esta intervención
+
+Los siguientes apartados describen resultados de SHAs anteriores; sus pendientes no sustituyen el estado actual indicado arriba.
 
 **Actualización de acceso:** el push posterior sí ha funcionado: `4a87663` y `8facf9b` están en `origin/master`. El rechazo 403 del conector y el bloqueo REST de la consola no demuestran que Git siga bloqueado. Para poder localizar y revisar las ejecuciones push desde clientes que solo exponen runs de PR, Actions publica su enlace y resultado en el estado del commit, con permiso mínimo `statuses: write` y token efímero solo en CI. No cambia las puertas de JVM/Lint/emulador/APK ni solicita claves personales. Pendiente consultar ese resultado y corregir los fallos reales antes de cerrar la intervención.
 
