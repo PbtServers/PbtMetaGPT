@@ -4,16 +4,16 @@
 
 Base `e263ec42bda840c5cfb6427c945f562d57a086d9`; trabajo exclusivamente en `master`, sin ramas ni worktrees. Se preservan seis archivos locales previos, comprobados por SHA-256 y excluidos de los commits. La versión continúa **0.5.0-rc1**. Implementación publicada desde `4a87663` en `origin/master`; todavía sin APK validada de estos cambios.
 
-**Estimación global orientativa: 45 %; objetivo incompleto.** No se mezcla con porcentajes históricos posteriores en este documento ni representa una aprobación de inferencia, calidad o hardware.
+**Estimación global orientativa: 55 %; objetivo incompleto.** No se mezcla con porcentajes históricos posteriores en este documento ni representa una aprobación de inferencia, calidad o hardware.
 
 | Subfase | Estimación/peso | Evidencia y pendiente |
 | --- | ---: | --- |
 | Auditoría, contratos y procedencia | 20/25 | Fuentes primarias, hashes de pesos, variantes lingüísticas; cerrar compatibilidad de licencias e implementación Android |
 | Activación y captura | 7/15 | Hipótesis, sensibilidad, recuperación, pre-roll/VAD y pregunta concatenada; pruebas acústicas y regresiones Android pendientes |
-| Interfaz y persistencia | 10/20 | Cuatro destinos, ajustes agrupados, categorías separadas, estado restaurable; instrumentadas del nuevo código pendientes |
-| Motores locales | 5/20 | Inferencia programada, instalador con hashes, Piper es-ES y Kokoro separados; **sin ejecución de pesos nuevos** |
-| Documentación y pruebas locales | 3/10 | Guía técnica/README y subconjunto JVM; falta suite Android completa y revisión de distribución |
-| CI, APK y aceptación física | 0/10 | Push operativo y CI ejecutada con errores de compilación; Nothing/Ray-Ban no validados |
+| Interfaz y persistencia | 12/20 | Instrumentadas de interfaz y persistencia pasan en ambas APIs; faltan recorridos ampliados y aceptación de uso real |
+| Motores locales | 10/20 | Kokoro auténtico genera PCM y pasa instalación/corrupción/cancelación en ambas APIs; corregir inicialización de la prueba Piper y ejecutarla |
+| Documentación y pruebas locales | 4/10 | JVM, Lint, Python, Node y escáner correctos en CI; falta cierre de instrumentadas y revisión de distribución |
+| CI, APK y aceptación física | 2/10 | Compilación correcta y 34/35 instrumentadas por API; un fallo bloquea APK. Nothing/Ray-Ban no validados |
 
 La preferencia confirmada por el usuario es **acento de España**: Natural prioriza Piper Davefx `es_ES`, publicado expresamente con esa variante; Kokoro conserva Dora/Alex/Santa sin atribuirles acento peninsular. Android TTS está en Rápida y Qwen remoto en Avanzada. No se sustituye silenciosamente es-ES por una variante americana. Las selecciones antiguas se conservan/migran de categoría. Todo el detalle y las limitaciones están en [VOZ_LOCAL_0.5.0.md](VOZ_LOCAL_0.5.0.md).
 
@@ -32,6 +32,8 @@ Próxima tarea: conseguir SDK y descarga de dependencias o acceso de publicació
 **Actualización de acceso:** el push posterior sí ha funcionado: `4a87663` y `8facf9b` están en `origin/master`. El rechazo 403 del conector y el bloqueo REST de la consola no demuestran que Git siga bloqueado. Para poder localizar y revisar las ejecuciones push desde clientes que solo exponen runs de PR, Actions publica su enlace y resultado en el estado del commit, con permiso mínimo `statuses: write` y token efímero solo en CI. No cambia las puertas de JVM/Lint/emulador/APK ni solicita claves personales. Pendiente consultar ese resultado y corregir los fallos reales antes de cerrar la intervención.
 
 **Primera validación Android ejecutada:** [Actions 40685008359](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40685008359), SHA `85337ab`. El backend y contenedores pasan. La compilación detecta dos errores de contexto de corrutinas en Kotlin y una cabecera UCD no propagada al puente JNI de eSpeak. Se corrigen usando el contexto explícito del servicio, comprobando la cancelación del contexto activo y enlazando el objetivo CMake UCD con sus includes públicos. Las 35 pruebas Python vuelven a pasar. Pendiente repetir compilación, Lint y las instrumentadas API 35/36 con modelos auténticos; no hay aún métricas de inferencia ni APK aprobada.
+
+**Resultado del correctivo `ac97650`:** [Actions 40685869816](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40685869816) supera compilación Android, JVM, Lint, escáner de fuentes/APK, Python y backend/contenedores. En API 35 y 36 pasan **34/35 instrumentadas**, incluidas las de pesos Kokoro auténticos. La única fallida es la inicialización JUnit de Davefx: el último `Log.i` hacía inferir retorno `Int` en vez de `void`. Se fija `runBlocking<Unit>` para ejecutar realmente esa prueba; no se elimina ni se relaja. El script conserva también métricas numéricas sintéticas si otra prueba falla, manteniendo el código de salida original. `bash -n tools/probar_android.sh` correcto. No hay APK publicada de este SHA porque ambas matrices deben pasar completamente. Inferencia Davefx y métricas del teléfono siguen pendientes.
 
 ## Seguimiento de RVC local y límites opcionales · 28/10/2026
 

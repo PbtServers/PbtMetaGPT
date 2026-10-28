@@ -6,7 +6,7 @@ import org.junit.Test
 import org.junit.Assert.*
 
 class SpainVoiceInstrumentedTest {
-    @Test fun generaPcmConModeloRealEsEspanaYPersisteLaSeleccion() = runBlocking {
+    @Test fun generaPcmConModeloRealEsEspanaYPersisteLaSeleccion() = runBlocking<Unit> {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
         val store = SpainVoiceModel(context)

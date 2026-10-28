@@ -1,6 +1,6 @@
 # Voz local y escucha · candidata 0.5.0-rc1
 
-Esta intervención parte de `e263ec42bda840c5cfb6427c945f562d57a086d9`, exclusivamente en `master`. El código nuevo **no está acreditado por una compilación Android ni por una prueba de inferencia ejecutada**. No reutilizar resultados de un SHA anterior como evidencia de estos motores. Se conserva la versión candidata.
+Esta intervención parte de `e263ec42bda840c5cfb6427c945f562d57a086d9`, exclusivamente en `master`. El correctivo `ac97650` **compila y supera JVM/Lint/escáner**; las pruebas de inferencia Kokoro con pesos auténticos pasan en emuladores API 35/36. La suite completa sigue fallando por la firma JUnit de la prueba Davefx, corregida para repetirla; no se acredita todavía inferencia Davefx ni hardware. No reutilizar resultados de un SHA anterior como evidencia de estos motores. Se conserva la versión candidata.
 
 ## Idioma y acento
 
@@ -95,4 +95,4 @@ python tools/preparar_kokoro_prueba.py  # también prepara Davefx; solo APK de t
 
 **Prueba física pendiente:** instalar APK del SHA validado; elegir Davefx, desactivar red y escuchar «En Zaragoza hay cinco plazas. ¿Podéis acercaros vosotros?». Comparar con Kokoro explícitamente, sin cambiar nombres de voces. Probar 20 activaciones a volumen normal, frase seguida de pregunta y con pausa, ruido, TTS propio y conversación ajena. Repetir entrada y salida por teléfono y por gafas por separado. Registrar solo números de aciertos/fallos, latencias fría/caliente y PSS, sin conversaciones ni grabaciones privadas. Probar cancelación, rotación, pérdida de Bluetooth, foto con confirmación y RVC activado/desactivado conservando modelos.
 
-No hay mediciones acústicas ni aprobación física de esta intervención. El bloqueo de SDK/red/publicación y el resultado de las pruebas locales se mantienen en [PROGRESO.md](PROGRESO.md).
+No hay mediciones acústicas ni aprobación física de esta intervención. El historial de accesos y los resultados locales y CI se mantienen en [PROGRESO.md](PROGRESO.md).
