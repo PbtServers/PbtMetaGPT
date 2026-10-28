@@ -24,17 +24,37 @@ class HostedSettings(context: Context) {
     val model get() = prefs.getString("model", "openai/gpt-oss-20b").orEmpty()
     val authorized get() = prefs.getBoolean("groq_free_authorized", false)
     val qwenAuthorized get() = prefs.getBoolean("qwen_authorized", false)
+    val groqAudioAuthorized get() = prefs.getBoolean("groq_audio_authorized", false)
     fun select(value: String) { require(value in setOf("groq", "openai")); check(prefs.edit().putString("provider", value).commit()) }
     fun saveGroq(model: String, consent: Boolean) { check(prefs.edit().putString("model", HostedPolicy.model(model)).putBoolean("groq_free_authorized", consent).commit()) }
     fun authorizeQwen(value: Boolean) { check(prefs.edit().putBoolean("qwen_authorized", value).commit()) }
+    fun authorizeGroqAudio(value: Boolean) { check(prefs.edit().putBoolean("groq_audio_authorized", value).commit()) }
 }
 
 /** Captura Vosk acotada por turno. Ningún audio sale del dispositivo ni se conserva. */
 class HostedDictation(private val context: Context) {
-    @android.annotation.SuppressLint("MissingPermission") // comprobación explícita inmediatamente antes de AudioRecord
-    suspend fun capture(): String = withContext(Dispatchers.IO) {
-        require(WakeModel(context).installed()) { "Instala el modelo Vosk desde Activación por voz o escribe tu petición." }
+    suspend fun capture(): String {
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) throw HostedFailure("Falta permiso de micrófono.")
+        val settings = HostedSettings(context)
+        if (settings.provider == "groq" && settings.authorized && settings.groqAudioAuthorized) {
+            val recorded = GroqAudioCapture(context).capture()
+            try {
+                return GroqApi().transcribe(KeyVault(context, provider = "groq").read(), recorded)
+            } finally {
+                recorded.fill(0)
+            }
+        }
+        // Usar reconocimiento libre del sistema para frases largas; Vosk permanece
+        // disponible cuando Android no tiene un motor on-device instalado.
+        val offline = OnDeviceDictation(context)
+        if (offline.available()) return offline.capture("es-ES")
+        return captureVosk()
+    }
+    private suspend fun captureVosk(): String = withContext(Dispatchers.IO) {
+        require(WakeModel(context).installed()) { "Instala el modelo Vosk o el reconocimiento offline de Android para dictar." }
+        // Android puede revocar RECORD_AUDIO entre la selección del motor y el fallback Vosk.
+        if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+            throw HostedFailure("Falta permiso de micrófono. Concédelo antes de dictar.")
         val gate = (context.applicationContext as PbtApplication).microphone
         val lease = gate.acquire(MicrophoneOwner.HOSTED_LOCAL) ?: throw HostedFailure("Micrófono ocupado. Detén la otra escucha.")
         try {
@@ -68,7 +88,8 @@ class HostedDictation(private val context: Context) {
                     finally { recorder.release() }
                 }
             } }
-        } catch (_: LinkageError) { throw HostedFailure("El runtime local Vosk no está disponible para este dispositivo. Puedes escribir tu petición.") }
+        } catch (_: SecurityException) { throw HostedFailure("Android ha denegado el micrófono. Comprueba el permiso de la aplicación.") }
+        catch (_: LinkageError) { throw HostedFailure("El runtime local Vosk no está disponible para este dispositivo. Puedes escribir tu petición.") }
         finally { gate.release(lease) }
     }
 }

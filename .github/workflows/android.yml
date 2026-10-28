@@ -30,6 +30,8 @@ jobs:
       - name: Instalar Android SDK 36
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
+      - name: Preparar herramienta ELF para aislar runtimes nativos
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq patchelf
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -121,6 +123,8 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
+      - name: Preparar herramienta ELF para aislar runtimes nativos
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq patchelf
       - name: Preparar runtime de síntesis verificado
         run: |
           python3 tools/preparar_sherpa.py
@@ -221,15 +225,32 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
+      - name: Preparar herramienta ELF para aislar runtimes nativos
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq patchelf
       - name: Preparar y comprobar APK del mismo SHA validado
         run: |
           python3 tools/preparar_sherpa.py
           bash ./gradlew --no-daemon assembleDebug
           python3 tools/comprobar_secretos.py --informe app/build/reports/seguridad/hallazgos.json app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump permissions app/build/outputs/apk/debug/app-debug.apk | grep -F "android.permission.ACCESS_NETWORK_STATE"
+      - name: Obtener versión de la aplicación
+        id: version
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+          gradle = Path('app/build.gradle.kts').read_text(encoding='utf-8')
+          matches = re.findall(r'^\s*versionName\s*=\s*"([^"]+)"', gradle, re.MULTILINE)
+          if len(matches) != 1 or not re.fullmatch(r'[0-9A-Za-z][0-9A-Za-z.+-]{0,60}', matches[0]):
+              raise SystemExit('versionName ausente, duplicado o no válido')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'name=PbtMetaGPT-v{matches[0]}-debug\n')
+          PY
       - uses: actions/upload-artifact@v4
         with:
-          name: PbtMetaGPT-v0.4.1-dev-debug
+          name: ${{ steps.version.outputs.name }}
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14

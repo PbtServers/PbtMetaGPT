@@ -1,8 +1,23 @@
 # Seguimiento de PbtMetaGPT
 
-## RVC local Android: presupuestos de rendimiento · 28/10/2026
+## Seguimiento de RVC local y límites opcionales · 28/10/2026
 
-**Fase preparatoria; inferencia RVC todavía NO implementada.** Se introduce `RvcLocalBudget` con límites verificables de modelo (192 MiB), índice opcional (64 MiB) y PCM16 mono por fragmentos de hasta 160 ms, más tres pruebas JVM de límites, frames y presión de memoria. El índice de búsqueda no se habilita por defecto: requiere activación explícita, al menos 2 GiB de RAM disponible y ausencia de presión de memoria. La infraestructura existente de Sherpa ONNX/Piper no implementa conversión RVC; no se presenta como tal, ni se cargan directamente modelos `.pth` o índices sin contrato compatible. Falta implementar y medir un runtime RVC Android real para inferencia, extracción de características/F0, compatibilidad de modelos y reproducción; su disponibilidad, velocidad y calidad siguen sin verificar. Se conservan el README y los seis archivos locales anteriores.
+El trabajo convergente de ONNX ya incluye HuBERT/ContentVec, RMVPE y síntesis RVC en CPU con un límite de entrada de ocho segundos; **no se confunde esto con audio inteligible validado en hardware**. Se conservaron los contratos preliminares de presupuesto de modelo, índice y PCM en `RvcLocalBudget` y tres pruebas JVM. Son presupuestos exploratorios, no se han conectado a la ruta de inferencia de ocho segundos y no deben presentarse como límites efectivos de RVC. El índice FAISS sigue sin ejecutarse. La prioridad ahora es la convivencia nativa con Sherpa y las pruebas en Android 15/16, sin declarar Release estable.
+
+**Corrección de la incompatibilidad JNI identificada en CI 40623567817:** el AAR de Sherpa 2.0.1 necesita `OrtGetApiBase` de su propia biblioteca, símbolo que no exportó el `libonnxruntime.so` empaquetado para RVC 1.30.0 en los emuladores. Se reemplaza la anterior exclusión de ORT de Sherpa por separación explícita de `SONAME` y `DT_NEEDED` mediante `patchelf` sobre binarios de un AAR oficial verificado por SHA-256. El empaquetado contiene entonces `libpbt_sherpa_ort.so` para Sherpa y `libonnxruntime.so` para RVC; deben aprobarse las instrumentadas de ambas APIs antes de publicar APK. El procedimiento no acredita rendimiento, seguridad de los modelos ni audio físico y requiere una CI nueva del commit final.
+
+## Candidata v0.5.0-rc1 · 28/10/2026 · en desarrollo
+
+Esta intervención parte del último `origin/master` `5b9855f`, en una rama de trabajo aislada. **No existe todavía una CI ni APK verificadas de v0.5.0-rc1** hasta que termine su compilación; las ejecuciones 0.4.1-dev anteriores no avalan los cambios nuevos.
+
+- Audio de las gafas: propuesta de precalentamiento silencioso para evitar la pérdida de la primera palabra al abrir la ruta Bluetooth. Requiere reproducción y medición física en 00R6.
+- Activación: señal audible de confirmación y reconocimiento libre del motor Android estrictamente offline, con alternativa Vosk, sin registrar ni subir audio.
+- Voz local natural: compatibilidad con motores neuronales de Android TTS instalables voluntariamente (HayaiTTS/Kokoly), prioridad a variantes `es-ES`. Su calidad y latencia en Nothing Phone 3a Lite quedan por medir.
+- Cámara y Groq: cliente de visión multimodal con consentimiento de envío por foto; el modelo público documentado es `qwen/qwen3.8-27b`. Falta llamada con clave real.
+- **RVC importable:** permite ZIP, `.pth` y `.index` en una biblioteca separada, con límites, rechazo de rutas peligrosas, almacenamiento privado y limpieza. Se almacenan como datos y no se ejecutan. **La inferencia RVC sigue desactivada** hasta encontrar un motor/proveedor autorizado y compatible sin self-hosting.
+- Documentación: README actualizado al estado de candidata, icono del launcher incorporado y lista de aceptación en [RELEASE_0.5.0.md](RELEASE_0.5.0.md).
+
+La meta es una candidata funcional que se pueda someter a pruebas; **no se declara v0.5.0 estable ni 100 % por compilar o importar un modelo RVC**. Toda la aceptación del audio y la cámara precisa hardware y proveedor reales.
 
 ## Optimización de voz, interfaz simplificada e icono profesional · 28/10/2026
 

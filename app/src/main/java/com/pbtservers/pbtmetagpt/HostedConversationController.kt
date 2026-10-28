@@ -1,6 +1,8 @@
 package com.pbtservers.pbtmetagpt
 
 import android.content.Context
+import android.graphics.Bitmap
+import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -88,6 +90,34 @@ class HostedConversation(private val context: Context, private val scope: Corout
         generate(text, trace)
     }
     fun send(text: String) = turn { generate(text, it) }
+    /** La fotografía solo llega aquí después de confirmar su envío en la interfaz. */
+    fun analyzePhoto(bitmap: Bitmap) = turn { trace ->
+        check(settings.authorized && settings.provider == "groq")
+        if (bitmap.isRecycled) throw HostedFailure("La fotografía ya no está disponible.")
+        val image = withContext(Dispatchers.Default) {
+            val size = maxOf(bitmap.width, bitmap.height)
+            val scaled = if (size > 1280) Bitmap.createScaledBitmap(bitmap,
+                maxOf(1, bitmap.width * 1280 / size), maxOf(1, bitmap.height * 1280 / size), true) else bitmap
+            try {
+                ByteArrayOutputStream().use { stream ->
+                    check(scaled.compress(Bitmap.CompressFormat.JPEG, 78, stream))
+                    stream.toByteArray()
+                }
+            } finally { if (scaled !== bitmap) scaled.recycle() }
+        }
+        phaseValue.value = ConversationPhase.THINKING
+        mutable.update { it.copy(status = "Analizando foto con Groq Vision", connecting = true) }
+        val question = "Describe lo que se ve en esta fotografía en español de España. Señala cualquier incertidumbre."
+        val started = trace.now()
+        val answer = api.analyzeImage(KeyVault(context, provider = "groq").read(), image, question)
+        trace.add(VoiceStage.GROQ_COMPLETE, trace.now() - started)
+        chat.update { (it + ChatMessage(++messageId, false, "¿Qué hay en la fotografía?")
+            + ChatMessage(++messageId, true, answer)).takeLast(20) }
+        mutable.update { it.copy(connecting = false, transcript = answer, sessionConfirmed = true) }
+        val selected = requireNotNull(profile)
+        lastAnswer = selected to answer
+        speakStream(selected, trace, produce = { delta -> delta(answer); answer }, text = {})
+    }
 
     private suspend fun generate(text: String, trace: VoiceLatency) {
         trace.responseStarted()
@@ -133,13 +163,37 @@ class HostedConversation(private val context: Context, private val scope: Corout
     }
     private suspend fun speakStream(target: AssistantProfile, trace: VoiceLatency,
         produce: suspend (suspend (String) -> Unit) -> String, text: (String) -> Unit,
-    ): String = StreamSpeechPipeline().run(remote = target.voiceMode != "rapida" && target.ttsEngine == "qwen_space", produce = produce, text = text,
+    ): String {
+        val rvcStore = RvcOnnxStore(context)
+        var localRvc: RvcOnDevice? = null
+        try {
+            // RVC local tiene coste fijo alto por inferencia HuBERT/RMVPE/ONNX.
+            // Agrupar texto en frases mayores evita cargar la CPU con fragmentos
+            // cortos; el texto sigue mostrándose por streaming independientemente.
+            val costlyRvc = rvcStore.enabled && target.voiceMode == "natural" && target.ttsEngine == "android"
+            return StreamSpeechPipeline().run(remote = (target.voiceMode != "rapida" && target.ttsEngine == "qwen_space") || costlyRvc,
+                produce = produce, text = text,
         synthesize = { phrase ->
             val started = trace.now()
             val chosen = resolve(target)
             engineValue.value = VoiceSynthesisContract.label(chosen.ttsEngine) + " · " + chosen.ttsVoice
             try {
-                when (chosen.ttsEngine) {
+                // Abrir la ruta de salida ANTES de sintetizar: la negociación Bluetooth/
+                // Meta deja de competir con la primera sílaba del PCM generado.
+                if (route == null) {
+                    val bluetooth = context.getSharedPreferences("configuracion", 0)
+                        .getBoolean("audio-bluetooth", false)
+                    val selected = AudioRoute(context) { stop() }
+                    try {
+                        val label = selected.start(bluetooth)
+                        route = selected
+                        mutable.update { it.copy(route = label, status = "Preparando voz") }
+                    } catch (problem: Exception) {
+                        selected.close()
+                        throw problem
+                    }
+                }
+                val normalAudio = when (chosen.ttsEngine) {
                     "android" -> android.synthesize(chosen, phrase)
                     "qwen_space" -> {
                         if (!settings.qwenAuthorized) throw HostedFailure("Autoriza Qwen3-TTS en Voces antes de enviarle texto.")
@@ -147,27 +201,42 @@ class HostedConversation(private val context: Context, private val scope: Corout
                     }
                     else -> throw HostedFailure("Esta voz no está habilitada en Groq Free. Elige Rápida o Natural; no se ha llamado a una API de pago.")
                 }
+                if (chosen.ttsEngine == "android" && chosen.voiceMode == "natural" && rvcStore.enabled) {
+                    mutable.update { it.copy(status = "Convirtiendo voz RVC en el teléfono") }
+                    val rvcStart = trace.now()
+                    try {
+                        val converter = localRvc ?: RvcOnDevice(rvcStore).also { localRvc = it }
+                        converter.convert(normalAudio)
+                    } catch (cancel: CancellationException) { throw cancel }
+                    catch (_: Exception) {
+                        throw HostedFailure("RVC local no pudo convertir la voz. Verifica los tres ONNX compatibles o desactiva RVC en Voces.")
+                    } finally {
+                        trace.add(VoiceStage.RVC_CONVERSION, trace.now() - rvcStart)
+                    }
+                } else normalAudio
             } finally { trace.add(VoiceStage.TTS_SYNTHESIS, trace.now() - started) }
         }, play = { audio ->
             try {
+                val bluetooth = context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false)
                 player.playStream(flow {
                     for (chunk in audio) {
-                        if (route == null) {
-                            route = AudioRoute(context) { stop() }
-                            val bluetooth = context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false)
-                            val label = route!!.start(bluetooth)
-                            mutable.update { it.copy(route = label, responding = true, status = "Hablando") }
-                        }
+                        if (route == null) throw HostedFailure("No se ha preparado la salida de audio.")
+                        mutable.update { it.copy(responding = true, status = "Hablando") }
                         phaseValue.value = ConversationPhase.SPEAKING
                         emit(chunk)
                     }
-                }) { trace.mark(VoiceStage.FIRST_AUDIO_FRAME); timing.value = trace.snapshot() }
+                }, firstFrame = { trace.mark(VoiceStage.FIRST_AUDIO_FRAME); timing.value = trace.snapshot() },
+                    preRollMs = if (bluetooth) 250 else 0)
             } finally { route?.close(); route = null }
         }, failed = { problem ->
             voiceFailure.value = publicError(problem)
             phaseValue.value = ConversationPhase.ERROR
             mutable.update { it.copy(status = "La voz no está disponible. Puedes leer la respuesta.") }
         })
+        } finally {
+            localRvc?.close()
+        }
+    }
 
     fun replay(voice: AssistantProfile? = null) {
         val previous = lastAnswer ?: return

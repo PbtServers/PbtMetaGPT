@@ -11,9 +11,10 @@ import kotlinx.coroutines.flow.flowOf
 class PcmPlayer {
     private var track: AudioTrack? = null
     suspend fun play(audio: PcmAudio) { playStream(flowOf(audio)) }
-    suspend fun playStream(chunks: Flow<PcmAudio>, firstFrame: () -> Unit = {}): Unit = coroutineScope {
+    suspend fun playStream(chunks: Flow<PcmAudio>, firstFrame: () -> Unit = {}, preRollMs: Int = 0): Unit = coroutineScope {
+        require(preRollMs in 0..500)
         var output: AudioTrack? = null
-        var rate = 0; var totalFrames = 0L; var observing: Job? = null
+        var rate = 0; var totalFrames = 0L; var preRollFrames = 0; var observing: Job? = null
         try {
             chunks.collect { audio ->
                 require(audio.sampleRate in 8000..48000 && audio.bytes.isNotEmpty() && audio.bytes.size % 2 == 0)
@@ -31,9 +32,25 @@ class PcmPlayer {
                 val current = requireNotNull(output)
                 if (totalFrames == 0L) {
                     current.play()
+                    // En Bluetooth la ruta puede estar despertando tras el aviso de Meta:
+                    // alimentar silencio antes de la primera sílaba evita perder audio útil.
+                    if (preRollMs > 0) {
+                        preRollFrames = rate * preRollMs / 1000
+                        val silence = ByteArray(preRollFrames * 2)
+                        withContext(Dispatchers.IO) {
+                            var offset = 0
+                            while (offset < silence.size) {
+                                ensureActive()
+                                val written = current.write(silence, offset, silence.size - offset)
+                                check(written > 0)
+                                offset += written
+                            }
+                        }
+                        totalFrames += preRollFrames
+                    }
                     observing = launch {
                         try {
-                            withTimeoutOrNull(5000) { while (current.playbackHeadPosition == 0) delay(5); firstFrame() }
+                            withTimeoutOrNull(5000) { while (current.playbackHeadPosition.toLong() <= preRollFrames) delay(5); firstFrame() }
                         } catch (cancel: CancellationException) { throw cancel }
                         catch (_: IllegalStateException) { /* salida cancelada antes de la primera trama */ }
                     }

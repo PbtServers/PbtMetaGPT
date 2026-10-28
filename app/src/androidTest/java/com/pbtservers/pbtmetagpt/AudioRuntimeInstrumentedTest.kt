@@ -10,6 +10,7 @@ import org.junit.Test
 import org.vosk.LibVosk
 import org.vosk.LogLevel
 import org.webrtc.PeerConnectionFactory
+import ai.onnxruntime.OrtEnvironment
 
 /** Carga nativa real sin permisos de captura, red, modelos o credenciales. */
 class AudioRuntimeInstrumentedTest {
@@ -20,6 +21,14 @@ class AudioRuntimeInstrumentedTest {
         PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions.builder(context).createInitializationOptions())
         val factory = PeerConnectionFactory.builder().createPeerConnectionFactory()
         factory.dispose()
+        assertNull((context.applicationContext as PbtApplication).microphone.owner())
+    }
+    @Test fun motorRvcOnnxYCapaSherpaCompartenBibliotecasNativasSinMicrófono() {
+        // Atrapa ABI incompatibles aunque Gradle haya resuelto las bibliotecas
+        // duplicadas al empaquetar un solo libonnxruntime.so.
+        val ort = OrtEnvironment.getEnvironment()
+        assertNotNull(ort)
+        System.loadLibrary("sherpa-onnx-jni")
         assertNull((context.applicationContext as PbtApplication).microphone.owner())
     }
     @Test fun servicioPrivadoDeclaraTipoMicrofonoYPermisosSinArrancarPorDefecto() {

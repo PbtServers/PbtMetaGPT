@@ -15,8 +15,8 @@ android {
         applicationId = "com.pbtservers.pbtmetagpt"
         minSdk = 31
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.4.1-dev"
+        versionCode = 6
+        versionName = "0.5.0-rc1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["mwdat_application_id"] = local.getProperty("mwdat_application_id", "0")
         manifestPlaceholders["mwdat_client_token"] = local.getProperty("mwdat_client_token", "0")
@@ -26,10 +26,16 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures { compose = true; buildConfig = true }
-    packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+    packaging {
+        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        // tools/preparar_sherpa.py elimina únicamente la biblioteca ORT duplicada
+        // del AAR de Sherpa; una colisión futura debe fallar, no pickFirst.
+    }
 }
 kotlin { compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17 } }
 dependencies {
+    // RVC local: inferencia completamente offline sobre CPU Android arm64.
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.30.0")
     implementation("com.alphacephei:vosk-android:0.3.75")
     implementation(files("libs/sherpa-onnx-2.0.1.aar"))
     implementation("com.meta.wearable:mwdat-core:1.0.1")

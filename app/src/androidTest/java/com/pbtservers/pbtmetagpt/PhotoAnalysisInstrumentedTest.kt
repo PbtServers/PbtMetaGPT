@@ -13,6 +13,28 @@ import kotlinx.coroutines.*
 
 class PhotoAnalysisInstrumentedTest {
     @get:Rule val compose = createComposeRule()
+    @Test fun groqVisionIdentificaProveedorYExigeConfirmacionAntesDeEnviar() {
+        val image = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
+        var requests = 0
+        compose.setContent { PbtTheme {
+            PhotoAnalysisPanel(image, true, VoiceState(transcript = "Imagen de prueba"), null, provider = "groq",
+                onConfirm = { assertSame(image, it); requests++ },
+                discard = {}, resume = {}, cancel = {})
+        } }
+        compose.onNodeWithText("Respuesta de Groq Vision:", substring = true).assertExists()
+        compose.onNodeWithText("Preguntar sobre esta foto").performClick()
+        compose.waitForIdle()
+        // Este caso verifica el rechazo: el dialogo debe existir y cancelar
+        // no puede enviar nada. La confirmacion positiva se comprueba en
+        // imagenYCredencialesPermitenConfirmarSinSesionNiEnvioAutomatico.
+        assertEquals(PhotoAnalysisStatus.READY,
+            PhotoAnalysisPolicy.status(true, true, VoiceState(transcript = "Imagen de prueba")))
+        compose.onNodeWithText("Enviar y preguntar").assertExists()
+        compose.runOnIdle { assertEquals(0, requests) }
+        compose.onNodeWithText("Cancelar").performClick()
+        compose.runOnIdle { assertEquals(0, requests) }
+        assertFalse(image.isRecycled)
+    }
     @Test fun imagenYCredencialesPermitenConfirmarSinSesionNiEnvioAutomatico() {
         val image = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
         var sends = 0
@@ -20,11 +42,11 @@ class PhotoAnalysisInstrumentedTest {
             PhotoAnalysisPanel(image, true, VoiceState(), null,
                 onConfirm = { assertSame(image, it); sends++ }, discard = {}, resume = {}, cancel = {})
         } } }
-        compose.onNodeWithText("Preguntar a ChatGPT sobre esta foto").assertIsEnabled().performClick()
+        compose.onNodeWithText("Preguntar sobre esta foto").assertIsEnabled().performClick()
         compose.runOnIdle { assertEquals(0, sends) }
         compose.onNodeWithText("Cancelar").performClick()
         compose.runOnIdle { assertEquals(0, sends) }
-        compose.onNodeWithText("Preguntar a ChatGPT sobre esta foto").performClick()
+        compose.onNodeWithText("Preguntar sobre esta foto").performClick()
         compose.onNodeWithText("Enviar y preguntar").performClick()
         compose.runOnIdle { assertEquals(1, sends); assertFalse(image.isRecycled) }
     }
@@ -34,7 +56,7 @@ class PhotoAnalysisInstrumentedTest {
             PhotoAnalysisPanel(image, false, VoiceState(), null,
                 onConfirm = { fail("No debe enviarse sin configuración") }, discard = {}, resume = {}, cancel = {})
         } } }
-        compose.onNodeWithText("Preguntar a ChatGPT sobre esta foto").assertIsNotEnabled()
+        compose.onNodeWithText("Preguntar sobre esta foto").assertIsNotEnabled()
         compose.onNodeWithText(PhotoAnalysisStatus.NEEDS_CONFIGURATION.message).assertIsDisplayed()
         assertFalse(image.isRecycled)
     }

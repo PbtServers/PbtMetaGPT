@@ -15,6 +15,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 @Composable
@@ -27,6 +29,7 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
 ) {
     val store = remember { ProfileStore(context) }
     val hostedSettings = remember { HostedSettings(context) }
+    var groqAudioEnabled by remember { mutableStateOf(hostedSettings.groqAudioAuthorized) }
     val hosted = remember { (context.applicationContext as PbtApplication).hosted }
     var provider by remember { mutableStateOf(hostedSettings.provider) }
     val preferences = remember { context.getSharedPreferences("configuracion", Context.MODE_PRIVATE) }
@@ -61,6 +64,7 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
     var hadSession by remember { mutableStateOf(false) }
     var pendingStart by remember { mutableStateOf(false) }
     val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val wakeCueScope = rememberCoroutineScope()
     androidx.activity.compose.BackHandler(enabled = !wizard && page != "Inicio") {
         returnToWake = false; consent = false; wake.stop()
         page = when (page) {
@@ -159,14 +163,19 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
         }
     }
     SideEffect { bindWakeStart { matched ->
-        if (matched.confirmationSound) runCatching {
-            val tone = android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 45)
-            tone.startTone(android.media.ToneGenerator.TONE_PROP_ACK, 120)
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ tone.release() }, 200)
-        }
         runCatching { save(profiles, matched.id); draft = matched }.onFailure { report("No se pudo seleccionar el asistente activado.") }
         returnToWake = true; page = "Conversación"; wake.stop()
-        if (!microphoneReady) requestMic() else startSelected(matched, dictate = provider == "groq")
+        // El reconocimiento no debe arrancar durante la señal de confirmación ni cortar su inicio.
+        wakeCueScope.launch {
+            if (matched.confirmationSound) {
+                try {
+                    WakeConfirmation.play(context,
+                        context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false))
+                } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+                catch (_: Exception) { report("No se pudo reproducir el aviso de activación. Revisa la ruta de audio.") }
+            }
+            if (!microphoneReady) requestMic() else startSelected(matched, dictate = provider == "groq")
+        }
     } }
     // Solo al entrar en diagnóstico; sus pruebas usan la misma selección explícita.
     LaunchedEffect(page) { if (page == "Diagnóstico" && !vs.active && !vs.connecting) configure() }
@@ -230,10 +239,14 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
             Column(Modifier.weight(1f).fillMaxWidth()) {
             if (page == "Diagnóstico") TextButton(onClick = { page = "Registros de errores" }) { Text("Registros de errores") }
             Box(Modifier.weight(1f)) {
-            legacy(page, configured && provider == "openai", backend, token, bluetooth, { bluetooth = it }, start) { bitmap ->
+            legacy(page, configured, backend, token, bluetooth, { bluetooth = it }, start) { bitmap ->
                 returnToWake = false; consent = false; wake.stop()
-                if (provider != "openai") report("El análisis de fotos requiere elegir explícitamente OpenAI API opcional en Servicios de IA. No se ha enviado la foto.")
-                else if (voice.state.value.active) voice.askImage(bitmap) {}
+                if (provider == "groq") {
+                    if (configured) {
+                        if (!hosted.state.value.active) selected?.let { hosted.start(it) }
+                        hosted.analyzePhoto(bitmap)
+                    } else report("Configura tu clave Groq antes de enviar la fotografía.")
+                } else if (voice.state.value.active) voice.askImage(bitmap) {}
                 else if (configured && configure()) voice.start(backend, token.trim(), bluetooth, image = bitmap)
                 else report("Configura OpenAI y guarda un asistente. La foto permanece disponible.")
             }
@@ -253,7 +266,7 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                             Column(Modifier.padding(18.dp)) { Text(destination, style = MaterialTheme.typography.titleMedium); Text(description) }
                         }
                     }
-                    Text("Versión ${BuildConfig.VERSION_NAME} · experimental", style = MaterialTheme.typography.bodySmall)
+                    Text("Versión ${BuildConfig.VERSION_NAME} · candidata para validación", style = MaterialTheme.typography.bodySmall)
                     Text("Apariencia", style = MaterialTheme.typography.titleMedium)
                     listOf("sistema", "claro", "oscuro").forEach { mode -> FilterChip(selected = themeMode == mode, onClick = { setTheme(mode) }, label = { Text(mode) }) }
                 }
@@ -363,7 +376,6 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                         Field("Vocabulario", draft.vocabulary) { draft = draft.copy(vocabulary = it) }
                         Text("Audio y límites de la sesión", style = MaterialTheme.typography.titleMedium)
                         Field("Mensaje de bienvenida opcional (se reproduce al conectar)", draft.welcomeMessage) { draft = draft.copy(welcomeMessage = it.take(1000)) }
-                        Toggle("Sonido de confirmación al activar", draft.confirmationSound) { draft = draft.copy(confirmationSound = it) }
                         Text("Duración máxima de sesión: ${draft.sessionMinutes} minutos")
                         Slider(draft.sessionMinutes.toFloat(), { draft = draft.copy(sessionMinutes = it.toInt()) }, valueRange = 1f..60f, steps = 58)
                         }
@@ -379,7 +391,20 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
                 }
                 "Activación por voz" -> {
                     ListeningControls(configured, microphoneReady, requestMic, stopVisible = { wake.stop(); voice.stop(); hosted.stop(); configure() })
+                    if (provider == "groq") {
+                        Toggle("Dictado preciso con Groq Whisper (envía audio)", groqAudioEnabled) {
+                            stopAll()
+                            try {
+                                hostedSettings.authorizeGroqAudio(it)
+                                groqAudioEnabled = it
+                            } catch (_: Exception) { report("No se pudo guardar la autorización del micrófono remoto."); return@Toggle }
+                            report(if (it) "Whisper activado: el audio de cada petición se enviará a Groq tras detectar la frase o pulsar Dictar."
+                                else "Whisper desactivado: el dictado vuelve al reconocimiento local.")
+                        }
+                        Text("La frase de activación sigue reconociéndose localmente. Solo se envía el audio de la petición posterior si autorizas esta opción. Requiere Internet y consume cuota de Groq, con posible coste según tu plan. Para máxima privacidad, mantenlo desactivado.", style = MaterialTheme.typography.bodySmall)
+                    }
                     if (selected != null) {
+                        Toggle("Sonido al reconocer la frase", draft.confirmationSound) { draft = draft.copy(confirmationSound = it) }
                         PhraseEditor(draft, { draft = it; wake.stop() }, test = { phrase ->
                             stopAll()
                             if (!microphoneReady) requestMic()

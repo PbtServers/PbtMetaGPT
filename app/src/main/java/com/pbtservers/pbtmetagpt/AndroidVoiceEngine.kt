@@ -14,7 +14,14 @@ data class AndroidVoice(val engine: String, val name: String, val language: Stri
 class AndroidVoiceEngine(private val context: Context) {
     suspend fun resolveRapid(profile: AssistantProfile): AssistantProfile {
         if (profile.voiceMode != "rapida" || profile.ttsEngine == "android") return profile
-        val local = voices().firstOrNull { it.language.substringBefore('-') == profile.language.substringBefore('-') }
+        val local = voices().filter { it.language.substringBefore('-') == profile.language.substringBefore('-') }
+            .sortedWith(compareByDescending<AndroidVoice> {
+                // Preferir pronunciación peninsular sobre variantes americanas.
+                it.language.equals(profile.language, true) || it.language.equals("es-ES", true)
+            }.thenByDescending {
+                // Hay motores neuronales offline que exponen la API estándar de Android TTS.
+                it.engine.contains("hayai", true) || it.engine.contains("kokoly", true) || it.engine.contains("sherpa", true)
+            }).firstOrNull()
             ?: throw HostedFailure("No hay voz local instalada para este idioma. Elige una voz en Voces.")
         return profile.copy(ttsEngine = "android", ttsVoice = local.name, ttsPackage = local.engine)
     }
