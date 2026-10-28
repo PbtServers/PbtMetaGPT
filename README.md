@@ -60,6 +60,7 @@ La aplicación es de código abierto y también funciona sin gafas. La latencia 
 | Groq Vision | **Candidata** | Foto enviada con confirmación a modelo multimodal oficial; requiere prueba real con clave |
 | Qwen3-TTS remoto | **Implementado, con límites** | Space público, posibles colas y fallos por cuota; prueba de generación remota |
 | Reconocimiento libre offline | **Candidata** | Dictado on-device Android con fallback Vosk si no está disponible |
+| Groq Whisper para dictado | **Opcional y con consentimiento independiente** | Transcripción más precisa en servidor con `whisper-large-v3-turbo`; envía únicamente el audio de la petición, puede consumir cuota o generar costes según plan |
 | Voz neuronal local de España | **Compatible mediante Android TTS** | Motores de terceros como HayaiTTS/Kokoly requieren instalación separada y voz es-ES |
 | Importación RVC | **Candidata** | ZIP, .pth y .index almacenados sin ejecución; inferencia RVC aún no disponible |
 | BYOK y conexión directa a OpenAI | **Experimental** | Claves protegidas y flujo de credencial temporal; conversación real con clave personal pendiente |
@@ -123,6 +124,8 @@ Cada perfil admite nombre, avatar textual, idioma, personalidad, instrucciones, 
 
 La activación emplea `SpeechRecognizer.createOnDeviceSpeechRecognizer`. Requiere autorización, aplicación visible y motor local compatible. Tiene ventanas limitadas, no aprende nombres inventados y puede reconocer incorrectamente algunas frases. **No escucha permanentemente**, no funciona con la pantalla bloqueada ni sustituye «Hey Meta». Consulta los [detalles y límites técnicos](docs/GUIA_TECNICA.md).
 
+El dictado de la pregunta ofrece dos rutas: **local** (por defecto, reconocimiento de Android offline o Vosk) y **Groq Whisper**, que requiere marcar expresamente «Dictado preciso con Groq Whisper» en **Activación por voz**. La frase de activación se detecta localmente en ambos casos. Con Whisper activado, la pregunta grabada se envía como WAV temporal en memoria a GroqCloud para transcribirla; el audio no se guarda en la galería ni en el historial de la aplicación. Esta opción necesita red, consume límites del proveedor y puede implicar coste dependiendo de la cuenta; se puede desactivar en cualquier momento.
+
 ## Voces y modelos locales
 
 | Motor | Función | Limitación |
@@ -185,7 +188,7 @@ El diagrama describe el software, **no rutas físicas comprobadas de las gafas**
 
 - BYOK cifra la clave en reposo con AES-256-GCM y Android Keystore; proveedores externos usan otro almacén. Una clave puede quedar expuesta en memoria durante su uso si el dispositivo está comprometido.
 - No se incluyen claves en el repositorio, APK ni perfiles exportados. Los textos personales exportados **no se cifran**: revísalos antes de compartirlos.
-- El reconocimiento local no conserva el audio de activación. Conversaciones autorizadas y fotos confirmadas pueden viajar a OpenAI; proveedores TTS externos autorizados reciben texto de respuesta.
+- El reconocimiento de la frase de activación es local. Por defecto, el dictado también es local; **solo si activas Groq Whisper** se envía el audio posterior de cada petición a GroqCloud, sujeto a cuota y condiciones de la cuenta. Conversaciones, fotos y voces que autorices pueden enviarse al proveedor elegido (GroqCloud, Qwen u OpenAI). Los proveedores TTS externos autorizados reciben texto de respuesta.
 - La cámara precisa acción explícita, vista previa y segunda confirmación. Los modelos de usuario se verifican y se ejecutan aislados, sin garantizar seguridad absoluta.
 - No se almacena un historial permanente de conversación según la implementación documentada. Borrar una clave local **no** la revoca en el proveedor.
 

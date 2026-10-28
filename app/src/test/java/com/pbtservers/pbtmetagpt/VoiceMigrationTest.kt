@@ -13,6 +13,9 @@ class VoiceMigrationTest {
         assertEquals(offline.ttsVoice, natural.ttsVoice)
         assertEquals(offline.ttsPackage, natural.ttsPackage)
         assertEquals("qwen_space", VoiceModes.choose(AssistantProfile(name = "Luna"), "natural").ttsEngine)
+        val online = VoiceModes.qwen(natural, "Ryan").validated()
+        assertEquals("qwen_space", online.ttsEngine)
+        assertEquals("0.6B", online.ttsPackage)
     }
     @Test fun rapidaDesdeUnaVozExclusivaNoArrastraUnaConfiguracionIncompatible() {
         val special = AssistantProfile(name = "Luna", ttsEngine = "openai_tts", voice = "onyx", voiceMode = "personalizada")

@@ -65,7 +65,7 @@ import kotlinx.coroutines.CancellationException
             val supported = runCatching { QwenSpaceContract.language(profile.language) }.isSuccess
             if (!supported) Text("Qwen no documenta este idioma. El catalán requiere otro motor compatible.", color = MaterialTheme.colorScheme.error)
             QwenSpaceContract.speakers.forEach { speaker ->
-                val target = VoiceModes.choose(profile, "natural").copy(ttsVoice = speaker)
+                val target = VoiceModes.qwen(profile, speaker)
                 VoiceChoice(speaker, if (supported) java.util.Locale.forLanguageTag(profile.language).getDisplayLanguage(java.util.Locale.forLanguageTag("es")) else "Idioma no compatible", "Qwen3-TTS · remoto",
                     profile.ttsEngine == "qwen_space" && profile.ttsVoice == speaker,
                     { stop(); change(target) }, { stop(); preview(target) }, authorized && supported)
