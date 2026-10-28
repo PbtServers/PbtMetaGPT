@@ -17,7 +17,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
     Text("Puedes probar texto y voz ahora o finalizar y configurarlo después. Las gafas son opcionales.")
     if (provider == "groq") {
         Button(onClick = { voice.start(profile); voice.send("Saluda brevemente en español para probar texto y voz.") }, enabled = !busy) { Text("Probar conversación gratuita") }
-        Text("La prueba envía una petición sintética a Groq y, si elegiste Natural y diste consentimiento, su texto a Qwen. Consume cuota gratuita.", style = MaterialTheme.typography.bodySmall)
+        Text("La prueba envía una petición de ejemplo a Groq. Kokoro y Android generan su voz en el teléfono; Qwen remoto solo recibe texto con su consentimiento independiente. Consume cuota del proveedor.", style = MaterialTheme.typography.bodySmall)
         if (state.transcript.isNotBlank()) Text(state.transcript)
         Text(state.status)
         audioError?.let { Text(it, color = MaterialTheme.colorScheme.error) }

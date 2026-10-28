@@ -13,7 +13,7 @@ object HostedPolicy {
         503, 504 -> "Servicio ocupado o no disponible. Vuelve a intentarlo más tarde."
         else -> "El proveedor rechazó la solicitud (HTTP $code)."
     })
-    fun freeVoice(engine: String) = engine in setOf("android", "qwen_space")
+    fun freeVoice(engine: String) = engine in setOf("android", "qwen_space", "kokoro", "piper_es")
     fun model(value: String): String {
         require(value.matches(Regex("[A-Za-z0-9][A-Za-z0-9./_-]{0,119}")) && !SecretPatterns.contains(value)) { "Modelo no válido." }
         return value

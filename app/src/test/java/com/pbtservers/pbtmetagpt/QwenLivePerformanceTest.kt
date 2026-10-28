@@ -15,7 +15,7 @@ class QwenLivePerformanceTest {
         assumeTrue("Solo se ejecuta contra Internet por elección explícita", System.getenv("PBT_QWEN_LIVE") == "1")
         val first = "Hola, soy un asistente de voz. Esta muestra permite comprobar el primer fragmento de audio."
         val whole = "$first Después de esta primera frase, continúo con una explicación breve para comparar la espera antes de disponer de audio."
-        val profile = AssistantProfile(name = "Prueba", ttsEngine = "qwen_space", ttsVoice = "Ryan", ttsPackage = "0.6B", voiceMode = "natural")
+        val profile = AssistantProfile(name = "Prueba", ttsEngine = "qwen_space", ttsVoice = "Ryan", ttsPackage = "0.6B", voiceMode = "personalizada")
         val report = JSONObject().put("tipo", "INFERENCIA_REAL_SIN_MOCKS").put("limite", "PCM disponible no equivale a sonido físico. Dos peticiones, sin demostrar superioridad general; GPU/cachés y cola pueden variar.")
         val output = File("build/reports/qwen-latencia-real.json").apply { parentFile.mkdirs() }
         var stage = "COMPLETO"

@@ -29,6 +29,8 @@ class HostedConversation(private val context: Context, private val scope: Corout
     private val api = GroqApi()
     private val player = PcmPlayer()
     private val android = AndroidVoiceEngine(context)
+    private val kokoro = KokoroEngine(context)
+    private val spain = SpainVoiceEngine(context)
     private var job: Job? = null
     private var draining: Job? = null
     private var limit: Job? = null
@@ -42,7 +44,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
     private var fromWake = false
     private val history = mutableListOf<Pair<String, String>>()
 
-    fun start(target: AssistantProfile, dictate: Boolean = false) {
+    fun start(target: AssistantProfile, dictate: Boolean = false, initialQuestion: String = "") {
         stop(); chat.value = emptyList(); lastAnswer = null; resolved = null
         try {
             check(settings.provider == "groq" && settings.authorized && KeyVault(context, provider = "groq").exists())
@@ -50,7 +52,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
             mutable.value = VoiceState(active = true, connecting = dictate, status = "Listo · GroqCloud", route = "Micrófono local del teléfono")
             phaseValue.value = ConversationPhase.READY
             limit = scope.launch { delay(target.sessionMinutes * 60000L); stop() }
-            if (dictate) listen()
+            if (initialQuestion.isNotBlank()) send(initialQuestion) else if (dictate) listen()
         } catch (_: Exception) { failed(HostedFailure("Configura Groq Free y guarda un asistente antes de hablar.")) }
     }
     private fun turn(action: suspend (VoiceLatency) -> Unit) {
@@ -74,19 +76,22 @@ class HostedConversation(private val context: Context, private val scope: Corout
                         phaseValue.value = ConversationPhase.READY
                         mutable.update { it.copy(status = "Listo", active = if (fromWake) false else it.active) }
                     }
-                    idleRelease = scope.launch { delay(30000); android.close() }
+                    idleRelease = scope.launch { delay(30000); android.close(); kokoro.close(); spain.close() }
                 }
             }
         }
     }
     fun listen() = turn { trace ->
-        if (profile?.language?.startsWith("es") != true) throw HostedFailure("El dictado Vosk instalado es español. Para otros idiomas escribe tu petición.")
         phaseValue.value = ConversationPhase.LISTENING
         mutable.update { it.copy(connecting = true, failed = false, status = "Escuchando") }
         ContinuousWakeService.beforeRealtime()
         val started = trace.now()
-        val text = HostedDictation(context).capture()
-        trace.add(VoiceStage.TRANSCRIPTION, trace.now() - started)
+        val speechEnd = java.util.concurrent.atomic.AtomicLong(0)
+        val text = HostedDictation(context).capture(profile?.language ?: "es-ES") {
+            if (speechEnd.compareAndSet(0, trace.now())) trace.once(VoiceStage.END_OF_SPEECH, trace.now() - started)
+        }
+        val captureEnd = speechEnd.get().takeIf { it > 0 } ?: started
+        trace.add(VoiceStage.TRANSCRIPTION, trace.now() - captureEnd)
         generate(text, trace)
     }
     fun send(text: String) = turn { generate(text, it) }
@@ -170,7 +175,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
             // RVC local tiene coste fijo alto por inferencia HuBERT/RMVPE/ONNX.
             // Agrupar texto en frases mayores evita cargar la CPU con fragmentos
             // cortos; el texto sigue mostrándose por streaming independientemente.
-            val costlyRvc = rvcStore.enabled && target.voiceMode == "natural" && target.ttsEngine == "android"
+            val costlyRvc = rvcStore.enabled && target.ttsEngine in setOf("kokoro", "piper_es", "android")
             return StreamSpeechPipeline().run(remote = (target.voiceMode != "rapida" && target.ttsEngine == "qwen_space") || costlyRvc,
                 produce = produce, text = text,
         synthesize = { phrase ->
@@ -194,6 +199,8 @@ class HostedConversation(private val context: Context, private val scope: Corout
                     }
                 }
                 val normalAudio = when (chosen.ttsEngine) {
+                    "kokoro" -> kokoro.synthesize(chosen, phrase) { trace.mark(VoiceStage.TTS_FIRST_PCM) }
+                    "piper_es" -> spain.synthesize(chosen, phrase).also { trace.mark(VoiceStage.TTS_FIRST_PCM) }
                     "android" -> android.synthesize(chosen, phrase)
                     "qwen_space" -> {
                         if (!settings.qwenAuthorized) throw HostedFailure("Autoriza Qwen3-TTS en Voces antes de enviarle texto.")
@@ -201,12 +208,22 @@ class HostedConversation(private val context: Context, private val scope: Corout
                     }
                     else -> throw HostedFailure("Esta voz no está habilitada en Groq Free. Elige Rápida o Natural; no se ha llamado a una API de pago.")
                 }
-                if (chosen.ttsEngine == "android" && chosen.voiceMode == "natural" && rvcStore.enabled) {
+                if (chosen.ttsEngine in setOf("android", "kokoro", "piper_es") && rvcStore.enabled) {
                     mutable.update { it.copy(status = "Convirtiendo voz RVC en el teléfono") }
                     val rvcStart = trace.now()
                     try {
                         val converter = localRvc ?: RvcOnDevice(rvcStore).also { localRvc = it }
-                        converter.convert(normalAudio)
+                        val output = ByteArrayOutputStream()
+                        var rate = 0
+                        for (segment in RvcAudioSegments.split(normalAudio)) {
+                            ensureActive()
+                            val converted = converter.convert(segment)
+                            check(rate == 0 || rate == converted.sampleRate)
+                            rate = converted.sampleRate
+                            require(output.size() + converted.bytes.size <= 6_000_000) { "Respuesta RVC demasiado larga." }
+                            output.write(converted.bytes)
+                        }
+                        PcmAudio(output.toByteArray(), rate)
                     } catch (cancel: CancellationException) { throw cancel }
                     catch (_: Exception) {
                         throw HostedFailure("RVC local no pudo convertir la voz. Verifica los tres ONNX compatibles o desactiva RVC en Voces.")
@@ -259,6 +276,8 @@ class HostedConversation(private val context: Context, private val scope: Corout
         generation++; processing.value = false
         job?.let { it.cancel(); draining = it }; job = null
         limit?.cancel(); idleRelease?.cancel(); player.stop(); route?.close(); route = null; android.close()
+        val previous = draining
+        scope.launch { previous?.join(); kokoro.close(); spain.close() }
         history.clear(); profile = null; resolved = null
         phaseValue.value = ConversationPhase.READY
         mutable.value = VoiceState(status = "Listo", transcript = mutable.value.transcript)

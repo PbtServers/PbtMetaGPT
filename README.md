@@ -61,7 +61,8 @@ La aplicación es de código abierto y también funciona sin gafas. La latencia 
 | Qwen3-TTS remoto | **Implementado, con límites** | Space público, posibles colas y fallos por cuota; prueba de generación remota |
 | Reconocimiento libre offline | **Candidata** | Dictado on-device Android con fallback Vosk si no está disponible |
 | Groq Whisper para dictado | **Opcional y con consentimiento independiente** | Transcripción más precisa en servidor con `whisper-large-v3-turbo`; envía únicamente el audio de la petición, puede consumir cuota o generar costes según plan |
-| Voz neuronal local de España | **Compatible mediante Android TTS** | Motores de terceros como HayaiTTS/Kokoly requieren instalación separada y voz es-ES |
+| Voz neuronal local de España | **Código candidato, inferencia pendiente** | Piper Davefx es_ES integrado; descarga voluntaria, SHA-256 y prueba audible |
+| Kokoro local | **Código candidato, inferencia pendiente** | Dora, Alex y Santa; español sin variante peninsular acreditada; motor separado de Android TTS |
 | Importación RVC | **Candidata** | ZIP, .pth y .index almacenados sin ejecución; inferencia RVC aún no disponible |
 | BYOK y conexión directa a OpenAI | **Experimental** | Claves protegidas y flujo de credencial temporal; conversación real con clave personal pendiente |
 | Android Keystore y AES-256-GCM | **Implementado** | Pruebas JVM e instrumentadas; no garantiza seguridad frente a un dispositivo comprometido |
@@ -132,7 +133,8 @@ El dictado de la pregunta ofrece dos rutas: **local** (por defecto, reconocimien
 | --- | --- | --- |
 | OpenAI Realtime | Voces nativas en sesión WebRTC | Requiere API de pago y conectividad |
 | Android TTS | Voces instaladas en Android | Idiomas y tratamiento dependen del proveedor |
-| HayaiTTS/Kokoly mediante Android TTS | Motores neuronales locales opcionales con voces españolas | Se instalan por separado; calidad y latencia deben comprobarse en el teléfono |
+| Piper Davefx local | Modelo neuronal identificado como español de España | Nueva integración pendiente de compilación, inferencia y escucha física |
+| Kokoro-82M local | Motor neuronal ONNX integrado, tres voces en español | No se acredita acento de España; nueva inferencia pendiente de ejecutar |
 | Qwen3-TTS | Voz neuronal online a través de un Space público autorizado | Las colas de GPU pueden retrasar la respuesta |
 | RVC | Importación de archivos `.pth`, `.index` y ZIP | Solo biblioteca, sin inferencia activada; no confundir importado con reproducible |
 | OpenAI Speech | Síntesis de texto separada | Adaptador transitorio; verificar disponibilidad |
@@ -141,11 +143,11 @@ El dictado de la pregunta ofrece dos rutas: **local** (por defecto, reconocimien
 
 Se admiten paquetes ZIP `sherpa-piper-phonemes-v1` con `voz.json`, `model.onnx`, `tokens.txt` y `lexicon.tsv`. No acepta ONNX arbitrarios; una importación válida **no demuestra** síntesis inteligible. Consulta [Biblioteca de voces](docs/BIBLIOTECA_DE_VOCES.md).
 
-Para voces españolas neuronales sin esperar las colas de Qwen, instala un motor de sistema offline como [HayaiTTS](https://github.com/HayaiApp/HayaiTTS) o [Kokoly](https://github.com/loom7/kokoly), descarga una voz española desde él y selecciónala en **Voces → Android TTS**. El reconocimiento de voz sigue siendo independiente del motor de síntesis. PbtMetaGPT también conserva la importación RVC, pero **no ejecuta modelos `.pth`** ni ofrece conversión sin un backend compatible y autorizado.
+**Natural** prioriza **Piper Davefx es-ES** por el requisito de acento de España. Kokoro local queda como alternativa diferenciada: sus voces españolas no se presentan como peninsulares. **Rápida** contiene exclusivamente las voces Android TTS; con `es-ES` no se sustituye silenciosamente por una variante americana. **Avanzada** conserva Qwen remoto, RVC e importaciones. Seleccionar una voz no la descarga ni reproduce automáticamente.
 
-En la pantalla **Voces → Natural** también se enumeran las voces offline instaladas, priorizando el idioma `es-ES`. Si eliges una, el asistente conserva el modo Natural con motor local, **sin cambiar a Qwen ni enviar el texto de síntesis a Internet**. La calidad neuronal no puede deducirse del nombre de la voz: depende del motor y modelo que instales. Qwen continúa como alternativa remota, diferenciada y con consentimiento propio.
+En **Voces → Natural**, selecciona Davefx y pulsa **Descargar voz de España** (63,2 MB; reserva de instalación 256 MiB). Para Kokoro, pulsa **Otras voces locales · Kokoro** (354 MB; reserva 750 MiB). Ambos comprueban SHA-256, guardan pesos privados y permiten probar, comprobar y eliminar. El código nuevo está pendiente de compilación/inferencia: **no se afirma todavía calidad, acento audible ni latencia verificados**. Consulta [motores, licencias, hashes y protocolo](docs/VOZ_LOCAL_0.5.0.md).
 
-**RVC local ONNX (experimental):** se ha añadido una primera canalización de inferencia en Android basada en ONNX Runtime: síntesis TTS base offline → HuBERT/ContentVec → RMVPE → sintetizador RVC ONNX → reproducción PCM. En Biblioteca de voces puedes importar **tres modelos ONNX** identificados por su nombre (Synth/RVC, HuBERT/ContentVec, RMVPE) y activar la conversión para el modo **Natural con TTS Android local**. No se envían pesos ni muestras al servidor. La inferencia todavía requiere pruebas con modelos ONNX auténticos y en un teléfono arm64; **no se certifica como estable por compilar**.
+**RVC local ONNX (experimental):** cadena optativa Piper/Kokoro → PCM → HuBERT/ContentVec → RMVPE → RVC ONNX → salida. Se conservan los tres modelos y las importaciones; desactivar RVC no los elimina. Añade procesamiento y puede producir artefactos: no se recomienda por defecto ni se declara validado con pesos RVC auténticos o gafas.
 
 Los `.pth` y `.index` originales permanecen importables para almacenamiento, **pero no son ejecutables en este motor**. Debes exportar el sintetizador RVC a ONNX con una herramienta confiable desde un ordenador; no basta con renombrar el archivo. El índice FAISS `.index` no se utiliza en la conversión ONNX actual. Consulta [RVC local en Android](docs/RVC_LOCAL_ANDROID.md) para los formatos compatibles y las pruebas pendientes.
 
@@ -216,11 +218,12 @@ Versiones verificadas en Gradle y el wrapper:
 | Sherpa ONNX | **2.0.1** |
 | SDK y herramientas Android | SDK 36 y paquetes exigidos por AGP |
 
-Instala Android Studio, JDK 17 y Android SDK 36. Configura el SDK en `local.properties` mediante `sdk.dir` o la variable `ANDROID_HOME`. Los parámetros públicos de registro Meta DAT (`mwdat_application_id` y `mwdat_client_token`) no sustituyen la clave personal de OpenAI. **No introduzcas claves privadas en el código.**
+Instala Android Studio, JDK 17, Android SDK 36, NDK 28.2.13676358 y CMake 3.22.1. La preparación del fonemizador necesita también CMake y un compilador C del host; eSpeak NG añade obligaciones GPL-3.0-or-later a su componente, detalladas en la guía de voz local. Configura el SDK en `local.properties` mediante `sdk.dir` o la variable `ANDROID_HOME`. Los parámetros públicos de registro Meta DAT (`mwdat_application_id` y `mwdat_client_token`) no sustituyen la clave personal de OpenAI. **No introduzcas claves privadas en el código.**
 
 ```bash
 git clone https://github.com/PbtServers/PbtMetaGPT.git
 cd PbtMetaGPT
+python tools/preparar_fonemizador.py
 python tools/preparar_sherpa.py
 ./gradlew testDebugUnitTest
 ./gradlew lintDebug
@@ -235,6 +238,7 @@ python -m unittest discover -s tools -p 'test_*.py'
 python tools/comprobar_secretos.py app/build/outputs/apk/debug/app-debug.apk
 # Solo con emulador configurado y fixture preparada:
 python tools/preparar_modelo_prueba.py
+python tools/preparar_kokoro_prueba.py
 ./gradlew connectedDebugAndroidTest
 ```
 

@@ -13,7 +13,7 @@ jobs:
   validar:
     name: Pruebas y APK debug
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     outputs:
       resumen: ${{ steps.resumen.outputs.resumen }}
     steps:
@@ -28,7 +28,7 @@ jobs:
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
       - name: Instalar Android SDK 36
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "cmake;3.22.1" "ndk;28.2.13676358"
       - uses: gradle/actions/setup-gradle@v4
       - name: Preparar herramienta ELF para aislar runtimes nativos
         run: sudo apt-get update -qq && sudo apt-get install -y -qq patchelf
@@ -41,6 +41,7 @@ jobs:
         id: compilacion
         shell: bash
         run: |
+          python3 tools/preparar_fonemizador.py
           python3 tools/preparar_sherpa.py
           bash ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug 2>&1 | tee compilacion.log
       - name: Extraer diagnóstico de compilación sin datos de usuario
@@ -108,7 +109,7 @@ jobs:
       matrix:
         api: [35, 36]
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     outputs:
       resumen: ${{ steps.resumen.outputs.resumen }}
     steps:
@@ -121,14 +122,16 @@ jobs:
         with:
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
-      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "cmake;3.22.1" "ndk;28.2.13676358"
       - uses: gradle/actions/setup-gradle@v4
       - name: Preparar herramienta ELF para aislar runtimes nativos
         run: sudo apt-get update -qq && sudo apt-get install -y -qq patchelf
       - name: Preparar runtime de síntesis verificado
         run: |
+          python3 tools/preparar_fonemizador.py
           python3 tools/preparar_sherpa.py
           python3 tools/preparar_modelo_prueba.py
+          python3 tools/preparar_kokoro_prueba.py
       - name: Habilitar KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -223,12 +226,13 @@ jobs:
         with:
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
-      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "cmake;3.22.1" "ndk;28.2.13676358"
       - uses: gradle/actions/setup-gradle@v4
       - name: Preparar herramienta ELF para aislar runtimes nativos
         run: sudo apt-get update -qq && sudo apt-get install -y -qq patchelf
       - name: Preparar y comprobar APK del mismo SHA validado
         run: |
+          python3 tools/preparar_fonemizador.py
           python3 tools/preparar_sherpa.py
           bash ./gradlew --no-daemon assembleDebug
           python3 tools/comprobar_secretos.py --informe app/build/reports/seguridad/hallazgos.json app/build/outputs/apk/debug/app-debug.apk

@@ -33,11 +33,11 @@ class HostedSettings(context: Context) {
 
 /** Captura Vosk acotada por turno. Ningún audio sale del dispositivo ni se conserva. */
 class HostedDictation(private val context: Context) {
-    suspend fun capture(): String {
+    suspend fun capture(language: String = "es-ES", speechEnded: () -> Unit = {}): String {
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) throw HostedFailure("Falta permiso de micrófono.")
         val settings = HostedSettings(context)
         if (settings.provider == "groq" && settings.authorized && settings.groqAudioAuthorized) {
-            val recorded = GroqAudioCapture(context).capture()
+            val recorded = GroqAudioCapture(context).capture(speechEnded)
             try {
                 return GroqApi().transcribe(KeyVault(context, provider = "groq").read(), recorded)
             } finally {
@@ -47,24 +47,37 @@ class HostedDictation(private val context: Context) {
         // Usar reconocimiento libre del sistema para frases largas; Vosk permanece
         // disponible cuando Android no tiene un motor on-device instalado.
         val offline = OnDeviceDictation(context)
-        if (offline.available()) return offline.capture("es-ES")
-        return captureVosk()
+        if (offline.available()) return withContext(Dispatchers.Main.immediate) {
+            val route = AudioRoute(context) {}
+            try {
+                if (context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false)) route.start(true)
+                offline.capture(language, speechEnded)
+            } finally { route.close() }
+        }
+        require(language.startsWith("es")) { "Instala el reconocedor local de este idioma en Android." }
+        return captureVosk(speechEnded)
     }
-    private suspend fun captureVosk(): String = withContext(Dispatchers.IO) {
+    private suspend fun captureVosk(speechEnded: () -> Unit): String = withContext(Dispatchers.IO) {
         require(WakeModel(context).installed()) { "Instala el modelo Vosk o el reconocimiento offline de Android para dictar." }
         // Android puede revocar RECORD_AUDIO entre la selección del motor y el fallback Vosk.
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
             throw HostedFailure("Falta permiso de micrófono. Concédelo antes de dictar.")
         val gate = (context.applicationContext as PbtApplication).microphone
         val lease = gate.acquire(MicrophoneOwner.HOSTED_LOCAL) ?: throw HostedFailure("Micrófono ocupado. Detén la otra escucha.")
+        val route = AudioRoute(context) {}
         try {
+            val bluetooth = context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false)
+            if (bluetooth) route.start(true)
             LibVosk.setLogLevel(LogLevel.WARNINGS)
             Model(WakeModel(context).model.absolutePath).use { model -> Recognizer(model, 16000f).use { recognizer ->
                 val minimum = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
                 check(minimum > 0)
-                val recorder = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, 16000, AudioFormat.CHANNEL_IN_MONO,
+                val recorder = AudioRecord(if (bluetooth) MediaRecorder.AudioSource.VOICE_COMMUNICATION else MediaRecorder.AudioSource.VOICE_RECOGNITION, 16000, AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT, maxOf(minimum, 6400))
-                val buffer = ShortArray(3200)
+                val buffer = ShortArray(320)
+                val vad = AdaptiveVad()
+                val preRoll = PcmPreRoll()
+                val transcript = mutableListOf<String>()
                 try {
                     check(recorder.state == AudioRecord.STATE_INITIALIZED)
                     recorder.startRecording()
@@ -75,21 +88,33 @@ class HostedDictation(private val context: Context) {
                         check(recorder.activeRecordingConfiguration?.isClientSilenced != true)
                         val n = recorder.read(buffer, 0, buffer.size, AudioRecord.READ_NON_BLOCKING)
                         check(n >= 0)
-                        if (n > 0 && recognizer.acceptWaveForm(buffer, n)) {
-                            val text = JSONObject(recognizer.result).optString("text").trim()
-                            if (text.isNotEmpty()) return@withContext text
+                        if (n > 0) {
+                            val previouslyStarted = vad.started
+                            if (!previouslyStarted) preRoll.append(buffer, n)
+                            val event = vad.accept(buffer, n)
+                            val frame = if (!previouslyStarted && vad.started) preRoll.snapshot() else if (previouslyStarted) buffer.copyOf(n) else shortArrayOf()
+                            try {
+                                if (frame.isNotEmpty() && recognizer.acceptWaveForm(frame, frame.size)) {
+                                    JSONObject(recognizer.result).optString("text").trim().takeIf { it.isNotEmpty() }?.let(transcript::add)
+                                }
+                            } finally { frame.fill(0) }
+                            if (vad.started) preRoll.clear()
+                            if (event == AdaptiveVad.Event.END) break
                         }
                         buffer.fill(0); delay(20)
                     }
-                    JSONObject(recognizer.finalResult).optString("text").trim().ifEmpty { throw HostedFailure("No se reconoció voz en 20 segundos. Pulsa Dictar para otro turno o escribe.") }
+                    speechEnded()
+                    JSONObject(recognizer.finalResult).optString("text").trim().takeIf { it.isNotEmpty() }?.let(transcript::add)
+                    transcript.joinToString(" ").ifEmpty { throw HostedFailure("No se reconoció voz. Pulsa Dictar para otro turno o escribe.") }
                 } finally {
                     buffer.fill(0)
+                    preRoll.clear(); transcript.clear()
                     try { if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) recorder.stop() }
                     finally { recorder.release() }
                 }
             } }
         } catch (_: SecurityException) { throw HostedFailure("Android ha denegado el micrófono. Comprueba el permiso de la aplicación.") }
         catch (_: LinkageError) { throw HostedFailure("El runtime local Vosk no está disponible para este dispositivo. Puedes escribir tu petición.") }
-        finally { gate.release(lease) }
+        finally { route.close(); gate.release(lease) }
     }
 }

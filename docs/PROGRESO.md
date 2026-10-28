@@ -1,5 +1,34 @@
 # Seguimiento de PbtMetaGPT
 
+## Escucha, motores neuronales y simplificación · intervención actual 28/10/2026
+
+Base `e263ec42bda840c5cfb6427c945f562d57a086d9`; trabajo exclusivamente en `master`, sin ramas ni worktrees. Se preservan seis archivos locales previos, comprobados por SHA-256 y excluidos de los commits. La versión continúa **0.5.0-rc1**.
+
+**Estimación global orientativa: 45 %; objetivo incompleto.** No se mezcla con porcentajes históricos posteriores en este documento ni representa una aprobación de inferencia, calidad o hardware.
+
+| Subfase | Estimación/peso | Evidencia y pendiente |
+| --- | ---: | --- |
+| Auditoría, contratos y procedencia | 20/25 | Fuentes primarias, hashes de pesos, variantes lingüísticas; cerrar compatibilidad de licencias e implementación Android |
+| Activación y captura | 7/15 | Hipótesis, sensibilidad, recuperación, pre-roll/VAD y pregunta concatenada; pruebas acústicas y regresiones Android pendientes |
+| Interfaz y persistencia | 10/20 | Cuatro destinos, ajustes agrupados, categorías separadas, estado restaurable; instrumentadas del nuevo código pendientes |
+| Motores locales | 5/20 | Inferencia programada, instalador con hashes, Piper es-ES y Kokoro separados; **sin ejecución de pesos nuevos** |
+| Documentación y pruebas locales | 3/10 | Guía técnica/README y subconjunto JVM; falta suite Android completa y revisión de distribución |
+| CI, APK y aceptación física | 0/10 | Bloqueado acceso de escritura y SDK; Nothing/Ray-Ban no validados |
+
+La preferencia confirmada por el usuario es **acento de España**: Natural prioriza Piper Davefx `es_ES`, publicado expresamente con esa variante; Kokoro conserva Dora/Alex/Santa sin atribuirles acento peninsular. Android TTS está en Rápida y Qwen remoto en Avanzada. No se sustituye silenciosamente es-ES por una variante americana. Las selecciones antiguas se conservan/migran de categoría. Todo el detalle y las limitaciones están en [VOZ_LOCAL_0.5.0.md](VOZ_LOCAL_0.5.0.md).
+
+Comprobaciones ejecutadas en esta intervención:
+
+- **19 JVM correctas** del código puro de VAD, recuperación, hipótesis de dictado, segmentación/cancelación de streaming, partición PCM y contratos/hashes de los catálogos. Duración JUnit del último conjunto: **8,237 s**. Compiladas con el compilador Kotlin 2.0.21 incluido en el wrapper y Java 17, sin sustituir la compilación Android Kotlin 2.2.21.
+- **35 Python y 19 Node correctas**; escaneo de patrones de secretos en fuentes correcto. No se han probado servicios con claves reales ni consumido cuotas.
+- Análisis sintáctico Kotlin correcto; **no comprueba tipos, JNI, Compose ni empaquetado**. El número de archivos cambia durante la revisión y no mide cobertura.
+- Gradle con Java 17 falla por **SDK location not found**. Preparación de Sherpa falla por **WinError 10013**; la fuente fijada del fonemizador no puede descargarse por el bloqueo de red. No se omiten para declarar compilación correcta.
+- Git no conecta por HTTPS a `origin`; el conector GitHub rechaza escritura de objetos con **HTTP 403 Resource not accessible by integration**. No existe una ejecución CI ni APK atribuible a estos cambios. La matriz de Actions conserva APIs 35/36 y prepara modelos reales para probar, pero eso **no acredita que se haya ejecutado**.
+
+Latencia de conversación, TTFS de los motores, PSS, consumo, temperatura y acento audible **sin medir**. Las nuevas instrumentadas emiten métricas numéricas del emulador cuando se ejecuten; no son resultados ya obtenidos. La inferencia RVC sintética anterior no certifica voz auténtica ni su calidad.
+
+Próxima tarea: conseguir SDK y descarga de dependencias o acceso de publicación para que CI compile y ejecute todas las regresiones; corregir cualquier fallo de tipos/JNI/inferencia. Después comprobar la APK del mismo SHA, escuchar Davefx/Kokoro y ejecutar el protocolo físico en Nothing/Ray-Ban. Estimación de compilación/emuladores una vez desbloqueados: **1–3 horas**, ampliable si hay errores; no hay plazo fiable de entrega mientras continúen los bloqueos. No publicar una Release estable ni declarar aceptación completa por superar únicamente tests.
+
 ## Seguimiento de RVC local y límites opcionales · 28/10/2026
 
 El trabajo convergente de ONNX ya incluye HuBERT/ContentVec, RMVPE y síntesis RVC en CPU con un límite de entrada de ocho segundos; **no se confunde esto con audio inteligible validado en hardware**. Se conservaron los contratos preliminares de presupuesto de modelo, índice y PCM en `RvcLocalBudget` y tres pruebas JVM. Son presupuestos exploratorios, no se han conectado a la ruta de inferencia de ocho segundos y no deben presentarse como límites efectivos de RVC. El índice FAISS sigue sin ejecutarse. La prioridad ahora es la convivencia nativa con Sherpa y las pruebas en Android 15/16, sin declarar Release estable.

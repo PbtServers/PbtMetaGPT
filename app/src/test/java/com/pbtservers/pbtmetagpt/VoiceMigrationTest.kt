@@ -4,15 +4,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class VoiceMigrationTest {
-    @Test fun naturalPuedeReutilizarVozOfflineSinCambiarAProveedorRemoto() {
+    @Test fun naturalPriorizaEspanaMantieneKokoroYAndroidSoloPerteneceARapida() {
         val offline = AssistantProfile(name = "Luna", ttsEngine = "android", ttsVoice = "es_ES_neuronal",
             ttsPackage = "org.example.offlinetts", voiceMode = "rapida")
         val natural = VoiceModes.choose(offline, "natural").validated()
         assertEquals("natural", natural.voiceMode)
-        assertEquals("android", natural.ttsEngine)
-        assertEquals(offline.ttsVoice, natural.ttsVoice)
-        assertEquals(offline.ttsPackage, natural.ttsPackage)
-        assertEquals("qwen_space", VoiceModes.choose(AssistantProfile(name = "Luna"), "natural").ttsEngine)
+        assertEquals("piper_es", natural.ttsEngine)
+        assertEquals("davefx", natural.ttsVoice)
+        assertEquals("piper-es_ES-davefx-medium", natural.ttsPackage)
+        assertEquals("piper_es", VoiceModes.choose(AssistantProfile(name = "Luna"), "natural").ttsEngine)
+        assertEquals("kokoro", VoiceModes.kokoro(natural).validated().ttsEngine)
+        val migratedOffline = AssistantProfile.parse(offline.copy(voiceMode = "natural").json())
+        assertEquals("rapida", migratedOffline.voiceMode)
+        assertEquals(offline.ttsVoice, migratedOffline.ttsVoice)
         val online = VoiceModes.qwen(natural, "Ryan").validated()
         assertEquals("qwen_space", online.ttsEngine)
         assertEquals("0.6B", online.ttsPackage)
@@ -29,7 +33,7 @@ class VoiceMigrationTest {
         val original = AssistantProfile(name = "Luna", ttsEngine = "qwen_space", ttsVoice = "Ryan", ttsPackage = "1.7B")
         val old = original.json().apply { remove("voiceMode") }
         val migrated = AssistantProfile.parse(old)
-        assertEquals("natural", migrated.voiceMode)
+        assertEquals("personalizada", migrated.voiceMode)
         assertEquals("Ryan", migrated.ttsVoice); assertEquals("1.7B", migrated.ttsPackage)
         val oldRealtime = AssistantProfile(name = "Luna", voice = "cedar").json().apply { remove("voiceMode") }
         assertEquals("personalizada", AssistantProfile.parse(oldRealtime).voiceMode)

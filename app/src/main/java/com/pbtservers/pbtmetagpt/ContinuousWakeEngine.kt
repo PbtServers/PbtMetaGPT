@@ -21,12 +21,13 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
     private var work: Job? = null
     suspend fun stop() { work?.cancelAndJoin(); work = null }
     @android.annotation.SuppressLint("WakelockTimeout") // Solo durante captura autorizada del servicio visible.
-    suspend fun start(profiles: List<AssistantProfile>, ready: () -> Unit, detected: (AssistantProfile) -> Unit, failed: (Throwable) -> Unit) {
+    suspend fun start(profiles: List<AssistantProfile>, ready: () -> Unit, detected: (AssistantProfile, String) -> Unit, failed: (Throwable) -> Unit) {
         stop()
         val gate = ActivationGate(); val epoch = gate.arm(profiles)
         work = scope.launch(Dispatchers.IO) {
             val gatekeeper = (context.applicationContext as PbtApplication).microphone
             var lease: MicrophoneGate.Lease? = null
+            var route: AudioRoute? = null
             val cpu = context.getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PbtMetaGPT:escucha-local")
             try {
                 check(WakeModel(context).installed())
@@ -34,12 +35,22 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
                 Model(WakeModel(context).model.absolutePath).use { model ->
                     // Modelo español abierto: permite nombres de su vocabulario sin sesgar todo el ruido a una frase.
                     Recognizer(model, 16000f).use { recognizer ->
+                        recognizer.setMaxAlternatives(5)
                         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) throw SecurityException()
                         lease = gatekeeper.acquire(MicrophoneOwner.CONTINUOUS_LOCAL)
                         check(lease != null) { "El micrófono ya está en uso" }
+                        val bluetooth = context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false)
+                        if (bluetooth) {
+                            val captureJob = currentCoroutineContext().job
+                            val requested = AudioRoute(context) {
+                                captureJob.cancel()
+                                scope.launch(Dispatchers.Main) { failed(IllegalStateException("Ruta de audio interrumpida")) }
+                            }
+                            route = requested; requested.start(true)
+                        }
                         val minimum = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
                         check(minimum > 0)
-                        val recorder = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, 16000,
+                        val recorder = AudioRecord(if (bluetooth) MediaRecorder.AudioSource.VOICE_COMMUNICATION else MediaRecorder.AudioSource.VOICE_RECOGNITION, 16000,
                             AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(minimum, 6400))
                         try {
                             check(recorder.state == AudioRecord.STATE_INITIALIZED)
@@ -51,17 +62,20 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
                                 if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) throw SecurityException()
                                 if (!context.getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled()) throw SecurityException()
                                 val mode = context.getSystemService(AudioManager::class.java).mode
-                                check(mode != AudioManager.MODE_IN_CALL && mode != AudioManager.MODE_IN_COMMUNICATION) { "Audio interrumpido" }
+                                check(mode != AudioManager.MODE_IN_CALL) { "Audio interrumpido" }
                                 check(recorder.activeRecordingConfiguration?.isClientSilenced != true) { "Android ha silenciado la captura" }
                                 val size = recorder.read(buffer, 0, buffer.size, AudioRecord.READ_NON_BLOCKING)
                                 check(size >= 0) { "Captura interrumpida" }
                                 if (size > 0 && recognizer.acceptWaveForm(buffer, size)) {
-                                    val text = JSONObject(recognizer.result).optString("text")
-                                    val match = gate.accept(text, epoch)
+                                    val result = JSONObject(recognizer.result)
+                                    val alternatives = result.optJSONArray("alternatives")
+                                    val texts = if (alternatives == null) listOf(result.optString("text"))
+                                        else (0 until alternatives.length()).map { alternatives.getJSONObject(it).optString("text") }
+                                    val match = gate.acceptUtterance(texts, epoch)
                                     if (match != null) {
                                         // Primero salir y liberar AudioRecord; el callback se encola después del finally.
                                         val recordingJob = currentCoroutineContext().job
-                                        scope.launch(Dispatchers.Main) { recordingJob.join(); detected(match) }
+                                        scope.launch(Dispatchers.Main) { recordingJob.join(); detected(match.profile, match.question) }
                                         break
                                     }
                                 }
@@ -77,10 +91,11 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (problem: IOException) { withContext(Dispatchers.Main) { failed(problem) } }
             catch (problem: IllegalStateException) { withContext(Dispatchers.Main) { failed(problem) } }
+            catch (problem: IllegalArgumentException) { withContext(Dispatchers.Main) { failed(problem) } }
             catch (problem: SecurityException) { withContext(Dispatchers.Main) { failed(problem) } }
             catch (problem: org.json.JSONException) { withContext(Dispatchers.Main) { failed(problem) } }
             catch (problem: LinkageError) { withContext(Dispatchers.Main) { failed(problem) } }
-            finally { if (cpu.isHeld) cpu.release(); gatekeeper.release(lease) }
+            finally { if (cpu.isHeld) cpu.release(); route?.close(); gatekeeper.release(lease) }
         }
     }
 }

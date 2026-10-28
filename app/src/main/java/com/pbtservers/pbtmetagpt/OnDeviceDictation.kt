@@ -16,23 +16,26 @@ import java.util.Locale
 class OnDeviceDictation(private val context: Context) {
     fun available() = SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
 
-    suspend fun capture(language: String = "es-ES"): String = withContext(Dispatchers.Main.immediate) {
+    suspend fun capture(language: String = "es-ES", speechEnded: () -> Unit = {}): String = withContext(Dispatchers.Main.immediate) {
         if (!available()) throw HostedFailure("El reconocedor offline de Android no está instalado.")
+        val gate = (context.applicationContext as PbtApplication).microphone
+        val lease = gate.acquire(MicrophoneOwner.ANDROID_LOCAL) ?: throw HostedFailure("El micrófono está ocupado.")
         val result = CompletableDeferred<String>()
-        val recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+        var recognizer: SpeechRecognizer? = null
         try {
-            recognizer.setRecognitionListener(object : RecognitionListener {
+            val active = SpeechRecognizer.createOnDeviceSpeechRecognizer(context); recognizer = active
+            active.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) = Unit
                 override fun onBeginningOfSpeech() = Unit
                 override fun onRmsChanged(rmsdB: Float) = Unit
                 override fun onBufferReceived(buffer: ByteArray?) = Unit
-                override fun onEndOfSpeech() = Unit
+                override fun onEndOfSpeech() { speechEnded() }
                 override fun onError(error: Int) {
                     if (!result.isCompleted) result.completeExceptionally(HostedFailure("No se entendió el dictado offline. Repite la pregunta o escríbela."))
                 }
                 override fun onResults(results: Bundle?) {
-                    val phrase = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        ?.firstOrNull()?.trim().orEmpty()
+                    val phrase = DictationHypotheses.best(results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty(),
+                        results?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES))
                     if (!result.isCompleted) {
                         if (phrase.isBlank()) result.completeExceptionally(HostedFailure("No se detectó una frase completa."))
                         else result.complete(phrase)
@@ -41,17 +44,18 @@ class OnDeviceDictation(private val context: Context) {
                 override fun onPartialResults(partialResults: Bundle?) = Unit
                 override fun onEvent(eventType: Int, params: Bundle?) = Unit
             })
-            recognizer.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            active.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.forLanguageTag(language).toLanguageTag())
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1100L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 800L)
             })
             withTimeout(25_000) { result.await() }
         } finally {
-            recognizer.cancel()
-            recognizer.destroy()
+            try { recognizer?.cancel() } finally { try { recognizer?.destroy() } finally { gate.release(lease) } }
         }
     }
 }

@@ -20,6 +20,8 @@ data class ExternalVoiceConfig(val endpoint: String, val model: String, val samp
 
 object VoiceSynthesisContract {
     fun label(engine: String) = when (engine) {
+        "kokoro" -> "Kokoro neuronal local"
+        "piper_es" -> "Piper local · España"
         "realtime" -> "OpenAI Realtime"
         "android" -> "TTS local de Android"
         "openai_tts" -> "OpenAI Speech"

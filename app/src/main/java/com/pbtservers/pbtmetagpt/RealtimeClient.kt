@@ -377,6 +377,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
             val label = route.start(bluetooth, speaker = !bluetooth)
             mutable.value = VoiceState(active = true, paused = true, status = "Muestra alternativa · micrófono apagado", route = label)
             val sample = if (selected.ttsEngine == "sherpa_vits") VoicePackageStore(java.io.File(appContext.filesDir, "voces")).describe(selected.ttsVoice).sampleText
+                else if (selected.ttsEngine == "piper_es") "Hola. En Zaragoza hay cinco plazas. ¿Podéis acercaros vosotros?"
                 else "Hola. Esta es una muestra de mi voz, lista para ayudarte."
             speakAlternative(sample)
         } catch (_: Exception) { fail("No se pudo preparar la muestra. Revisa la voz, los requisitos del modelo y la ruta de audio.") }

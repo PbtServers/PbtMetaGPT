@@ -21,3 +21,7 @@ __pycache__/
 *.aar
 *.descarga
 app/src/androidTest/assets/modelo-prueba.zip
+app/src/androidTest/assets/kokoro/
+.cxx/
+**/.cxx/
+app/src/androidTest/assets/piper-es/

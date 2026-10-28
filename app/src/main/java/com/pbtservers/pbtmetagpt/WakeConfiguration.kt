@@ -51,7 +51,7 @@ object PhraseMatcher {
     /** Una coincidencia ambigua entre personajes se rechaza, nunca gana por orden de la lista. */
     fun resolve(heard: String, profiles: List<AssistantProfile>): AssistantProfile? {
         fun find(fuzzy: Boolean) = profiles.filter { p -> p.activationPhrases.any { phrase -> phrase.enabled &&
-            if (fuzzy) matches(heard, phrase.rendered(p.name), p.tolerantActivation) else exact(heard, phrase.rendered(p.name)) } }
+            if (fuzzy) matches(heard, phrase.rendered(p.name), p.wakeSensitivity != "baja" && (p.tolerantActivation || p.wakeSensitivity == "alta")) else exact(heard, phrase.rendered(p.name)) } }
         val exact = find(false)
         if (exact.isNotEmpty()) return exact.singleOrNull()
         return find(true).singleOrNull()
@@ -59,6 +59,8 @@ object PhraseMatcher {
 }
 
 /** Entrada de resultados finales con generación: cancela callbacks viejos y consume una sola activación. */
+data class WakeUtterance(val profile: AssistantProfile, val question: String = "")
+
 class ActivationGate {
     private var generation = 0
     private var profiles = emptyList<AssistantProfile>()
@@ -70,8 +72,39 @@ class ActivationGate {
         return ++generation
     }
     fun accept(heard: String, epoch: Int): AssistantProfile? {
+        return accept(listOf(heard), epoch)
+    }
+    fun accept(hypotheses: List<String>, epoch: Int): AssistantProfile? {
         if (!armed || epoch != generation) return null
-        val match = PhraseMatcher.resolve(heard, profiles) ?: return null
+        // Una alternativa no puede seleccionar un personaje distinto de otra.
+        // Baja: primera hipótesis exacta; normal: tres; alta: cinco y tolerancia limitada.
+        val matches = profiles.filter { profile ->
+            val count = when (profile.wakeSensitivity) { "baja" -> 1; "alta" -> 5; else -> 3 }
+            hypotheses.take(count).any { heard -> PhraseMatcher.resolve(heard, listOf(profile)) != null }
+        }
+        val match = matches.singleOrNull() ?: return null
+        stop(); return match
+    }
+    /** Conserva la pregunta si llega en la misma frase final; nunca busca una activación dentro de una conversación. */
+    fun acceptUtterance(hypotheses: List<String>, epoch: Int): WakeUtterance? {
+        if (!armed || epoch != generation) return null
+        val matches = profiles.mapNotNull { profile ->
+            val count = when (profile.wakeSensitivity) { "baja" -> 1; "alta" -> 5; else -> 3 }
+            hypotheses.take(count).firstNotNullOfOrNull { heard ->
+                if (PhraseMatcher.resolve(heard, listOf(profile)) != null) WakeUtterance(profile)
+                else profile.activationPhrases.filter { it.enabled }.firstNotNullOfOrNull { phrase ->
+                    val words = Regex("[\\p{L}\\p{N}]+").findAll(heard).toList()
+                    val targetWords = PhraseMatcher.normalize(phrase.rendered(profile.name)).split(' ').size
+                    if (targetWords < 2 || words.size <= targetWords) null
+                    else {
+                        val end = words[targetWords - 1].range.last + 1
+                        if (PhraseMatcher.exact(heard.substring(0, end), phrase.rendered(profile.name)))
+                            WakeUtterance(profile, heard.substring(end).trim().trimStart(',', '.', ':', ';', '!', '?').trim().take(2000)) else null
+                    }
+                }
+            }
+        }
+        val match = matches.singleOrNull() ?: return null
         stop(); return match
     }
     fun stop() { generation++; armed = false; profiles = emptyList() }

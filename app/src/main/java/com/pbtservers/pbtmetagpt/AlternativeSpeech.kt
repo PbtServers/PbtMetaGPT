@@ -14,12 +14,16 @@ class AlternativeSpeech(private val context: Context, private val scope: Corouti
 ) {
     private val player = PcmPlayer()
     private val android = AndroidVoiceEngine(context)
+    private val kokoro = KokoroEngine(context)
+    private val spain = SpainVoiceEngine(context)
     private val http = OkHttpClient.Builder().followRedirects(false).followSslRedirects(false).callTimeout(60, java.util.concurrent.TimeUnit.SECONDS).build()
     private val queue = SpeechTaskQueue(scope, ::synthesize, player::play, player::stop, status, error)
     fun speak(profile: AssistantProfile, text: String, finished: () -> Unit = {}) = queue.speak(profile, text, finished)
     suspend fun prepare(profile: AssistantProfile) {
         profile.validated()
         when (profile.ttsEngine) {
+            "kokoro" -> check(KokoroModel(context).verify()) { "Instala Kokoro en Voces → Natural." }
+            "piper_es" -> check(SpainVoiceModel(context).verify()) { "Instala la voz de España en Voces → Natural." }
             "qwen_space" -> {
                 check(HostedSettings(context).qwenAuthorized) { "Autoriza el envío de texto a Qwen3-TTS en la biblioteca de voces." }
                 HostedHttp.qwenApi.probe()
@@ -42,6 +46,8 @@ class AlternativeSpeech(private val context: Context, private val scope: Corouti
         }
     }
     suspend fun synthesize(profile: AssistantProfile, text: String): PcmAudio = when (profile.ttsEngine) {
+        "kokoro" -> kokoro.synthesize(profile, text)
+        "piper_es" -> spain.synthesize(profile, text)
         "qwen_space" -> {
             check(HostedSettings(context).qwenAuthorized) { "Falta autorización para transmitir texto al Space Qwen3-TTS." }
             HostedHttp.qwenApi.synthesize(profile, text, status = { message -> scope.launch { status(message) } })
@@ -64,7 +70,7 @@ class AlternativeSpeech(private val context: Context, private val scope: Corouti
         }
         else -> throw IllegalArgumentException("La voz Realtime usa exclusivamente su audio nativo.")
     }
-    fun stop() { queue.stop(); android.close() }
+    fun stop() { queue.stop(); android.close(); scope.launch { kokoro.close(); spain.close() } }
 }
 
 internal suspend fun Call.awaitPcm(): ByteArray = suspendCancellableCoroutine { continuation ->

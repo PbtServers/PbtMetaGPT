@@ -19,6 +19,7 @@ class ContinuousWakeService : Service() {
     private val session = WakeSessionPolicy()
     private var foregroundStarted = false
     private var candidates = emptyList<AssistantProfile>()
+    private var activation: Job? = null
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onCreate() {
         super.onCreate()
@@ -59,9 +60,17 @@ class ContinuousWakeService : Service() {
     private suspend fun listen() {
         val current = session.beginListening() ?: return
         update(ListeningPhase.LOADING)
-        engine.start(candidates, ready = { if (session.ready(current)) update(session.phase) }, detected = { matched ->
+        engine.start(candidates, ready = { if (session.ready(current)) update(session.phase) }, detected = { matched, question ->
             if (session.detected(current)) {
                 update(ListeningPhase.DETECTED)
+                activation?.cancel()
+                activation = scope.launch {
+                if (!session.authorized) return@launch
+                if (matched.confirmationSound) try {
+                    WakeConfirmation.play(this@ContinuousWakeService, getSharedPreferences("configuracion", MODE_PRIVATE).getBoolean("audio-bluetooth", false))
+                } catch (cancel: CancellationException) { throw cancel }
+                catch (problem: Exception) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); suspendListening(); return@launch }
+                if (!session.authorized) return@launch
                 val preferences = getSharedPreferences("configuracion", MODE_PRIVATE)
                 // El backend usa token solo en memoria de la sesión actual; no se exporta ni persiste aquí.
                 val connection = app.connection
@@ -72,7 +81,7 @@ class ContinuousWakeService : Service() {
                         else {
                             val store = ProfileStore(this)
                             store.save(store.load(), matched.id)
-                            app.hosted.start(matched, dictate = true)
+                            app.hosted.start(matched, dictate = true, initialQuestion = question)
                         }
                     } catch (problem: Exception) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); suspendListening() }
                 }
@@ -86,10 +95,12 @@ class ContinuousWakeService : Service() {
                     } catch (problem: IllegalStateException) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); suspendListening() }
                     catch (problem: IllegalArgumentException) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); suspendListening() }
                 }
+                }
             }
         }, failed = { problem -> app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); suspendListening() })
     }
     private fun suspendListening() {
+        activation?.cancel(); activation = null
         session.suspendListening()
         update(session.phase)
         scope.launch { engine.stop() }
@@ -112,6 +123,7 @@ class ContinuousWakeService : Service() {
             .addAction(Notification.Action.Builder(null, "Detener escucha y conversación", stop).build()).build()
     }
     override fun onDestroy() {
+        activation?.cancel(); activation = null
         session.stop(); instance = null
         getSharedPreferences("escucha", MODE_PRIVATE).edit().putBoolean("proceso-activo", false).apply()
         // El cierre de micrófono se completa antes de cancelar el scope del servicio.

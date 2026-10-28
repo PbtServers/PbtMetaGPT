@@ -103,7 +103,8 @@ import kotlinx.coroutines.*
     LaunchedEffect(messages.lastOrNull()?.text) { if (messages.isNotEmpty()) list.animateScrollToItem(messages.lastIndex) }
     LaunchedEffect(fallback) {
         if (fallback) try {
-            localVoices = AndroidVoiceEngine(context).voices().filter { it.language.substringBefore('-') == profile?.language?.substringBefore('-') }
+            localVoices = AndroidVoiceEngine(context).voices().filter { if (profile?.language == "es-ES") it.language.equals("es-ES", true)
+                else it.language.substringBefore('-') == profile?.language?.substringBefore('-') }
             if (localVoices.isEmpty()) localStatus = "No hay voces locales instaladas para este idioma."
         } catch (cancel: CancellationException) { throw cancel }
         catch (_: Exception) { localStatus = "No se pudo consultar las voces instaladas." }
@@ -178,6 +179,7 @@ import kotlinx.coroutines.*
     if (previewState.connecting || previewState.responding || previewState.active) Text(previewState.status)
     Text("Proveedor: Space público oficial Qwen/Qwen3-TTS en Hugging Face ZeroGPU. Sin despliegue propio. Puede estar suspendido, cambiar de API o agotar su cuota compartida. No ofrece disponibilidad garantizada.")
     Text("CustomVoice: 0.6B / 1.7B; nueve voces. Español compatible; catalán no documentado. Sin VoiceDesign ni VoiceClone en este adaptador.")
+    Text("Idioma de síntesis: ${java.util.Locale.forLanguageTag(profile.language).getDisplayLanguage(java.util.Locale.forLanguageTag("es"))}. Referencia de la voz seleccionada: ${QwenSpaceContract.referenceLanguage(profile.ttsVoice)}. No es una voz nativa es-ES.")
     Text(status)
     Row { Checkbox(authorized, {
         stop()

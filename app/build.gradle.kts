@@ -11,6 +11,7 @@ val local = Properties().apply {
 android {
     namespace = "com.pbtservers.pbtmetagpt"
     compileSdk = 36
+    ndkVersion = "28.2.13676358"
     defaultConfig {
         applicationId = "com.pbtservers.pbtmetagpt"
         minSdk = 31
@@ -18,6 +19,8 @@ android {
         versionCode = 6
         versionName = "0.5.0-rc1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
+        externalNativeBuild { cmake { targets += "pbt_phonemes" } }
         manifestPlaceholders["mwdat_application_id"] = local.getProperty("mwdat_application_id", "0")
         manifestPlaceholders["mwdat_client_token"] = local.getProperty("mwdat_client_token", "0")
     }
@@ -26,6 +29,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures { compose = true; buildConfig = true }
+    externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt"); version = "3.22.1" } }
+    sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/phonemes-assets"))
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
         // tools/preparar_sherpa.py elimina únicamente la biblioteca ORT duplicada

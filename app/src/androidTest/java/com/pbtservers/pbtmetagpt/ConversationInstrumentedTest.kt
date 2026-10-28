@@ -40,7 +40,7 @@ class ConversationInstrumentedTest {
         HostedSettings(context).select("openai")
         var failure by mutableStateOf<String?>(null)
         val client = RealtimeClient(context, scope, { failure = it }).also { voice = it }
-        val listener = LocalWakeListener(context, scope) {}.also { wake = it }
+        val listener = LocalWakeListener(context, scope) { _, _ -> }.also { wake = it }
         compose.setContent {
             PbtTheme { AssistantShell(context, KeyVault(context), client, listener,
                 microphoneReady = true, requestMic = { fail("No debe pedir permisos en este caso controlado") },

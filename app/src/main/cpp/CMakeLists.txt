@@ -1,0 +1,18 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(pbt_phonemes LANGUAGES C CXX)
+include(FetchContent)
+# Fuente oficial 1.52.0, revisión inmutable. No se descargan pesos al compilar.
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(COMPILE_INTONATIONS OFF CACHE BOOL "" FORCE)
+set(ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+set(USE_ASYNC OFF CACHE BOOL "" FORCE)
+set(USE_MBROLA OFF CACHE BOOL "" FORCE)
+set(USE_LIBPCAUDIO OFF CACHE BOOL "" FORCE)
+set(USE_LIBSONIC OFF CACHE BOOL "" FORCE)
+set(USE_SPEECHPLAYER OFF CACHE BOOL "" FORCE)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+# tools/preparar_fonemizador.py comprueba la revisión y genera sus datos.
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../build/native-sources/espeak espeak)
+add_library(pbt_phonemes SHARED phonemes.cpp)
+target_link_libraries(pbt_phonemes PRIVATE espeak-ng)
+target_link_options(pbt_phonemes PRIVATE "-Wl,-z,max-page-size=16384")

@@ -13,12 +13,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /** Exclusivamente motor on-device. Sin fallback remoto, persistencia ni reconocimiento parcial. */
-class LocalWakeListener(private val context: Context, private val scope: CoroutineScope, private val activated: (AssistantProfile) -> Unit) {
+class LocalWakeListener(private val context: Context, private val scope: CoroutineScope, private val activated: (AssistantProfile, String) -> Unit) {
     private fun record(problem: Throwable) { (context.applicationContext as? PbtApplication)?.journal?.record(Check.WAKE, Fault.INITIALIZATION, problem) }
     private val mutable = MutableStateFlow("Escucha local desactivada")
     val status = mutable.asStateFlow()
+    private val debug = MutableStateFlow("")
+    val diagnostic = debug.asStateFlow()
+    private var diagnostics = false
+    fun diagnostics(enabled: Boolean) { diagnostics = enabled; debug.value = "" }
     private var recognizer: SpeechRecognizer? = null
     private var microphoneLease: MicrophoneGate.Lease? = null
+    private var route: AudioRoute? = null
     private var loop: Job? = null
     private var generation = 0
     private var retries = 0
@@ -63,6 +68,11 @@ class LocalWakeListener(private val context: Context, private val scope: Corouti
                 microphoneLease = microphoneGate.acquire(MicrophoneOwner.ANDROID_LOCAL)
                 check(microphoneLease != null) { "Micrófono ocupado" }
             }
+            if (route == null && context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false)) {
+                val requested = AudioRoute(context) { stop() }
+                try { requested.start(true); route = requested }
+                catch (problem: Exception) { requested.close(); throw problem }
+            }
             recognizer?.destroy()
             (context.applicationContext as? PbtApplication)?.journal?.record(Check.WAKE, Fault.RECOGNIZER_CREATE)
             val created = SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
@@ -73,14 +83,22 @@ class LocalWakeListener(private val context: Context, private val scope: Corouti
                     override fun onBeginningOfSpeech() = Unit
                     override fun onRmsChanged(rmsdB: Float) = Unit
                     override fun onBufferReceived(buffer: ByteArray?) = Unit
-                    override fun onEndOfSpeech() = Unit
-                    override fun onPartialResults(partialResults: Bundle?) = Unit
+                    override fun onEndOfSpeech() {
+                        if (generation == current && armed) {
+                            loop?.cancel(); loop = scope.launch { delay(2500); if (generation == current && armed) rearm(current) }
+                        }
+                    }
+                    override fun onPartialResults(partialResults: Bundle?) {
+                        if (generation == current && diagnostics) debug.value = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.take(5)?.joinToString(" · ").orEmpty()
+                    }
                     override fun onEvent(eventType: Int, params: Bundle?) = Unit
                     override fun onResults(results: Bundle?) {
                         if (generation != current || !armed) return
                         if (android.os.SystemClock.elapsedRealtime() >= deadline) { stop(); mutable.value = "Ventana de escucha finalizada. No se inicia conversación."; return }
-                        val best = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-                        val match = gate.accept(best, gateEpoch)
+                        val hypotheses = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
+                        val utterance = gate.acceptUtterance(hypotheses, gateEpoch)
+                        val match = utterance?.profile
+                        if (diagnostics) debug.value = "${hypotheses.take(5).joinToString(" · ")}\nCoincidencia: ${match?.phrase ?: "ninguna"}\nEntrada: elegida por Android; dispositivo solicitado: ${context.getSystemService(android.media.AudioManager::class.java).communicationDevice?.productName ?: "predeterminado"}"
                         if (match != null) {
                             val test = testing
                             stop()
@@ -88,13 +106,15 @@ class LocalWakeListener(private val context: Context, private val scope: Corouti
                             if (!test) {
                                 val stoppedGeneration = generation
                                 // Salir del callback del motor Android antes de preparar audio nativo.
-                                scope.launch(Dispatchers.Main) { yield(); if (generation == stoppedGeneration) activated(match) }
+                                scope.launch(Dispatchers.Main) { yield(); if (generation == stoppedGeneration) activated(match, utterance?.question.orEmpty()) }
                             }
                         } else { retries = 0; rearm(current) }
                     }
                     override fun onError(error: Int) {
                         if (generation != current || !armed) return
-                        if (error in listOf(SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT) && ++retries <= 8) rearm(current)
+                        if (error in listOf(SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) retries = 0 else retries++
+                        val retryAfter = WakeRecovery.delayMillis(error, retries)
+                        if (retryAfter != null) rearm(current, retryAfter)
                         else {
                             stop()
                             mutable.value = when (error) {
@@ -110,8 +130,8 @@ class LocalWakeListener(private val context: Context, private val scope: Corouti
                     .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                     .putExtra(RecognizerIntent.EXTRA_LANGUAGE, selected.language)
                     .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-                    .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-                    .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1).apply {
+                    .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                    .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5).apply {
                         if (android.os.Build.VERSION.SDK_INT >= 33) {
                             var characters = 0
                             val hints = candidates.flatMap { p -> p.activationPhrases.filter { it.enabled }.map { it.rendered(p.name) } }.distinct()
@@ -121,14 +141,20 @@ class LocalWakeListener(private val context: Context, private val scope: Corouti
                     })
             }
             mutable.value = "Preparando escucha local · micrófono autorizado"
-            loop?.cancel(); loop = scope.launch { delay(20000); if (current == generation && armed) { stop(); mutable.value = "El reconocedor no respondió a tiempo. Escucha detenida." } }
+            loop?.cancel(); loop = scope.launch { delay(20000); if (current == generation && armed) {
+                if (++retries <= 4) rearm(current, 500) else { stop(); mutable.value = "El reconocedor no responde. Revisa el modelo local del idioma." }
+            } }
         } catch (problem: SecurityException) { record(problem); stop(); mutable.value = "Android ha denegado el micrófono. Revisa los permisos." }
         catch (problem: IllegalStateException) { record(problem); stop(); mutable.value = "El motor local no está preparado. Consulta Registros de errores y reintenta." }
         catch (problem: UnsupportedOperationException) { record(problem); stop(); mutable.value = "Este motor no permite reconocimiento local en el dispositivo." }
+        catch (problem: IllegalArgumentException) { record(problem); stop(); mutable.value = "No se pudo preparar la ruta de audio. Revisa el dispositivo seleccionado." }
     }
-    private fun rearm(current: Int) {
+    private fun rearm(current: Int, delayMs: Long = 180) {
+        if (current != generation || !armed) return
+        // Invalidar ahora: algunos motores entregan onError después de onResults.
+        val waiting = ++generation
         mutable.value = "Espera local · reiniciando reconocedor (puede haber huecos de escucha)"
-        loop?.cancel(); loop = scope.launch { delay(700); if (generation == current && armed) listen() }
+        loop?.cancel(); loop = scope.launch { delay(delayMs); if (generation == waiting && armed) listen() }
     }
     fun stop() {
         generation++; armed = false; loop?.cancel(); loop = null
@@ -145,5 +171,6 @@ class LocalWakeListener(private val context: Context, private val scope: Corouti
         }
         mutable.value = "Escucha local desactivada · micrófono liberado"
         (context.applicationContext as? PbtApplication)?.microphone?.release(microphoneLease); microphoneLease = null
+        route?.close(); route = null
     }
 }

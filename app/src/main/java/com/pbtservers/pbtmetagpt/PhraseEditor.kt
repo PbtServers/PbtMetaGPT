@@ -3,6 +3,7 @@ package com.pbtservers.pbtmetagpt
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
@@ -11,6 +12,25 @@ fun PhraseEditor(profile: AssistantProfile, change: (AssistantProfile) -> Unit, 
     var consent by remember { mutableStateOf(false) }
     var heard by remember { mutableStateOf("") }
     var page by remember(profile.id) { mutableIntStateOf(0) }
+    var advanced by rememberSaveable { mutableStateOf(false) }
+    val primary = profile.activationPhrases.firstOrNull { it.primary } ?: profile.activationPhrases.firstOrNull() ?: ActivationPhrase(id = "principal", primary = true)
+    fun replacePrimary(value: ActivationPhrase) = change(profile.copy(activationPhrases =
+        if (profile.activationPhrases.any { it.id == primary.id }) profile.activationPhrases.map { if (it.id == primary.id) value else it }
+        else profile.activationPhrases + value))
+    OutlinedTextField(primary.rendered(profile.name), { if (it.length <= 160) replacePrimary(primary.copy(text = it, appendName = false)) },
+        label = { Text("Frase de activación") }, modifier = Modifier.fillMaxWidth())
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text("Frase activada"); Switch(primary.enabled, { replacePrimary(primary.copy(enabled = it)) })
+    }
+    Text("Sensibilidad de coincidencia")
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf("baja" to "Baja", "normal" to "Normal", "alta" to "Alta").forEach { (id, label) ->
+            FilterChip(profile.wakeSensitivity == id, onClick = { stop(); change(profile.copy(wakeSensitivity = id, tolerantActivation = id == "alta")) }, label = { Text(label) })
+        }
+    }
+    OutlinedButton(onClick = { test(primary) }, enabled = primary.enabled && primary.rendered(profile.name).isNotBlank()) { Text("Probar frase") }
+    TextButton(onClick = { advanced = !advanced }) { Text(if (advanced) "Ocultar configuración avanzada" else "Configuración avanzada de frases") }
+    if (!advanced) return
     val last = ((profile.activationPhrases.size - 1).coerceAtLeast(0)) / 10
     val shown = page.coerceAtMost(last)
     Text("Frases de activación", style = MaterialTheme.typography.titleLarge)

@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var wake: LocalWakeListener
     private lateinit var vault: KeyVault
     private lateinit var photoMemory: PhotoMemory
-    private var wakeStart: (AssistantProfile) -> Unit = {}
+    private var wakeStart: (AssistantProfile, String) -> Unit = { _, _ -> }
     private var microphoneReady by mutableStateOf(false)
     private var bluetoothReady by mutableStateOf(false)
     private var foreground = false
@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
         } }
         localAudio = LocalAudioDiagnostics(this, lifecycleScope, diagnostics)
         vault = KeyVault(this)
-        wake = LocalWakeListener(this, lifecycleScope) { if (foreground) wakeStart(it) }
+        wake = LocalWakeListener(this, lifecycleScope) { profile, question -> if (foreground) wakeStart(profile, question) }
         // DAT controla cámara/dispositivo. Las interrupciones de audio se observan en AudioRoute;
         // cerrar una sesión DAT al ocultar la pantalla no implica perder la ruta Bluetooth.
         microphoneReady = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -106,7 +106,7 @@ class MainActivity : ComponentActivity() {
                     requestMic = { microphonePermission.launch(Manifest.permission.RECORD_AUDIO) },
                     stopAll = { ContinuousWakeService.stop(this); wake.stop(); voice.stop(); app.hosted.stop(); localAudio.stop() }, report = { message = it }, bindWakeStart = { wakeStart = it },
                     themeMode = themeMode, setTheme = { themeMode = it; themePreferences.edit().putString("tema", it).apply() },
-                    deviceSummary = "Gafas · ${gs.status}") { page, configured, backend, token, bluetooth, setBluetooth, start, analyzePhoto ->
+                    deviceSummary = if (gs.connected) "Gafas conectadas" else "Gafas desconectadas") { page, configured, backend, token, bluetooth, setBluetooth, start, analyzePhoto ->
                 if (page == "Diagnóstico") DiagnosticScreen(diagnostics, voice, localAudio,
                     configured = configured, backend = backend, token = token, bluetooth = bluetooth,
                     microphoneReady = microphoneReady, refresh = ::refreshDiagnostics,

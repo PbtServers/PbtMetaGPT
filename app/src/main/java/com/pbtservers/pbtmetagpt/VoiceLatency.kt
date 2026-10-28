@@ -1,7 +1,7 @@
 package com.pbtservers.pbtmetagpt
 
 /** Solo duraciones numéricas. Nunca contiene texto, URLs, modelos, claves o audio. */
-enum class VoiceStage { TRANSCRIPTION, GROQ_FIRST_TOKEN, GROQ_COMPLETE, TTS_CONNECT, TTS_SUBMIT, TTS_WAIT_COMBINED, TTS_DOWNLOAD, TTS_SYNTHESIS, RVC_CONVERSION, FIRST_AUDIO_FRAME, TOTAL }
+enum class VoiceStage { TRANSCRIPTION, END_OF_SPEECH, GROQ_FIRST_TOKEN, GROQ_COMPLETE, TTS_CONNECT, TTS_SUBMIT, TTS_WAIT_COMBINED, TTS_DOWNLOAD, TTS_SYNTHESIS, TTS_FIRST_PCM, RVC_CONVERSION, FIRST_AUDIO_FRAME, TOTAL }
 class VoiceLatency(private val clock: () -> Long = { System.nanoTime() / 1000000 }) {
     private val started = clock()
     private var responseStart = started
@@ -28,7 +28,8 @@ class SpeechSegments(private val remote: Boolean) {
                 !(pending[i] == '.' && i > 0 && pending[i - 1].isDigit()) &&
                 !pending.substring(0, i + 1).trimEnd().endsWithAbbreviation() &&
                 (i == pending.lastIndex || pending[i + 1].isWhitespace())
-        } ?: break
+        } ?: if (!remote && pending.length > 260) (minOf(240, pending.lastIndex) downTo 80).firstOrNull { pending[it].isWhitespace() } else null
+        if (boundary == null) break
         val phrase = pending.substring(0, boundary + 1).trim()
         pending.delete(0, boundary + 1)
         emitted++

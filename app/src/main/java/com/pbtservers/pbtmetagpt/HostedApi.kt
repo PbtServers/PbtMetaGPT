@@ -139,6 +139,13 @@ object QwenSpaceContract {
     const val function = "generate_custom_voice"
     val speakers = listOf("Aiden", "Dylan", "Eric", "Ono_anna", "Ryan", "Serena", "Sohee", "Uncle_fu", "Vivian")
     val sizes = listOf("0.6B", "1.7B")
+    fun referenceLanguage(speaker: String) = when (speaker) {
+        "Aiden", "Ryan" -> "inglés"
+        "Ono_anna" -> "japonés"
+        "Sohee" -> "coreano"
+        "Dylan", "Eric", "Serena", "Uncle_fu", "Vivian" -> "chino"
+        else -> "no especificado"
+    }
     val languages = listOf("Auto", "Chinese", "English", "Japanese", "Korean", "French", "German", "Spanish", "Portuguese", "Russian")
     fun language(tag: String) = when (tag.substringBefore('-').lowercase()) {
         "es" -> "Spanish"; "en" -> "English"; "zh" -> "Chinese"; "ja" -> "Japanese"; "ko" -> "Korean"

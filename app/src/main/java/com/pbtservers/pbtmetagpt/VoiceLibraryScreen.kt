@@ -166,8 +166,8 @@ fun AdvancedVoiceLibraryScreen(context: Context, profile: AssistantProfile, chan
                 rvcOnnx.setEnabled(value)
                 rvcOnnxEnabled = value
             } catch (_: Exception) { report("Instala primero los tres ONNX. Esta función solo usa modelos en el teléfono.") }
-        }, enabled = !busy && rvcOnnxReady && rights)
-        Text("Convertir localmente la voz sintetizada (modo Natural + TTS offline)")
+        }, enabled = !busy && (rvcOnnxEnabled || rvcOnnxReady && rights))
+        Text("RVC local sobre Piper, Kokoro o Android TTS")
     }
     Text("El motor ONNX no sube audio ni pesos a Internet; puede consumir mucha memoria y ser lento. No todas las exportaciones RVC son compatibles. Desactívalo si notas cortes.")
     if (rvcModels.isEmpty()) Text("No hay voces RVC importadas.")
@@ -190,7 +190,7 @@ fun AdvancedVoiceLibraryScreen(context: Context, profile: AssistantProfile, chan
             }
         }
     }
-    val engines = listOf("qwen_space" to "Qwen3-TTS online · cola pública", "realtime" to "OpenAI Realtime · audio nativo", "android" to "Android TTS · voces offline (también neuronales)", "openai_tts" to "OpenAI Speech · transitorio hasta 06/01/2027", "external" to "API TTS externa · contrato PCM", "sherpa_vits" to "Modelo Piper/VITS · Sherpa local")
+    val engines = listOf("qwen_space" to "Qwen3-TTS online · cola pública", "realtime" to "OpenAI Realtime · audio nativo", "openai_tts" to "OpenAI Speech · transitorio hasta 06/01/2027", "external" to "API TTS externa · contrato PCM", "sherpa_vits" to "Modelo Piper/VITS · Sherpa local")
     if (compact) Box {
         OutlinedButton(onClick = { engineMenu = true }) { Text("Motor: ${VoiceSynthesisContract.label(profile.ttsEngine)}") }
         DropdownMenu(expanded = engineMenu, onDismissRequest = { engineMenu = false }) {
@@ -215,7 +215,7 @@ fun AdvancedVoiceLibraryScreen(context: Context, profile: AssistantProfile, chan
         if (profile.ttsEngine == "openai_tts") Text("Este endpoint está anunciado como obsoleto y requiere tu clave BYOK de OpenAI, incluso si la conversación usa servidor. La muestra y la síntesis consumen cuota adicional. Usa Realtime para evitar esta ruta transitoria.")
         if (advanced) OutlinedTextField(profile.tone, { change(profile.copy(tone = it.take(4000))) }, label = { Text("Instrucciones de tono y expresión") }, modifier = Modifier.fillMaxWidth())
     }
-    if (profile.ttsEngine == "android") {
+    if (profile.ttsEngine == "android" && profile.voiceMode == "rapida") {
         Text("Voces offline instaladas. Para una voz española más natural prueba un motor neuronal gratuito como HayaiTTS o Kokoly y descarga dentro de él una voz española. Se integra mediante la API Android TTS, sin servidor ni pagos por síntesis; calidad y velocidad dependen del modelo y del teléfono.")
         OutlinedButton(onClick = {
             runCatching { context.startActivity(android.content.Intent("com.android.settings.TTS_SETTINGS").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }

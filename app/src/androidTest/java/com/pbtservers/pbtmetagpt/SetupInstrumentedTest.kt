@@ -51,7 +51,7 @@ class SetupInstrumentedTest {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         instrumentation.runOnMainSync {
             var activated = false
-            val wake = LocalWakeListener(context, scope) { activated = true }
+            val wake = LocalWakeListener(context, scope) { _, _ -> activated = true }
             val voice = RealtimeClient(context, scope, {})
             voice.configure(AssistantProfile(name = "Jarvis")) { error("No debe leerse una clave sin permiso de micrófono") }
             wake.start(AssistantProfile(name = "Jarvis"))
@@ -76,6 +76,7 @@ class SetupInstrumentedTest {
         context.getSharedPreferences("configuracion", 0).edit().putBoolean("bienvenida", true).commit()
         ActivityScenario.launch(MainActivity::class.java).use {
             compose.onNode(hasText("Ajustes") and hasClickAction()).performClick()
+            compose.onNodeWithText("Voz y escucha").performScrollTo().performClick()
             compose.onNode(hasText("Biblioteca de voces") and hasClickAction()).performScrollTo().performClick()
             abrirAvanzadas()
             compose.onNodeWithText("API TTS externa · contrato PCM").performScrollTo().performClick()
@@ -83,7 +84,9 @@ class SetupInstrumentedTest {
             compose.onNodeWithText("Guardar motor y voz en el asistente").performScrollTo().performClick()
             compose.onNodeWithText("Entendido").performClick()
             compose.onNode(hasText("Ajustes") and hasClickAction()).performClick()
+            compose.onNodeWithText("Voz y escucha").performScrollTo().performClick()
             compose.onNode(hasText("Activación por voz") and hasClickAction()).performScrollTo().performClick()
+            compose.onNodeWithText("Configuración avanzada de frases").performScrollTo().performClick()
             compose.onNodeWithText("Texto de la frase").performScrollTo().performTextClearance()
             compose.onNodeWithText("Texto de la frase").performTextInput("Oye")
             compose.onNodeWithText("Guardar frases y preferencias").performScrollTo().performClick()
@@ -117,7 +120,7 @@ class SetupInstrumentedTest {
             compose.onNodeWithText("Nombre del asistente").assertTextContains("Luna")
             compose.onNodeWithText("Continuar").performClick()
             scenario.recreate()
-            compose.onNodeWithText("Configuración inicial · 3/3 · Prueba").assertIsDisplayed()
+            compose.onNodeWithText("Configuración inicial · 3/3 · Escucha").assertIsDisplayed()
             compose.onNodeWithText("Omitir").performClick()
             assertTrue(context.getSharedPreferences("configuracion", 0).getBoolean("bienvenida", false))
             assertEquals("cedar", ProfileStore(context).load().single().voice)
@@ -136,6 +139,7 @@ class SetupInstrumentedTest {
             // Hay dos destinos clicables llamados Voz (panel inicial y barra).
             // Abrir la biblioteca por su etiqueta inequívoca.
             compose.onNode(hasText("Ajustes") and hasClickAction()).performClick()
+            compose.onNodeWithText("Voz y escucha").performScrollTo().performClick()
             compose.onNode(hasText("Biblioteca de voces") and hasClickAction()).performScrollTo().performClick()
             abrirAvanzadas()
             RealtimeSettings.voices.forEach { voice ->
@@ -210,7 +214,10 @@ class SetupInstrumentedTest {
             compose.onNodeWithText("Entendido").performClick()
             val saved = ProfileStore(context).load().single()
             assertEquals("natural", saved.voiceMode)
-            assertEquals("qwen_space", saved.ttsEngine)
+            assertEquals("piper_es", saved.ttsEngine)
+            assertEquals("es-ES", saved.language)
+            assertEquals("davefx", saved.ttsVoice)
+            compose.onAllNodesWithText("Android TTS", substring = true).assertCountEquals(0)
             assertFalse(HostedSettings(context).qwenAuthorized)
             assertFalse((context.applicationContext as PbtApplication).hosted.busy.value)
             // Despachador real de Activity: comprobar el BackHandler tras cerrar
@@ -222,8 +229,7 @@ class SetupInstrumentedTest {
     }
 
     private fun abrirAvanzadas() {
-        compose.onNodeWithText("Personalizada").performScrollTo().performClick()
-        compose.onNodeWithText("Opciones avanzadas de voz").performScrollTo().performClick()
+        compose.onNodeWithText("Avanzada").performScrollTo().performClick()
     }
 
     @Test fun migraBorradorAnteriorSinPerderVozNiRepetirConfiguracionTerminada() {

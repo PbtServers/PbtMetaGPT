@@ -3,6 +3,8 @@
 set -u
 adb logcat -c
 if bash ./gradlew --no-daemon connectedDebugAndroidTest; then
+  mkdir -p app/build/reports/androidTests
+  adb logcat -d -s PbtKokoroTest:I '*:S' > app/build/reports/androidTests/kokoro-metricas-emulador.txt
   exit 0
 else
   result=$?
