@@ -169,6 +169,21 @@ class HostedConversation(private val context: Context, private val scope: Corout
             val chosen = resolve(target)
             engineValue.value = VoiceSynthesisContract.label(chosen.ttsEngine) + " · " + chosen.ttsVoice
             try {
+                // Abrir la ruta de salida ANTES de sintetizar: la negociación Bluetooth/
+                // Meta deja de competir con la primera sílaba del PCM generado.
+                if (route == null) {
+                    val bluetooth = context.getSharedPreferences("configuracion", 0)
+                        .getBoolean("audio-bluetooth", false)
+                    val selected = AudioRoute(context) { stop() }
+                    try {
+                        val label = selected.start(bluetooth)
+                        route = selected
+                        mutable.update { it.copy(route = label, status = "Preparando voz") }
+                    } catch (problem: Exception) {
+                        selected.close()
+                        throw problem
+                    }
+                }
                 when (chosen.ttsEngine) {
                     "android" -> android.synthesize(chosen, phrase)
                     "qwen_space" -> {
@@ -183,11 +198,8 @@ class HostedConversation(private val context: Context, private val scope: Corout
                 val bluetooth = context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false)
                 player.playStream(flow {
                     for (chunk in audio) {
-                        if (route == null) {
-                            route = AudioRoute(context) { stop() }
-                            val label = route!!.start(bluetooth)
-                            mutable.update { it.copy(route = label, responding = true, status = "Hablando") }
-                        }
+                        if (route == null) throw HostedFailure("No se ha preparado la salida de audio.")
+                        mutable.update { it.copy(responding = true, status = "Hablando") }
                         phaseValue.value = ConversationPhase.SPEAKING
                         emit(chunk)
                     }

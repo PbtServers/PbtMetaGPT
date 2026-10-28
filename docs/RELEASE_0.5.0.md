@@ -5,7 +5,9 @@ Versión Android: `0.5.0-rc1` (`versionCode 6`). No crear la etiqueta final `v0.
 ## Mejoras de la candidata
 
 - Salida Bluetooth: precarga silenciosa antes de la primera sílaba para evitar solapamientos con sonidos de conexión/activación de Meta. Requiere escucha real en Meta Glasses 00R6.
+- Ajuste posterior: ahora se solicita la ruta Bluetooth al comenzar la síntesis, antes de que exista audio listo; se da tiempo a la negociación de la salida sin esperar a recibir la primera sílaba. Es una hipótesis de mejora que requiere pruebas físicas.
 - Frases de activación: señal de confirmación audible en flujo de música antes de iniciar el dictado. Se ofrece interruptor directo en Activación por voz y se activa por defecto para nuevos perfiles.
+- Ajuste posterior: la señal ya no depende de ToneGenerator genérico: genera PCM propio, usa la ruta de audio de comunicación elegida y termina su reproducción antes de comenzar a dictar. Si falla, informa y no bloquea la conversación.
 - Dictado: intento prioritario del motor de reconocimiento Android estrictamente on-device para texto libre, con Vosk como alternativa cuando no esté instalado. No se envía audio a Groq para transcribirlo.
 - Voz de España: preferencia para variantes `es-ES` y motores neuronales offline Android compatibles con la API `TextToSpeech`, como HayaiTTS o Kokoly, instalados voluntariamente. No se distribuyen modelos externos en la APK ni se afirma que todos sean rápidos en este teléfono.
 - Visión: enviar una fotografía con confirmación explícita a Groq Vision con `qwen/qwen3.8-27b` mediante chat completions multimodales, sin recurrir a la API de pago de OpenAI. Puede haber límites de cuota Free y acceso condicionado por el proveedor.

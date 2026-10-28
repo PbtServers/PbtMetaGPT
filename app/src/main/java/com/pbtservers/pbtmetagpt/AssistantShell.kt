@@ -167,11 +167,11 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
         // El reconocimiento no debe arrancar durante la señal de confirmación ni cortar su inicio.
         wakeCueScope.launch {
             if (matched.confirmationSound) {
-                val tone = runCatching { android.media.ToneGenerator(android.media.AudioManager.STREAM_MUSIC, 80) }.getOrNull()
-                if (tone != null) try {
-                    tone.startTone(android.media.ToneGenerator.TONE_PROP_ACK, 180)
-                    delay(280)
-                } finally { tone.release() }
+                try {
+                    WakeConfirmation.play(context,
+                        context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false))
+                } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+                catch (_: Exception) { report("No se pudo reproducir el aviso de activación. Revisa la ruta de audio.") }
             }
             if (!microphoneReady) requestMic() else startSelected(matched, dictate = provider == "groq")
         }
