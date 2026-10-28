@@ -12,6 +12,10 @@ Estados: `IDLE`, `WAKE_LISTENING`, `USER_LISTENING`, `PROCESSING`, `SPEAKING`, `
 
 ## Uso y privacidad
 
+Activar escucha no cambia la preferencia de segundo plano: el diálogo explica la opción guardada. Con segundo plano desactivado, salir detiene la captura y pausa la conversación; volver no reactiva sensores.
+
+El contrato HTTP de Groq admite hasta 33 mensajes: los 32 acotados de la sesión y las instrucciones de sistema separadas. Mantiene el límite total de 24 000 caracteres. Una regresión de veinte turnos contra un servidor HTTP local comprueba las peticiones reales, las instrucciones y el contexto reciente, sin claves reales ni llamadas al proveedor.
+
 En Ajustes → Voz y escucha → Conversación y escucha se elige continuidad, interrupción, confianza, inactividad y frase de cierre. La escucha continua hablada usa el Vosk español instalado voluntariamente en Activación por voz. El dictado manual conserva los adaptadores anteriores; una sesión de texto no inicia por sí sola la captura. Sin caducidad no se cierra por silencio; VAD solo delimita una intervención. Una pérdida de audio pausa la conversación y exige reanudación expresa.
 
 - **Para:** detiene la respuesta actual e invalida generación, síntesis y audio preparados. Conserva la conversación hablada y vuelve a escuchar tras la liberación segura.
@@ -63,6 +67,8 @@ Se usa exclusivamente el launcher público de `com.openai.chatgpt`, identificado
 No se ha encontrado una acción pública estable documentada para iniciar Live mediante Intent. No hay deep links inventados, intents privados, accesibilidad, API facturable ni acceso a conversaciones o credenciales. La [documentación oficial de voz](https://help.openai.com/en/articles/20001274-chatgpt-voice) explica el botón de voz y la opción **Start with Voice** de versiones compatibles: su disponibilidad depende de la aplicación/cuenta. Abrir ChatGPT no equivale a iniciar Live. Al volver se exige pulsar Hablar/Activar escucha; no se inspecciona si ChatGPT está usando su micrófono.
 
 ## Validación y métricas pendientes
+
+`75ad07b` supera 172 JVM (una remota optativa omitida), 47/47 instrumentadas por API35/API36, Lint, compilación y escáner de fuentes/APK. Su [APK experimental](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40776480692/artifacts/12855513856) pertenece a ese SHA; cualquier correctivo posterior requiere CI propia. El usuario realizará las pruebas físicas por su cuenta. No se afirma funcionamiento acústico con Nothing/Ray-Ban ni latencia conseguida.
 
 Las fixtures de reconocimiento usan Piper nativo con ruido generativo cero para obtener PCM reproducible; se compara dos veces la misma síntesis y se mantienen todas las aserciones del detector, además de «Pero» como negativo. La síntesis de la aplicación conserva sus parámetros originales y sus pruebas de generación PCM. Esta señal controlada no acredita robustez frente a voces, ruido, variaciones de síntesis o eco reales. El contrato de fonemas se contrastó completo con la configuración oficial de Davefx, sin diferencias. No se acepta «pero» como alias de «Para».
 

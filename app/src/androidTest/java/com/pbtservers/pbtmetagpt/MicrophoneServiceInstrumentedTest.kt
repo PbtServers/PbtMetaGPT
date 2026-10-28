@@ -5,6 +5,11 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.media.*
+import androidx.activity.compose.setContent
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
@@ -21,6 +26,7 @@ import org.webrtc.audio.JavaAudioDeviceModule
 /** Se ejecuta en un segundo bloque de instrumentación con permisos concedidos por CI. */
 class MicrophoneServiceInstrumentedTest {
     @get:Rule val permissions: GrantPermissionRule = GrantPermissionRule.grant(Manifest.permission.RECORD_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
+    @get:Rule val compose = createEmptyComposeRule()
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
     private val app get() = context.applicationContext as PbtApplication
@@ -71,7 +77,12 @@ class MicrophoneServiceInstrumentedTest {
                 // Sin autorización de segundo plano, cerrar la interfaz detiene el
                 // servicio y volver no reactiva sensores. La conversación se pausa.
                 ListeningSettings(context).save(ListeningOptions(background = false))
-                activity.onActivity { ContinuousWakeService.startVisible(it) }
+                activity.onActivity { it.setContent {
+                    MaterialTheme { ListeningControls(configured = true, microphoneReady = true, requestMic = {}, stopVisible = {}, compact = true) }
+                } }
+                compose.onNodeWithText("Activar escucha").performClick()
+                compose.onNodeWithText("Autorizar y activar").performClick()
+                assertFalse("Activar escucha debe respetar segundo plano desactivado", ListeningSettings(context).load().background)
                 await { ContinuousWakeService.state.value == ListeningPhase.LISTENING }
                 activity.moveToState(Lifecycle.State.CREATED)
                 await { !ContinuousWakeService.running && app.microphone.owner() == null }

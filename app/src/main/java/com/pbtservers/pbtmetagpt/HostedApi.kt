@@ -92,7 +92,9 @@ class GroqApi(private val http: OkHttpClient = HostedHttp.groq,
         return response
     }
     suspend fun answerStream(key: String, model: String, messages: List<Pair<String, String>>, delta: suspend (String) -> Unit): String {
-        require(messages.size in 2..18 && messages.sumOf { it.second.length } <= 24000)
+        // 32 mensajes de sesión más las instrucciones separadas. No cortar el
+        // contexto al octavo turno por el límite anterior del dictado individual.
+        require(messages.size in 2..33 && messages.sumOf { it.second.length } <= 24000)
         val data = JSONObject().put("model", HostedPolicy.model(model)).put("max_completion_tokens", 1024).put("stream", true)
             .put("messages", JSONArray().apply { messages.forEach { (role, text) -> put(JSONObject().put("role", role).put("content", text)) } })
         if (model.startsWith("openai/gpt-oss-")) data.put("reasoning_effort", "low")
