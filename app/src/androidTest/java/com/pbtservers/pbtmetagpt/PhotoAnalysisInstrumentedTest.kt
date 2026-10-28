@@ -22,7 +22,11 @@ class PhotoAnalysisInstrumentedTest {
                 discard = {}, resume = {}, cancel = {})
         } }
         compose.onNodeWithText("Preguntar sobre esta foto").performClick()
-        compose.onNodeWithText("Enviar esta foto a Groq Vision").assertIsDisplayed()
+        compose.waitForIdle()
+        // AlertDialog vive en una ventana Compose propia: puede existir en semántica
+        // sin superar isDisplayed() durante la animación inicial del emulador.
+        compose.onNodeWithText("Enviar esta foto a Groq Vision").assertExists()
+        compose.onNodeWithText("Enviar y preguntar").assertIsEnabled()
         compose.runOnIdle { assertEquals(0, requests) }
         compose.onNodeWithText("Cancelar").performClick()
         compose.runOnIdle { assertEquals(0, requests) }
