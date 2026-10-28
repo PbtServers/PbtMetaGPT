@@ -21,7 +21,7 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
     private var work: Job? = null
     suspend fun stop() { work?.cancelAndJoin(); work = null }
     @android.annotation.SuppressLint("WakelockTimeout") // Solo durante captura autorizada del servicio visible.
-    suspend fun start(profiles: List<AssistantProfile>, ready: () -> Unit, detected: (AssistantProfile, String) -> Unit, failed: (Throwable) -> Unit) {
+    suspend fun start(profiles: List<AssistantProfile>, ready: () -> Unit, detected: (AssistantProfile, String) -> Unit, failed: (Throwable) -> Unit, input: (Int) -> Unit = {}) {
         stop()
         val gate = ActivationGate(); val epoch = gate.arm(profiles)
         work = scope.launch(Dispatchers.IO) {
@@ -58,12 +58,20 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
                             cpu.acquire()
                             withContext(Dispatchers.Main) { ready() }
                             val buffer = ShortArray(3200)
+                            var actualInput: Int? = null
                             while (isActive) {
                                 if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) throw SecurityException()
                                 if (!context.getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled()) throw SecurityException()
                                 val mode = context.getSystemService(AudioManager::class.java).mode
                                 check(mode != AudioManager.MODE_IN_CALL) { "Audio interrumpido" }
                                 check(recorder.activeRecordingConfiguration?.isClientSilenced != true) { "Android ha silenciado la captura" }
+                                recorder.routedDevice?.let { device ->
+                                    if (actualInput != null && actualInput != device.id) throw IllegalStateException("La entrada ha cambiado")
+                                    if (actualInput == null) {
+                                        actualInput = device.id
+                                        withContext(Dispatchers.Main) { input(device.type) }
+                                    }
+                                }
                                 val size = recorder.read(buffer, 0, buffer.size, AudioRecord.READ_NON_BLOCKING)
                                 check(size >= 0) { "Captura interrumpida" }
                                 if (size > 0 && recognizer.acceptWaveForm(buffer, size)) {

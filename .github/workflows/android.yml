@@ -168,10 +168,11 @@ jobs:
           import os,json,xml.etree.ElementTree as ET
           from pathlib import Path
           r={'api':int(os.environ['API']),'tests':0,'fallos':[]}
-          for p in Path('app/build/outputs/androidTest-results/connected').rglob('TEST-*.xml'):
-              root=ET.parse(p).getroot();r['tests']+=int(root.attrib.get('tests',0))
-              for case in root.findall('testcase'):
-                  if case.find('failure') is not None or case.find('error') is not None: r['fallos'].append(case.attrib.get('name',''))
+          for phase in ('sin-microfono','con-microfono'):
+              for p in (Path('app/build/reports/androidTests')/phase).rglob('TEST-*.xml'):
+                  root=ET.parse(p).getroot();r['tests']+=int(root.attrib.get('tests',0))
+                  for case in root.findall('testcase'):
+                      if case.find('failure') is not None or case.find('error') is not None: r['fallos'].append(case.attrib.get('name',''))
           summary=json.dumps(r,ensure_ascii=True,separators=(',',':'))
           p=Path('app/build/reports/androidTests/resumen.json');p.parent.mkdir(parents=True,exist_ok=True);p.write_text(summary)
           with open(os.environ['GITHUB_OUTPUT'],'a') as out:

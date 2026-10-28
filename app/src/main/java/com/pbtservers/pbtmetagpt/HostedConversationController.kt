@@ -117,11 +117,13 @@ class HostedConversation(private val context: Context, private val scope: Corout
         val speechEnd = java.util.concurrent.atomic.AtomicLong(0)
         val text = HostedDictation(context).capture(profile?.language ?: "es-ES", continuous = session.spoken && options.continuous, ready = {
             mutable.update { it.copy(status = "Te escucho", connecting = false) }
+            inactivity?.cancel()
+            if (options.inactivitySeconds > 0) inactivity = scope.launch { delay(options.inactivitySeconds * 1000L); stop() }
             if (transitionStarted > 0) {
                 LatencyStore(context).record(mapOf(VoiceStage.FOLLOW_UP_READY to (SystemClock.elapsedRealtime() - transitionStarted)))
                 transitionStarted = 0
             }
-        }) {
+        }, speechStarted = { inactivity?.cancel(); inactivity = null }) {
             if (speechEnd.compareAndSet(0, trace.now())) trace.once(VoiceStage.END_OF_SPEECH, trace.now() - started)
         }
         inactivity?.cancel(); inactivity = null
@@ -180,6 +182,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
         ContinuousWakeService.beforeRealtime()
         echoText = ""
         val token = session.epoch
+        prepareOutputRoute()
         startCommands(token)
         val full = StringBuilder()
         val result = speakStream(target, trace, produce = { delta ->
@@ -213,6 +216,16 @@ class HostedConversation(private val context: Context, private val scope: Corout
         resolved = selected
         return selected
     }
+    private fun prepareOutputRoute() {
+        if (route != null) return
+        val bluetooth = context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false)
+        val selected = AudioRoute(context) { suspendConversation() }
+        try {
+            val label = selected.start(bluetooth, speaker = !bluetooth)
+            route = selected
+            mutable.update { it.copy(route = label) }
+        } catch (problem: Exception) { selected.close(); throw problem }
+    }
     private suspend fun speakStream(target: AssistantProfile, trace: VoiceLatency,
         produce: suspend (suspend (String) -> Unit) -> String, text: (String) -> Unit,
     ): String {
@@ -233,19 +246,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
             try {
                 // Abrir la ruta de salida ANTES de sintetizar: la negociación Bluetooth/
                 // Meta deja de competir con la primera sílaba del PCM generado.
-                if (route == null) {
-                    val bluetooth = context.getSharedPreferences("configuracion", 0)
-                        .getBoolean("audio-bluetooth", false)
-                    val selected = AudioRoute(context) { suspendConversation() }
-                    try {
-                        val label = selected.start(bluetooth)
-                        route = selected
-                        mutable.update { it.copy(route = label, status = "Preparando voz") }
-                    } catch (problem: Exception) {
-                        selected.close()
-                        throw problem
-                    }
-                }
+                prepareOutputRoute()
                 val normalAudio = when (chosen.ttsEngine) {
                     "kokoro" -> kokoro.synthesize(chosen, phrase) { trace.mark(VoiceStage.TTS_FIRST_PCM) }
                     "piper_es" -> spain.synthesize(chosen, phrase).also { trace.mark(VoiceStage.TTS_FIRST_PCM) }
@@ -342,9 +343,6 @@ class HostedConversation(private val context: Context, private val scope: Corout
         transitionStarted = SystemClock.elapsedRealtime()
         sessionValue.value = session.phase
         followUp = scope.launch { yield(); if (mutable.value.active && session.phase != SessionPhase.SUSPENDED) listen() }
-        if (options.inactivitySeconds > 0 && inactivity?.isActive != true) inactivity = scope.launch {
-            delay(options.inactivitySeconds * 1000L); stop()
-        }
     }
     private fun startCommands(token: Long) {
         commands?.cancel()
@@ -352,7 +350,9 @@ class HostedConversation(private val context: Context, private val scope: Corout
         commands = scope.launch {
             LocalCommandListener(context).run(profile?.name.orEmpty(), options,
                 speaking = { sessionValue.value == SessionPhase.SPEAKING }, echoText = { echoText },
-                status = { if (session.accepts(token)) commandValue.value = it }, command = { command, detection ->
+                status = { if (session.accepts(token)) commandValue.value = it }, unavailable = {
+                    if (session.accepts(token)) suspendConversation()
+                }, command = { command, detection ->
                     if (session.accepts(token)) {
                         LatencyStore(context).record(mapOf(VoiceStage.STOP_DETECTION to detection))
                         handle(command)

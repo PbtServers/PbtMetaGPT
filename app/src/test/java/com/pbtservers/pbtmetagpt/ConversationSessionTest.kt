@@ -140,4 +140,19 @@ class ConversationSessionTest {
         synthesizing.await(); task.cancel(); nativeFinished.complete(Unit); task.join()
         assertTrue(played.isEmpty())
     }
+    @Test fun errorNativoTardioNoPublicaEstadoDeUnaGeneracionCancelada() = runBlocking<Unit> {
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        var errors = 0
+        val task = launch {
+            StreamSpeechPipeline().run(false, produce = { emit -> emit("Otra frase suficientemente larga para síntesis."); "fin" }, text = {},
+                synthesize = {
+                    started.complete(Unit)
+                    withContext(NonCancellable) { release.await() }
+                    throw IllegalStateException("Fallo nativo de prueba")
+                }, play = { for (ignored in it) fail("No debe haber audio") }, failed = { errors++ })
+        }
+        started.await(); task.cancel(); release.complete(Unit); task.join()
+        assertEquals(0, errors)
+    }
 }

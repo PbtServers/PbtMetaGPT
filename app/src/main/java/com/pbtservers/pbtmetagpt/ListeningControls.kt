@@ -19,6 +19,7 @@ import java.io.IOException
     compact: Boolean = false, configure: () -> Unit = {}) {
     val context = LocalContext.current
     val phase by ContinuousWakeService.state.collectAsStateWithLifecycle()
+    val actualInput by ContinuousWakeService.inputType.collectAsStateWithLifecycle()
     val model = remember { WakeModel(context.applicationContext) }
     val scope = rememberCoroutineScope()
     var installed by remember { mutableStateOf(model.installed()) }
@@ -32,6 +33,11 @@ import java.io.IOException
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Tu voz abre la conversación", style = MaterialTheme.typography.titleLarge)
             Text(phase.label, color = MaterialTheme.colorScheme.primary)
+            if (phase == ListeningPhase.LISTENING) Text(when (actualInput) {
+                android.media.AudioDeviceInfo.TYPE_BUILTIN_MIC -> "Entrada comprobada por Android: micrófono del teléfono"
+                0 -> "Entrada real aún sin confirmar"
+                else -> "Entrada comprobada por Android: tipo $actualInput · no acredita gafas"
+            }, style = MaterialTheme.typography.bodySmall)
             if (installed && !compact) Text("Modelo español Vosk 0.42 instalado · reconocimiento acústico pendiente de probar", style = MaterialTheme.typography.bodySmall)
             if (phase == ListeningPhase.LISTENING) LinearProgressIndicator(Modifier.fillMaxWidth())
             Text(if (compact) "Activación local · sin enviar audio de fondo." else "Escucha continua local en español, con notificación y parada explícita. Puede aumentar el consumo de batería; duración y acústica pendientes de validar.")

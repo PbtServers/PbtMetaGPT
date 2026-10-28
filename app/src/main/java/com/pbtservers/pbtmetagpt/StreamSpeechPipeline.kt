@@ -25,7 +25,7 @@ class StreamSpeechPipeline {
                         audio.send(prepared)
                     }
                     catch (cancel: CancellationException) { throw cancel }
-                    catch (problem: Exception) { voiceFailed = true; failed(problem) }
+                    catch (problem: Exception) { ensureActive(); voiceFailed = true; failed(problem) }
                 }
             } finally { audio.close() }
         }
@@ -33,6 +33,7 @@ class StreamSpeechPipeline {
             try { play(audio) }
             catch (cancel: CancellationException) { throw cancel }
             catch (problem: Exception) {
+                ensureActive()
                 voiceFailed = true; failed(problem)
                 for (ignored in audio) { ensureActive() } // vaciar sin bloquear al productor de texto
             }

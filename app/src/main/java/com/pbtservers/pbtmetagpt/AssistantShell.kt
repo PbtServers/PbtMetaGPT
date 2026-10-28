@@ -90,7 +90,10 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
             }
         }
         owner.lifecycle.addObserver(observer)
-        onDispose { owner.lifecycle.removeObserver(observer); wake.stop() }
+        onDispose {
+            owner.lifecycle.removeObserver(observer); wake.stop()
+            (context.applicationContext as PbtApplication).stopVisibleWake = null
+        }
     }
     val paidState by voice.state.collectAsStateWithLifecycle()
     val freeState by hosted.state.collectAsStateWithLifecycle()
@@ -166,7 +169,11 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
             if (consent && owner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) selected?.let { wake.start(if (allProfiles) listOf(it) + profiles.filter { p -> p.id != it.id } else listOf(it)) }
         }
     }
-    SideEffect { bindWakeStart { matched, question ->
+    SideEffect {
+        (context.applicationContext as PbtApplication).stopVisibleWake = {
+            returnToWake = false; consent = false; hadSession = false; wake.stop()
+        }
+        bindWakeStart { matched, question ->
         runCatching { save(profiles, matched.id); draft = matched }.onFailure { report("No se pudo seleccionar el asistente activado.") }
         returnToWake = true; page = "Conversación"; wake.stop()
         // El reconocimiento no debe arrancar durante la señal de confirmación ni cortar su inicio.

@@ -26,6 +26,8 @@ class ContinuousWakeService : Service() {
         app = application as PbtApplication
         engine = ContinuousWakeEngine(this, scope)
         instance = this
+        scope.launch { ListeningMeasurements(this@ContinuousWakeService).observe(
+            passive = { session.authorized && session.phase == ListeningPhase.LISTENING }, inputType = { inputTypeValue.value }) }
         scope.launch {
             app.conversationState.collect { voice ->
                 val wasAuthorized = session.authorized
@@ -98,7 +100,7 @@ class ContinuousWakeService : Service() {
                 }
                 }
             }
-        }, failed = { problem -> app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); suspendListening() })
+        }, failed = { problem -> app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); suspendListening() }, input = { inputTypeValue.value = it })
     }
     private fun suspendListening() {
         activation?.cancel(); activation = null
@@ -132,6 +134,7 @@ class ContinuousWakeService : Service() {
     override fun onDestroy() {
         activation?.cancel(); activation = null
         session.stop(); instance = null
+        inputTypeValue.value = 0
         getSharedPreferences("escucha", MODE_PRIVATE).edit().putBoolean("proceso-activo", false).apply()
         // El cierre de micrófono se completa antes de cancelar el scope del servicio.
         app.scope.launch { engine.stop(); scope.cancel() }
@@ -150,6 +153,8 @@ class ContinuousWakeService : Service() {
         private const val PAUSE = "com.pbtservers.pbtmetagpt.PAUSAR"
         private var instance: ContinuousWakeService? = null
         private val mutable = MutableStateFlow(ListeningPhase.OFF)
+        private val inputTypeValue = MutableStateFlow(0)
+        val inputType = inputTypeValue.asStateFlow()
         val state = mutable.asStateFlow()
         val running get() = instance != null
         fun reportSystemStop() { mutable.value = ListeningPhase.SUSPENDED }

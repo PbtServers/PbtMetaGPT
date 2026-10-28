@@ -261,7 +261,7 @@ class MainActivity : ComponentActivity() {
     }
     override fun onStart() { super.onStart(); foreground = true; app.activityVisible = true; app.stopVisibleWake = { wake.stop() }; refreshDiagnostics(); glasses.registrationReturn() }
     override fun onStop() {
-        foreground = false; app.activityVisible = false; wake.stop(); localAudio.stop()
+        foreground = false; app.activityVisible = false; app.stopVisibleWake = null; wake.stop(); localAudio.stop()
         if (ContinuousWakeService.running && !ListeningSettings(this).load().background) ContinuousWakeService.stop(this)
         if (!ContinuousWakeService.running) { voice.stop(); app.hosted.clear(); app.connection = null }
         glasses.stopCapture(); glasses.disconnect(); super.onStop()

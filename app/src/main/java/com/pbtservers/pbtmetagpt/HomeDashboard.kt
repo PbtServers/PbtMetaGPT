@@ -33,6 +33,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
         if (wakeEnabled) Text("Escuchando la frase de activación", color = MaterialTheme.colorScheme.primary)
         if (persistent != ListeningPhase.OFF) {
             Text(persistent.label)
+            if (ContinuousWakeService.running && ListeningSettings(context).load().background) Text("Escucha en segundo plano autorizada", style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = stop) { Text("Desactivar escucha") }
         }
         Button(onClick = { if (voice.active || voice.connecting) navigate("Conversación") else start() }, enabled = configured,

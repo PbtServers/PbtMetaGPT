@@ -13,7 +13,7 @@ import org.vosk.*
 /** Captura concurrente con TTS, nunca con otro capturador. No conserva audio ni texto. */
 class LocalCommandListener(private val context: Context) {
     suspend fun run(name: String, options: ListeningOptions, speaking: () -> Boolean, echoText: () -> String,
-        status: (String) -> Unit, command: (LocalVoiceCommand, Long) -> Unit) = withContext(Dispatchers.IO) {
+        status: (String) -> Unit, unavailable: () -> Unit = {}, command: (LocalVoiceCommand, Long) -> Unit) = withContext(Dispatchers.IO) {
         if (!options.interruption || !WakeModel(context).installed()) {
             withContext(Dispatchers.Main) { status("Interrupción por voz no disponible · utiliza Parar") }
             return@withContext
@@ -26,6 +26,7 @@ class LocalCommandListener(private val context: Context) {
         }
         var record: AudioRecord? = null
         var aec: AcousticEchoCanceler? = null
+        var capturing = false
         val buffer = ShortArray(320) // 20 ms; sin asignaciones de PCM por lectura.
         try {
             LibVosk.setLogLevel(LogLevel.WARNINGS)
@@ -39,6 +40,7 @@ class LocalCommandListener(private val context: Context) {
                     if (AcousticEchoCanceler.isAvailable()) aec = AcousticEchoCanceler.create(active.audioSessionId)?.also { it.enabled = true }
                     active.startRecording()
                     check(active.recordingState == AudioRecord.RECORDSTATE_RECORDING)
+                    capturing = true
                     val protection = SystemClock.elapsedRealtime() + 350
                     val started = SystemClock.elapsedRealtime()
                     val filter = InterruptionGate()
@@ -79,7 +81,10 @@ class LocalCommandListener(private val context: Context) {
                     }
             }
         } catch (cancel: CancellationException) { throw cancel }
-        catch (_: Exception) { withContext(Dispatchers.Main) { status("Captura de órdenes no disponible · utiliza Parar") } }
+        catch (_: Exception) { withContext(Dispatchers.Main) {
+            status("Captura de órdenes no disponible · utiliza Parar")
+            if (capturing) unavailable()
+        } }
         catch (_: LinkageError) { withContext(Dispatchers.Main) { status("Motor local no disponible · utiliza Parar") } }
         finally {
             buffer.fill(0)

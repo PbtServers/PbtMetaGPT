@@ -22,6 +22,8 @@ class OfficialChatGpt(private val context: Context) {
                 if ((Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
                     || !manager.areNotificationsEnabled()) return "Escucha pausada. Vuelve a PbtMetaGPT y pulsa Abrir ChatGPT; Android no permite mostrar la notificación."
                 manager.createNotificationChannel(NotificationChannel(CHANNEL, "ChatGPT oficial", NotificationManager.IMPORTANCE_DEFAULT))
+                if (manager.getNotificationChannel(CHANNEL)?.importance == NotificationManager.IMPORTANCE_NONE)
+                    return "Escucha pausada. Activa el canal ChatGPT oficial o vuelve a Inicio para abrir la aplicación."
                 val pending = PendingIntent.getActivity(context, 72, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
                 manager.notify(72, Notification.Builder(context, CHANNEL).setSmallIcon(R.drawable.ic_voice)
                     .setContentTitle("Abrir ChatGPT oficial").setContentText("Micrófono liberado. Pulsa para abrir ChatGPT.")
@@ -29,7 +31,7 @@ class OfficialChatGpt(private val context: Context) {
                 "Escucha pausada. Pulsa la notificación para abrir ChatGPT."
             }
         } catch (_: ActivityNotFoundException) { "ChatGPT ya no está disponible. La escucha queda pausada." }
-        catch (_: SecurityException) { "Android no permitió abrir ChatGPT. La escucha queda pausada; inténtalo desde Inicio." }
+        catch (_: SecurityException) { if (visible) open(visible = false) else "Android no permitió mostrar el acceso a ChatGPT. La escucha queda pausada; inténtalo desde Inicio." }
     }
     companion object {
         const val PACKAGE = "com.openai.chatgpt"

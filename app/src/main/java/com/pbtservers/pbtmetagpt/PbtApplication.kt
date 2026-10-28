@@ -43,7 +43,8 @@ class PbtApplication : Application() {
     }
     fun errorReport(): String = "PbtMetaGPT ${BuildConfig.VERSION_NAME} · Android API ${android.os.Build.VERSION.SDK_INT}\n" +
         "ABI: " + android.os.Build.SUPPORTED_ABIS.filter { it in setOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86") }.joinToString() + "\n" + journal.report() +
-        "\nLatencias numéricas (ms; primera trama no acredita sonido físico/Bluetooth):\n" + LatencyStore(this).report()
+        "\nLatencias numéricas (ms; primera trama no acredita sonido físico/Bluetooth):\n" + LatencyStore(this).report() +
+        "\nEscucha pasiva: CPU del proceso por ventana y PSS (no batería ni máximo):\n" + ListeningMeasurements(this).report()
     override fun onCreate() {
         super.onCreate()
         if (getProcessName() != packageName) return // UID aislado de TTS.

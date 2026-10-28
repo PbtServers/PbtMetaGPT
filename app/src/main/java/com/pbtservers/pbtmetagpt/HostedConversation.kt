@@ -33,13 +33,13 @@ class HostedSettings(context: Context) {
 
 /** Captura Vosk acotada por turno. Ningún audio sale del dispositivo ni se conserva. */
 class HostedDictation(private val context: Context) {
-    suspend fun capture(language: String = "es-ES", continuous: Boolean = false, ready: () -> Unit = {}, speechEnded: () -> Unit = {}): String {
+    suspend fun capture(language: String = "es-ES", continuous: Boolean = false, ready: () -> Unit = {}, speechStarted: () -> Unit = {}, speechEnded: () -> Unit = {}): String {
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) throw HostedFailure("Falta permiso de micrófono.")
         // En conversación manos libres el cierre y las órdenes se reconocen localmente.
         // No reiniciar indefinidamente SpeechRecognizer para esperar una intervención.
         if (continuous) {
             if (!language.startsWith("es") || !WakeModel(context).installed()) throw HostedFailure("Instala Vosk español en Activación por voz para la conversación continua.")
-            return captureVosk(speechEnded, waitForSpeech = true, ready = ready)
+            return captureVosk(speechEnded, waitForSpeech = true, ready = ready, speechStarted = speechStarted)
         }
         val settings = HostedSettings(context)
         if (settings.provider == "groq" && settings.authorized && settings.groqAudioAuthorized) {
@@ -63,7 +63,7 @@ class HostedDictation(private val context: Context) {
         require(language.startsWith("es")) { "Instala el reconocedor local de este idioma en Android." }
         return captureVosk(speechEnded, ready = ready)
     }
-    private suspend fun captureVosk(speechEnded: () -> Unit, waitForSpeech: Boolean = false, ready: () -> Unit = {}): String = withContext(Dispatchers.IO) {
+    private suspend fun captureVosk(speechEnded: () -> Unit, waitForSpeech: Boolean = false, ready: () -> Unit = {}, speechStarted: () -> Unit = {}): String = withContext(Dispatchers.IO) {
         require(WakeModel(context).installed()) { "Instala el modelo Vosk o el reconocimiento offline de Android para dictar." }
         // Android puede revocar RECORD_AUDIO entre la selección del motor y el fallback Vosk.
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
@@ -102,7 +102,10 @@ class HostedDictation(private val context: Context) {
                             val previouslyStarted = vad.started
                             if (!previouslyStarted) preRoll.append(buffer, n)
                             val event = vad.accept(buffer, n)
-                            if (!previouslyStarted && vad.started) until = android.os.SystemClock.elapsedRealtime() + 20000
+                            if (!previouslyStarted && vad.started) {
+                                until = android.os.SystemClock.elapsedRealtime() + 20000
+                                withContext(Dispatchers.Main) { speechStarted() }
+                            }
                             val frame = if (!previouslyStarted && vad.started) preRoll.snapshot() else if (previouslyStarted) buffer.copyOf(n) else shortArrayOf()
                             try {
                                 if (frame.isNotEmpty() && recognizer.acceptWaveForm(frame, frame.size)) {
