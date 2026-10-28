@@ -19,7 +19,11 @@ class StreamSpeechPipeline {
             try {
                 for (phrase in phrases) {
                     ensureActive()
-                    if (!voiceFailed) try { audio.send(synthesize(phrase)) }
+                    if (!voiceFailed) try {
+                        val prepared = synthesize(phrase)
+                        ensureActive()
+                        audio.send(prepared)
+                    }
                     catch (cancel: CancellationException) { throw cancel }
                     catch (problem: Exception) { voiceFailed = true; failed(problem) }
                 }
@@ -36,6 +40,7 @@ class StreamSpeechPipeline {
         try {
             var characters = 0
             val result = produce { delta ->
+                ensureActive()
                 characters += delta.length
                 require(characters <= 4000)
                 text(delta)

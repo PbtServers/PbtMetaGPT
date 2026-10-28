@@ -37,6 +37,7 @@ class ContinuousWakeService : Service() {
         }
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == PAUSE) { pause(); return START_NOT_STICKY }
         if (intent?.action != START) { session.stop(); stopSelf(); return START_NOT_STICKY }
         if (session.authorized) return START_NOT_STICKY
         try {
@@ -105,6 +106,10 @@ class ContinuousWakeService : Service() {
         update(session.phase)
         scope.launch { engine.stop() }
     }
+    private fun pause() {
+        suspendListening()
+        app.hosted.suspendConversation(); app.voice.stop()
+    }
     private suspend fun prepareConversation() {
         session.preparing()
         engine.stop() // join de captura y liberación nativa antes de crear WebRTC.
@@ -117,9 +122,11 @@ class ContinuousWakeService : Service() {
     private fun notification(phase: ListeningPhase): Notification {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val stop = PendingIntent.getService(this, 1, Intent(this, ContinuousWakeService::class.java).setAction(STOP), PendingIntent.FLAG_IMMUTABLE)
+        val pause = PendingIntent.getService(this, 2, Intent(this, ContinuousWakeService::class.java).setAction(PAUSE), PendingIntent.FLAG_IMMUTABLE)
         return Notification.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_voice).setContentTitle("PbtMetaGPT · escucha local")
             .setContentText(phase.label).setOngoing(true).setContentIntent(open)
             .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
+            .addAction(Notification.Action.Builder(null, "Pausar", pause).build())
             .addAction(Notification.Action.Builder(null, "Detener escucha y conversación", stop).build()).build()
     }
     override fun onDestroy() {
@@ -140,17 +147,29 @@ class ContinuousWakeService : Service() {
         private const val CHANNEL = "escucha-local"
         private const val START = "com.pbtservers.pbtmetagpt.ESCUCHAR"
         private const val STOP = "com.pbtservers.pbtmetagpt.DETENER"
+        private const val PAUSE = "com.pbtservers.pbtmetagpt.PAUSAR"
         private var instance: ContinuousWakeService? = null
         private val mutable = MutableStateFlow(ListeningPhase.OFF)
         val state = mutable.asStateFlow()
         val running get() = instance != null
         fun reportSystemStop() { mutable.value = ListeningPhase.SUSPENDED }
-        fun startVisible(context: Context) = context.startForegroundService(Intent(context, ContinuousWakeService::class.java).setAction(START))
+        fun startVisible(context: Context): android.content.ComponentName? {
+            check((context.applicationContext as PbtApplication).activityVisible) { "Abre la aplicación para iniciar el micrófono" }
+            return context.startForegroundService(Intent(context, ContinuousWakeService::class.java).setAction(START))
+        }
         fun stop(context: Context) {
             instance?.session?.stop()
             mutable.value = ListeningPhase.OFF
             context.stopService(Intent(context, ContinuousWakeService::class.java))
         }
         suspend fun beforeRealtime() { instance?.prepareConversation() }
+        suspend fun releaseForExternal() {
+            instance?.let { service ->
+                service.activation?.cancelAndJoin(); service.activation = null
+                service.session.suspendListening()
+                service.update(ListeningPhase.SUSPENDED)
+                service.engine.stop()
+            }
+        }
     }
 }

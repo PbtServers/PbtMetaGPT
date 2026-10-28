@@ -1,5 +1,7 @@
 # PbtMetaGPT
 
+Conversación continua y apertura de ChatGPT oficial: ampliación experimental en desarrollo. Consulta [uso, comandos, segundo plano y límites reales](docs/CONVERSACION_CONTINUA.md) y [evidencias por SHA](docs/PROGRESO.md). «Para» interrumpe; «Termina» cierra la conversación; «Deja de escuchar» detiene también la espera. La interrupción simultánea con TTS y Ray-Ban requiere validación física.
+
 <p align="center"><img src="docs/assets/icono-app.png" alt="Icono único de PbtMetaGPT, obtenido del launcher Android" width="128" height="128"></p>
 
 <p align="center">

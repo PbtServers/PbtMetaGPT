@@ -15,6 +15,9 @@ class PbtApplication : Application() {
     lateinit var journal: ErrorJournal; private set
     val diagnostics by lazy { Diagnostics(journal = journal) }
     val microphone = MicrophoneGate()
+    var activityVisible = false
+    var stopVisibleWake: (() -> Unit)? = null
+    private var handoff: Job? = null
     var connection: WakeConnection? = null
     private val mutableMessage = MutableStateFlow<String?>(null)
     val message = mutableMessage.asStateFlow()
@@ -24,6 +27,20 @@ class PbtApplication : Application() {
         if (HostedSettings(this).provider == "groq") free else paid
     } }
     fun clearMessage() { mutableMessage.value = null }
+    fun openChatGpt() {
+        if (handoff?.isActive == true) return
+        stopVisibleWake?.invoke()
+        // Invalidar inmediatamente; esperar la liberación antes del Intent, fuera de la UI.
+        hosted.stop(); voice.stop()
+        handoff = scope.launch {
+            ContinuousWakeService.releaseForExternal()
+            ContinuousWakeService.stop(this@PbtApplication)
+            hosted.awaitReleased()
+            if (microphone.owner() != null) {
+                mutableMessage.value = "Micrófono todavía ocupado. Espera y pulsa Abrir ChatGPT de nuevo."
+            } else mutableMessage.value = OfficialChatGpt(this@PbtApplication).open(activityVisible)
+        }
+    }
     fun errorReport(): String = "PbtMetaGPT ${BuildConfig.VERSION_NAME} · Android API ${android.os.Build.VERSION.SDK_INT}\n" +
         "ABI: " + android.os.Build.SUPPORTED_ABIS.filter { it in setOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86") }.joinToString() + "\n" + journal.report() +
         "\nLatencias numéricas (ms; primera trama no acredita sonido físico/Bluetooth):\n" + LatencyStore(this).report()

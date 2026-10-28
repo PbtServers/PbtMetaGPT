@@ -13,7 +13,8 @@ import androidx.compose.ui.unit.dp
     val groups = listOf(
         Triple("Conexiones", "Cuentas y servicios de conversación", listOf("Servicios de IA", "OpenAI")),
         Triple("Dispositivos", "Gafas, micrófono y Bluetooth", listOf("Dispositivos")),
-        Triple("Voz y escucha", "Frases, idioma y voces", listOf("Activación por voz", "Biblioteca de voces", "Personalidad")),
+        Triple("Voz y escucha", "Conversación, frases y voces", listOf("Conversación y escucha", "Activación por voz", "Biblioteca de voces", "Personalidad")),
+        Triple("Integraciones", "Aplicaciones oficiales", listOf("ChatGPT oficial")),
         Triple("Privacidad", "Permisos y datos personales", listOf("Privacidad", "Permisos")),
         Triple("Avanzado", "Modelos, rendimiento y diagnóstico", listOf("Biblioteca de voces", "Diagnóstico")))
     groups.forEach { (name, description, destinations) ->

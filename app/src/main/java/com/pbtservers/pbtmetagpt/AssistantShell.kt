@@ -264,6 +264,8 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
         } else Column(Modifier.weight(1f).widthIn(max = 840.dp).fillMaxWidth().align(androidx.compose.ui.Alignment.CenterHorizontally).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(page, style = MaterialTheme.typography.headlineMedium)
             when (page) {
+                "Conversación y escucha" -> ListeningSettingsScreen(configured, microphoneReady, requestMic, stopAll)
+                "ChatGPT oficial" -> OfficialChatGptPanel()
                 "Servicios de IA" -> HostedProviderScreen(context, provider, select = {
                     stopAll(); hostedSettings.select(it); provider = it
                 }, openOpenAI = { page = "OpenAI" }, compact = wizard)

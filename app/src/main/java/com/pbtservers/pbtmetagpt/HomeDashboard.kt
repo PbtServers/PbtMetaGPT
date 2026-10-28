@@ -15,6 +15,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
     wakeEnabled: Boolean = false, toggleWake: (() -> Unit)? = null, navigate: (String) -> Unit,
 ) {
     val persistent by ContinuousWakeService.state.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val app = context.applicationContext as PbtApplication
     Column(Modifier.widthIn(max = 840.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Text("Inicio", style = MaterialTheme.typography.headlineLarge)
         OutlinedCard(onClick = { navigate("Asistentes") }, modifier = Modifier.fillMaxWidth()) {
@@ -26,7 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
                 Text("Cambiar", color = MaterialTheme.colorScheme.primary)
             }
         }
-        Text(when { voice.failed -> "Error"; voice.status == "Escuchando" -> "Escuchando"; voice.responding -> "Hablando"; voice.connecting -> "Pensando"; else -> "Listo" }, style = MaterialTheme.typography.titleLarge)
+        Text(when { voice.failed -> "Error"; voice.paused -> "Pausado"; voice.status in listOf("Escuchando", "Te escucho") -> "Te escucho"; voice.responding -> "Hablando"; voice.connecting -> "Pensando"; voice.active -> "Conversación activa"; else -> "Listo" }, style = MaterialTheme.typography.titleLarge)
         Text(if (microphoneReady) "Micrófono preparado" else "Micrófono pendiente de permiso", style = MaterialTheme.typography.bodySmall)
         if (wakeEnabled) Text("Escuchando la frase de activación", color = MaterialTheme.colorScheme.primary)
         if (persistent != ListeningPhase.OFF) {
@@ -38,7 +40,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
             Text("Hablar", style = MaterialTheme.typography.headlineMedium)
         }
         if (!configured) TextButton(onClick = { navigate(if (profile == null) "Asistentes" else "Servicios de IA") }) { Text("Preparar mi conversación") }
-        if (voice.active || voice.connecting) OutlinedButton(onClick = stop, modifier = Modifier.fillMaxWidth()) { Text("Detener") }
+        if (voice.responding || voice.connecting) Button(onClick = { if (provider == "groq") app.hosted.interrupt() else app.voice.interrupt() }, modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)) { Text("Parar", style = MaterialTheme.typography.headlineSmall) }
+        if (voice.active || voice.connecting) OutlinedButton(onClick = { if (provider == "groq") app.hosted.stop() else app.voice.stop() }, modifier = Modifier.fillMaxWidth()) { Text("Terminar conversación") }
+        TextButton(onClick = app::openChatGpt) { Text("Abrir ChatGPT") }
         if (toggleWake != null) {
             OutlinedButton(onClick = toggleWake, enabled = configured && !voice.active && !voice.connecting, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
                 Text(if (wakeEnabled) "Desactivar escucha por frase" else "Activar escucha por frase")

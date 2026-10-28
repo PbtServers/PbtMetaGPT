@@ -93,6 +93,8 @@ import kotlinx.coroutines.*
     val busy by voice.busy.collectAsStateWithLifecycle()
     val messages by voice.messages.collectAsStateWithLifecycle()
     val phase by voice.phase.collectAsStateWithLifecycle()
+    val sessionPhase by voice.sessionPhase.collectAsStateWithLifecycle()
+    val commands by voice.commandStatus.collectAsStateWithLifecycle()
     val engine by voice.engine.collectAsStateWithLifecycle()
     val audioError by voice.audioError.collectAsStateWithLifecycle()
     var input by remember { mutableStateOf("") }
@@ -111,7 +113,9 @@ import kotlinx.coroutines.*
     }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(profile?.name ?: "Conversación", style = MaterialTheme.typography.headlineMedium)
-        Text("GroqCloud · ${phase.label}", style = MaterialTheme.typography.labelLarge)
+        Text("GroqCloud · ${if (sessionPhase != SessionPhase.IDLE) sessionPhase.label else phase.label}", style = MaterialTheme.typography.labelLarge)
+        if (commands.isNotBlank()) Text(commands, style = MaterialTheme.typography.bodySmall)
+        if (busy) Button(onClick = voice::interrupt, modifier = Modifier.fillMaxWidth()) { Text("Parar", style = MaterialTheme.typography.headlineSmall) }
         Text(engine, style = MaterialTheme.typography.bodySmall)
         if (busy && state.status !in listOf("Pensando", "Hablando", "Escuchando")) Text(state.status, style = MaterialTheme.typography.bodySmall)
         androidx.compose.foundation.lazy.LazyColumn(state = list, modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -153,8 +157,9 @@ import kotlinx.coroutines.*
                 if (!microphoneReady) requestMic()
                 else { if (!state.active) profile?.let { voice.start(it) }; voice.listen() }
             }, enabled = ready && profile != null) { Text("Micrófono") }
-            OutlinedButton(onClick = stop) { Text("Detener") }
+            OutlinedButton(onClick = voice::stop) { Text("Terminar conversación") }
         }
+        TextButton(onClick = { (context.applicationContext as PbtApplication).openChatGpt() }) { Text("Abrir ChatGPT") }
     }
     if (fallback) AlertDialog(onDismissRequest = { fallback = false }, title = { Text("Elegir voz local") }, text = {
         Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {

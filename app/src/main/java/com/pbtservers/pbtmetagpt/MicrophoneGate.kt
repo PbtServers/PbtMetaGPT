@@ -1,6 +1,6 @@
 package com.pbtservers.pbtmetagpt
 
-enum class MicrophoneOwner { CONTINUOUS_LOCAL, ANDROID_LOCAL, REALTIME, DIAGNOSTIC, HOSTED_LOCAL }
+enum class MicrophoneOwner { CONTINUOUS_LOCAL, ANDROID_LOCAL, REALTIME, DIAGNOSTIC, HOSTED_LOCAL, COMMAND_LOCAL }
 
 /** Exclusión en todo el proceso; una liberación antigua nunca cede el micrófono de otra sesión. */
 class MicrophoneGate {

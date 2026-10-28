@@ -68,6 +68,7 @@ import java.io.IOException
         text = { Text("El micrófono seguirá activo al minimizar y bloquear el móvil mientras Android lo permita. Una frase guardada abrirá el proveedor elegido: GroqCloud Free utiliza cuota gratuita; OpenAI API opcional es facturable. Configura el servicio y su consentimiento antes. Podrás detenerlo desde Inicio y la notificación. No se guardan grabaciones de fondo. Las frases deben estar guardadas y ser del idioma español. Al detener el servicio no se reinicia solo.") },
         confirmButton = { TextButton(onClick = {
             consent = false; stopVisible()
+            ListeningSettings(context).let { it.save(it.load().copy(background = true)) }
             try { ContinuousWakeService.startVisible(context) }
             catch (_: SecurityException) { status = "Android ha denegado el servicio. Revisa permiso de micrófono y notificaciones." }
             catch (_: IllegalStateException) { status = "Android no permite iniciar el servicio ahora. Vuelve a Inicio e inténtalo con la aplicación visible." }

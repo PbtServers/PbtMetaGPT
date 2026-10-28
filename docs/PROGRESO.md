@@ -1,5 +1,25 @@
 # Seguimiento de PbtMetaGPT
 
+## Conversación continua, interrupción local y ChatGPT · 28/10/2026
+
+Base `879fd8f97a84f55b1b4c6b01f36ff658aba9097a`, exclusivamente `master`, sin ramas/worktrees/PR. Se preservan los seis archivos locales previos (CONTRIBUTING, DESARROLLO, README de capturas, dos plantillas y version.json), con huellas SHA-256 fuera del repositorio. Inicio registrado 16:05 UTC. **Entrega experimental; objetivo incompleto**, sin aceptación física ni nueva APK validada todavía.
+
+Auditoría: servicio Vosk/AudioRecord, política de activación, exclusión de micrófono, rutas y cancelación PCM ya existían. Groq cerraba cada activación al terminar el turno. Se incorpora continuidad hablada, contexto en RAM acotado, órdenes locales exactas y generaciones; «Para» invalida primero, «Termina» permite volver a espera autorizada y «Deja de escuchar» la detiene. Detector concurrente Vosk con confianza/AEC, pausa de servicio desde notificación, preferencias y launcher público de ChatGPT. Se conservan motores y DAT. Detalles y limitaciones en [CONVERSACION_CONTINUA.md](CONVERSACION_CONTINUA.md).
+
+| Subfase | Avance estimado/peso | Evidencia y pendiente |
+| --- | ---: | --- |
+| Auditoría y contratos | 18/25 | Código, fuentes oficiales Android/Meta/OpenAI y Vosk consultados; falta contrato físico de rutas |
+| Conversación y cancelación | 10/15 | Cinco turnos, límites y resultado nativo tardío en JVM; falta E2E Groq real |
+| Interrupción por voz | 8/20 | Captura concurrente implementada, filtros y generaciones; sin validación acústica, sin órdenes locales WebRTC todavía |
+| Servicio e integración | 12/20 | Servicio previo reutilizado, pausa y entrega a ChatGPT; falta emulador y segundo plano real |
+| Interfaz y documentación | 7/10 | Controles integrados, límites documentados; aceptación de uso pendiente |
+| Validación y publicación | 2/10 | 17 JVM locales nuevas, 35 Python, 16 Node y escáner de fuentes correctos; Gradle/API35/API36 pendientes |
+| **Total orientativo** | **57/100** | **No es Release estable ni acredita latencia o gafas** |
+
+Las 17 pruebas JVM nuevas pasan con Java 17 y Kotlin 2.0.21 del Gradle almacenado: 0,154 s, sin Android. La compilación real de CI usa Kotlin 2.2.21. Preparar Sherpa local descargó/verificó el AAR oficial, pero falta `patchelf`; SDK Android ausente. Se preparan cinco instrumentadas adicionales sin claves ni servicios reales. No se omiten ni relajan pruebas anteriores. La CI debe aprobar JVM, Lint, seguridad, API 35/36 y compilación antes de publicar APK del mismo SHA.
+
+Pendientes: ejecutar CI completa y corregir fallos; reconocimiento hablado y eco durante TTS; rutas reales de entrada/salida Nothing/Ray-Ban; pantalla bloqueada, llamadas, permisos y Bluetooth; detector KWS de consumo bajo (Vosk actual es ASR, sin consumo medido); órdenes locales en WebRTC; p50/p95 de detección/parada audible/relevo, CPU/PSS/batería y aceptación física. No hay cifras físicas conseguidas. Próxima tarea: CI del bloque inicial y pruebas reales del detector; el lanzador abre ChatGPT, no garantiza iniciar Live.
+
 ## Escucha, motores neuronales y simplificación · intervención actual 28/10/2026
 
 Base `e263ec42bda840c5cfb6427c945f562d57a086d9`; trabajo exclusivamente en `master`, sin ramas ni worktrees. Se preservan seis archivos locales previos, comprobados por SHA-256 y excluidos de los commits. La versión continúa **0.5.0-rc1**. Implementación publicada desde `4a87663` en `origin/master`; validación automática del código `b74fab9` completa en ambas APIs, conservando la candidata.

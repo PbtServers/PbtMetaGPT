@@ -16,7 +16,7 @@ import java.util.Locale
 class OnDeviceDictation(private val context: Context) {
     fun available() = SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
 
-    suspend fun capture(language: String = "es-ES", speechEnded: () -> Unit = {}): String = withContext(Dispatchers.Main.immediate) {
+    suspend fun capture(language: String = "es-ES", speechEnded: () -> Unit = {}, ready: () -> Unit = {}): String = withContext(Dispatchers.Main.immediate) {
         if (!available()) throw HostedFailure("El reconocedor offline de Android no está instalado.")
         val gate = (context.applicationContext as PbtApplication).microphone
         val lease = gate.acquire(MicrophoneOwner.ANDROID_LOCAL) ?: throw HostedFailure("El micrófono está ocupado.")
@@ -25,7 +25,7 @@ class OnDeviceDictation(private val context: Context) {
         try {
             val active = SpeechRecognizer.createOnDeviceSpeechRecognizer(context); recognizer = active
             active.setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) = Unit
+                override fun onReadyForSpeech(params: Bundle?) { ready() }
                 override fun onBeginningOfSpeech() = Unit
                 override fun onRmsChanged(rmsdB: Float) = Unit
                 override fun onBufferReceived(buffer: ByteArray?) = Unit
