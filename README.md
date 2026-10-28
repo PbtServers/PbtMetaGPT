@@ -145,7 +145,9 @@ Para voces españolas neuronales sin esperar las colas de Qwen, instala un motor
 
 En la pantalla **Voces → Natural** también se enumeran las voces offline instaladas, priorizando el idioma `es-ES`. Si eliges una, el asistente conserva el modo Natural con motor local, **sin cambiar a Qwen ni enviar el texto de síntesis a Internet**. La calidad neuronal no puede deducirse del nombre de la voz: depende del motor y modelo que instales. Qwen continúa como alternativa remota, diferenciada y con consentimiento propio.
 
-**RVC local:** la inferencia móvil es técnicamente viable mediante modelos ONNX RVC y auxiliares HuBERT/ContentVec y RMVPE, pero **aún no está implementada dentro de PbtMetaGPT**. Los modelos originales `.pth` e `.index` siguen importándose solo para almacenarlos. Consulta la [evaluación técnica de RVC Android](docs/RVC_LOCAL_ANDROID.md), sus requisitos de exportación y las pruebas pendientes antes de habilitar una voz RVC.
+**RVC local ONNX (experimental):** se ha añadido una primera canalización de inferencia en Android basada en ONNX Runtime: síntesis TTS base offline → HuBERT/ContentVec → RMVPE → sintetizador RVC ONNX → reproducción PCM. En Biblioteca de voces puedes importar **tres modelos ONNX** identificados por su nombre (Synth/RVC, HuBERT/ContentVec, RMVPE) y activar la conversión para el modo **Natural con TTS Android local**. No se envían pesos ni muestras al servidor. La inferencia todavía requiere pruebas con modelos ONNX auténticos y en un teléfono arm64; **no se certifica como estable por compilar**.
+
+Los `.pth` y `.index` originales permanecen importables para almacenamiento, **pero no son ejecutables en este motor**. Debes exportar el sintetizador RVC a ONNX con una herramienta confiable desde un ordenador; no basta con renombrar el archivo. El índice FAISS `.index` no se utiliza en la conversión ONNX actual. Consulta [RVC local en Android](docs/RVC_LOCAL_ANDROID.md) para los formatos compatibles y las pruebas pendientes.
 
 ## Ray-Ban Meta
 

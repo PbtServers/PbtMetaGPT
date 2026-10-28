@@ -30,6 +30,8 @@ android {
 }
 kotlin { compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17 } }
 dependencies {
+    // RVC local: inferencia completamente offline sobre CPU Android arm64.
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.30.0")
     implementation("com.alphacephei:vosk-android:0.3.75")
     implementation(files("libs/sherpa-onnx-2.0.1.aar"))
     implementation("com.meta.wearable:mwdat-core:1.0.1")

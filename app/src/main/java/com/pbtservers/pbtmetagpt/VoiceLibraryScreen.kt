@@ -21,6 +21,9 @@ fun AdvancedVoiceLibraryScreen(context: Context, profile: AssistantProfile, chan
     val scope = rememberCoroutineScope()
     val store = remember { VoicePackageStore(File(context.filesDir, "voces")) }
     val rvcStore = remember { RvcModelStore(File(context.filesDir, "modelos_rvc")) }
+    val rvcOnnx = remember { RvcOnnxStore(context) }
+    var rvcOnnxReady by remember { mutableStateOf(rvcOnnx.ready()) }
+    var rvcOnnxEnabled by remember { mutableStateOf(rvcOnnx.enabled) }
     var packages by remember { mutableStateOf(emptyList<VoicePackage>()) }
     var rvcModels by remember { mutableStateOf(rvcStore.list()) }
     var selectedRvcIndex by remember { mutableStateOf<String?>(null) }
@@ -103,6 +106,38 @@ fun AdvancedVoiceLibraryScreen(context: Context, profile: AssistantProfile, chan
             }
         }
     }
+    val importRvcOnnx = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) {
+            stop()
+            operation = scope.launch {
+                busy = true
+                try {
+                    withContext(Dispatchers.IO) {
+                        require(uris.size == 3) { "Selecciona exactamente tres ONNX." }
+                        val sources = uris.map { uri ->
+                            val filename = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                                ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }.orEmpty()
+                            RvcOnnxNames.kind(filename) to uri
+                        }
+                        require(sources.map { it.first }.toSet() == setOf("synth", "hubert", "rmvpe")) {
+                            "Selecciona un sintetizador ONNX, un HuBERT ONNX y un RMVPE ONNX."
+                        }
+                        val streams = sources.associate { (key, uri) ->
+                            key to (context.contentResolver.openInputStream(uri)
+                                ?: throw IllegalArgumentException("No se pudo abrir un ONNX."))
+                        }
+                        val job = currentCoroutineContext()
+                        rvcOnnx.install(streams) { job.ensureActive() }
+                    }
+                    rvcOnnxReady = rvcOnnx.ready()
+                    rvcOnnxEnabled = false
+                    report("Tres modelos ONNX importados. Activa RVC local para probar la conversión; no se necesita Internet.")
+                } catch (cancel: CancellationException) { throw cancel }
+                catch (_: Exception) { report("No se pudo instalar RVC ONNX: comprueba los tres archivos, sus nombres y el espacio disponible.") }
+                finally { busy = false }
+            }
+        }
+    }
     Text("Biblioteca de voces", style = MaterialTheme.typography.headlineMedium)
     if (HostedSettings(context).provider == "groq") Text("GroqCloud Free: para reproducir respuestas elige Android TTS o Qwen3-TTS experimental. Las voces OpenAI y la API externa se conservan para otros modos; no se utilizan ni se facturan desde la conversación gratuita.")
     if (!compact) ElevatedCard(Modifier.fillMaxWidth()) {
@@ -116,9 +151,25 @@ fun AdvancedVoiceLibraryScreen(context: Context, profile: AssistantProfile, chan
     }
     Text("Las voces son síntesis de IA. Utiliza voces originales o autorizadas. No se incluyen modelos ni clonaciones de actores. Una importación válida no garantiza inferencia ni calidad.")
     Text("RVC · voces entrenadas", style = MaterialTheme.typography.titleLarge)
-    Text("Importa ZIP de RVC o archivos .pth y .index. Se almacenan sin ejecutarlos: la conversión de voz requiere un motor compatible todavía no disponible sin self-hosting. No se suben a terceros.")
+    Text("Los .pth y .index se pueden importar como archivo original. Para convertir voz en el teléfono se necesitan tres modelos ONNX compatibles: sintetizador RVC (exportado desde .pth en el ordenador), HuBERT/ContentVec y RMVPE.")
     Row { Checkbox(rights, { rights = it }); Text("He revisado los derechos y la procedencia de la voz") }
     Button(onClick = { importRvc.launch(arrayOf("*/*")) }, enabled = rights && !busy) { Text("Importar modelo RVC (.zip, .pth, .index)") }
+    Button(onClick = { importRvcOnnx.launch(arrayOf("*/*")) }, enabled = rights && !busy) {
+        Text("Instalar motor RVC local (.onnx × 3)")
+    }
+    Text(if (rvcOnnxReady) "Modelos ONNX disponibles en el teléfono."
+        else "RVC local todavía no configurado: faltan los tres modelos ONNX compatibles.")
+    Row {
+        Checkbox(checked = rvcOnnxEnabled, onCheckedChange = { value ->
+            stop()
+            try {
+                rvcOnnx.setEnabled(value)
+                rvcOnnxEnabled = value
+            } catch (_: Exception) { report("Instala primero los tres ONNX. Esta función solo usa modelos en el teléfono.") }
+        }, enabled = !busy && rvcOnnxReady && rights)
+        Text("Convertir localmente la voz sintetizada (modo Natural + TTS offline)")
+    }
+    Text("El motor ONNX no sube audio ni pesos a Internet; puede consumir mucha memoria y ser lento. No todas las exportaciones RVC son compatibles. Desactívalo si notas cortes.")
     if (rvcModels.isEmpty()) Text("No hay voces RVC importadas.")
     rvcModels.forEach { model ->
         ElevatedCard(Modifier.fillMaxWidth()) {

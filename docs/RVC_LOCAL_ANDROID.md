@@ -1,6 +1,6 @@
 # RVC completamente local en Android: viabilidad e integración segura
 
-Estado: **viable con modelos ONNX compatibles; no implementado ni validado en PbtMetaGPT**. Este archivo es una evaluación técnica, no una declaración de funcionalidad.
+Estado: **primera implementación nativa ONNX incorporada en PbtMetaGPT; pendiente de validación con modelos RVC reales, latencia y audio físico**. No se considera estable hasta superar las pruebas de aceptación.
 
 ## Implementaciones de referencia
 
@@ -11,6 +11,16 @@ Estado: **viable con modelos ONNX compatibles; no implementado ni validado en Pb
 **Compatibilidad:** no basta importar un .pth/.index y ejecutar: .pth es un checkpoint PyTorch, no un grafo ONNX. Los formatos no son intercambiables. **No deserializar PyTorch/pickle en Android** ni ejecutar comandos del ZIP importado. La exportación debe usar una herramienta confiable y verificable desde un ordenador o solución controlada antes de importar el ONNX. La indexación FAISS es opcional en pipelines que permiten trabajar sin índice, pero no debe representarse como compatible hasta implementarse y probarse.
 
 ## Requisitos de implementación para PbtMetaGPT
+
+### Implementación inicial de la app
+
+- Biblioteca → RVC: importar el conjunto **Synth ONNX + HuBERT/ContentVec ONNX + RMVPE ONNX** desde el selector de Android. Es necesario que los nombres contengan «synth» o «rvc», «hubert» o «content», y «rmvpe» para clasificarlos.
+- Los archivos se guardan en almacenamiento privado de Android. No hay descarga automática de modelos ni envío de pesos a una API.
+- Activar manualmente «Convertir localmente la voz sintetizada» después de importar los tres ONNX. El ajuste viene desactivado por defecto.
+- El modo Natural con voz Android offline genera primero PCM con el sintetizador local y lo convierte mediante HuBERT/ContentVec, RMVPE y RVC ONNX en una corrutina de cálculo, antes de reproducirlo.
+- El sintetizador debe haberse exportado con metadatos JSON voice-changer: `samplingRate`, `f0`, `embChannels`, `embOutputLayer` y `useFinalProj`. Los nombres de entradas y salidas requeridos se verifican al cargar. Las variantes de modelo no compatibles se rechazan sin simular voz.
+- El conversor limita los fragmentos a ocho segundos, usa hasta dos hilos de CPU y libera sesiones ONNX al terminar. La conversión en dispositivos ARM64 puede tener una latencia considerable.
+- **Limitación actual:** no convierte `.pth` en ONNX dentro del móvil; el `.index` de FAISS no interviene; no hay prueba aún con un conjunto de pesos real ni ejecución aislada en proceso separado. La API está preparada para realizar la inferencia, pero no hay evidencia de audio inteligible con un modelo concreto.
 
 1. Auditar licencias y orígenes de las dependencias/código antes de reutilizar. No copiar clases de otros repositorios sin verificar permisos y atribución.
 2. Integrar **ONNX Runtime Android** arm64 y adaptar HuBERT/ContentVec y RMVPE; seleccionar versión y modelos descargables con hashes y licencias comprobados. Evitar modelos gigantes empaquetados en APK.

@@ -163,7 +163,11 @@ class HostedConversation(private val context: Context, private val scope: Corout
     }
     private suspend fun speakStream(target: AssistantProfile, trace: VoiceLatency,
         produce: suspend (suspend (String) -> Unit) -> String, text: (String) -> Unit,
-    ): String = StreamSpeechPipeline().run(remote = target.voiceMode != "rapida" && target.ttsEngine == "qwen_space", produce = produce, text = text,
+    ): String {
+        val rvcStore = RvcOnnxStore(context)
+        var localRvc: RvcOnDevice? = null
+        try {
+            return StreamSpeechPipeline().run(remote = target.voiceMode != "rapida" && target.ttsEngine == "qwen_space", produce = produce, text = text,
         synthesize = { phrase ->
             val started = trace.now()
             val chosen = resolve(target)
@@ -184,7 +188,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
                         throw problem
                     }
                 }
-                when (chosen.ttsEngine) {
+                val normalAudio = when (chosen.ttsEngine) {
                     "android" -> android.synthesize(chosen, phrase)
                     "qwen_space" -> {
                         if (!settings.qwenAuthorized) throw HostedFailure("Autoriza Qwen3-TTS en Voces antes de enviarle texto.")
@@ -192,6 +196,11 @@ class HostedConversation(private val context: Context, private val scope: Corout
                     }
                     else -> throw HostedFailure("Esta voz no está habilitada en Groq Free. Elige Rápida o Natural; no se ha llamado a una API de pago.")
                 }
+                if (chosen.ttsEngine == "android" && chosen.voiceMode == "natural" && rvcStore.enabled) {
+                    val converter = localRvc ?: RvcOnDevice(rvcStore).also { localRvc = it }
+                    mutable.update { it.copy(status = "Convirtiendo voz RVC en el teléfono") }
+                    converter.convert(normalAudio)
+                } else normalAudio
             } finally { trace.add(VoiceStage.TTS_SYNTHESIS, trace.now() - started) }
         }, play = { audio ->
             try {
@@ -211,6 +220,10 @@ class HostedConversation(private val context: Context, private val scope: Corout
             phaseValue.value = ConversationPhase.ERROR
             mutable.update { it.copy(status = "La voz no está disponible. Puedes leer la respuesta.") }
         })
+        } finally {
+            localRvc?.close()
+        }
+    }
 
     fun replay(voice: AssistantProfile? = null) {
         val previous = lastAnswer ?: return
