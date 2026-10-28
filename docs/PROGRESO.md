@@ -2,19 +2,21 @@
 
 ## Optimización de voz, interfaz simplificada e icono profesional · 28/10/2026
 
-**64 % de esta nueva intervención**, independiente del 70 % anterior. Inicio medido 23:07 UTC del 27/10 (00:07 en Madrid del 28/10). Primera prioridad: streaming, métricas, conexiones y síntesis anticipada; todavía no se afirma menor latencia física ni superioridad de un proveedor. [Detalle y metodología](OPTIMIZACION_VOZ_UI.md).
+**75 % de esta intervención; entrega experimental**, independiente del 70 % histórico. Código `cc489d5f33872bc0c5014b43da13307d0991cbcf`, [CI completa correcta](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40606942378) y [APK experimental](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40606942378/artifacts/12781607132). Inicio medido 23:07 UTC del 27/10; CI/APK terminadas a las 00:20 UTC del 28/10: **73 minutos hasta la APK**, incluida la corrección de regresiones. La documentación posterior se comprueba de nuevo en CI con su propio SHA.
 
-| Subfase | Avance/peso | Pendiente |
+| Subfase | Avance/peso | Evidencia y pendiente |
 | --- | ---: | --- |
-| Auditoría y latencia real | 11/25 | Instrumentación numérica; benchmark Qwen b844a56 FALLA conexión HTTPS, sin tiempos válidos; primer sonido pendiente |
-| Canalización de voz | 12/15 | Compilación/JVM/Lint/APK/escáner correctos en CI b844a56; Groq real y latencia acústica pendientes |
-| Inicio, chat y biblioteca | 15/20 | Cuatro destinos, chat incremental, modos y setup breve implementados; instrumentadas pendientes |
-| Tres propuestas e icono | 16/20 | Tres vectores renderizados; elegido B, revisado 24/36/48/72 dp, mono y máscaras; launcher físico pendiente |
-| Compatibilidad y preferencias | 5/10 | Archivos preservados por hash; migración y modos implementados; emuladores y hardware pendientes |
-| Pruebas y publicación | 5/10 | 32 Python, 19 Node y seis JVM locales; núcleo CI estricto correcto; API35/API36 y APK final pendientes |
-| **Total** | **64/100** | **Experimental; sin medición física nueva** |
+| Auditoría y latencia real | 11/25 | Métricas numéricas privadas; benchmark Qwen falla HTTPS, sin PCM ni tiempos válidos. Groq real/primera palabra pendientes |
+| Canalización de voz | 12/15 | Streaming SSE, frases, prefetched audio, cancelación y fallo sin perder texto; JVM/compilación correctos. Latencia acústica pendiente |
+| Inicio, chat y biblioteca | 18/20 | Cuatro destinos, mensajes progresivos, modos, setup breve y pruebas Compose correctas en ambas APIs; uso diario físico pendiente |
+| Tres propuestas e icono | 18/20 | B elegido tras renderizar A/B/C; 24/36/48/72 dp, mono, máscaras, cinco densidades y resolución Android correctos; launcher físico pendiente |
+| Compatibilidad y preferencias | 8/10 | 28/28 instrumentadas por API, borradores/perfiles/Keystore y archivos preservados. Nothing/00R6, Bluetooth y batería pendientes |
+| Pruebas y publicación | 8/10 | 108 JVM (0 fallos, 1 remota optativa omitida), 32 Python, 19 Node, Lint, escáner y APK gated correctos. Proveedores/E2E reales pendientes |
+| **Total** | **75/100** | **No es una Release estable ni una conversación real de extremo a extremo acreditada** |
 
-Estimación inicial restante: 45–75 minutos para implementación/revisión/CI, condicionada por servicios y runners; aceptación física sin estimación fiable hasta disponer de Nothing/00R6 y cuenta Groq Free. No se guardan conversaciones en métricas ni se envían grabaciones a pruebas remotas.
+La APK incorpora voz Rápida predeterminada con Android TTS instalado, Qwen Natural experimental y motores anteriores en Personalizada. OpenAI API permanece separado y explícito. No se afirma que un proveedor sea más rápido. [Detalle y metodología](OPTIMIZACION_VOZ_UI.md), [tres propuestas](assets/iconos/comparativa.png) y [máscaras pequeñas](assets/iconos/mascaras.png).
+
+El usuario confirmó que el teléfono no está disponible. La aceptación física y el 25 % restante no tienen una estimación fiable hasta disponer de cuenta Groq Free/configuración local y Nothing/00R6. Qwen público falló antes de completar la inferencia; se conserva como experimental, sin disponibilidad garantizada. RVC sigue no disponible sin backend apto probado. README.md y los seis archivos anteriores permanecen íntegros por SHA256 y fuera de los commits.
 
 ## Servicios online gratuitos sin infraestructura propia · 27/10/2026
 

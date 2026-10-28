@@ -2,7 +2,9 @@
 
 Investigación del **27/10/2026**. Implementación experimental, sin conversación real de extremo a extremo acreditada. Este documento amplía la documentación existente; README.md y los seis archivos locales anteriores se conservan íntegros.
 
-[Descargar APK experimental de `e5cadba`](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40593718535/artifacts/12775912184), publicada después de superar Android15 y Android16. Puede requerir iniciar sesión en GitHub para descargar el artifact. Es una APK de prueba; faltan Groq con cuenta Free real y validación física de audio/gafas.
+[Descargar APK experimental optimizada de `cc489d5`](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40606942378/artifacts/12781607132), publicada después de superar Android15 y Android16. Puede requerir iniciar sesión en GitHub para descargar el artifact. Es una APK de prueba; faltan Groq con cuenta Free real y validación física de audio/gafas.
+
+Actualización **28/10/2026**: [optimización y metodología](OPTIMIZACION_VOZ_UI.md). Inicio, Asistentes, Voces y Ajustes; configuración breve y texto progresivo. CI de cc489d5 correcta, con 28/28 instrumentadas en cada API35/API36. La nueva prueba real Kotlin de Qwen falló por HTTPS; no hay una mejora de latencia remota o acústica acreditada.
 
 ## Estado de esta entrega
 
@@ -11,7 +13,7 @@ Investigación del **27/10/2026**. Implementación experimental, sin conversaci�
 | GroqCloud Free: cuenta propia, clave cifrada, consulta de modelos, respuesta textual y contexto por sesión | Adaptador y pantallas compilados; configuración/Keystore probados | Generación pendiente de clave Free real |
 | Dictado español con Vosk, tras «Atento» o botón | Captura local por turnos de hasta 20 s; reutiliza el modelo pequeño ya instalado | Pendiente de teléfono y reconocimiento hablado |
 | Voz por asistente, Android TTS instalado | Se reutiliza el motor existente; permitido en la ruta gratuita | Nueva ruta de audio sin validar físicamente |
-| Qwen3-TTS CustomVoice en Space oficial | Adaptador Gradio experimental, consentimiento, contrato y muestras explícitas | Contrato e inferencia WAV no silenciosa correctos en CI; adaptador Android y audición pendientes |
+| Qwen3-TTS CustomVoice en Space oficial | Adaptador Gradio experimental, consentimiento, contrato y muestras explícitas | Prueba Python histórica correcta; nuevo benchmark Kotlin falla HTTPS sin PCM. Uso actual y audición no acreditados |
 | RVC con modelos personales | No disponible; sin importación ni subida de modelos | No hay proveedor apto y probado en esta investigación |
 | Otros Spaces y segundo proveedor LLM gratuito | No hay selector genérico ni segundo adaptador integrado | Pendientes; no se presentan como utilizables |
 | OpenAI API | Integración anterior conservada y seleccionable de forma separada | No se usa como fallback del modo gratuito |
@@ -30,7 +32,7 @@ Se limitan las respuestas a 1024 tokens de completado, las peticiones a 2000 car
 
 Español y catalán pueden solicitarse mediante el idioma del perfil y texto Unicode; la calidad de cada modelo y sus variantes queda pendiente de evaluación real. Vosk instalado en esta app es español; para catalán se ofrece entrada escrita. No se promete que una voz o un reconocedor soporte catalán por admitirlo el LLM.
 
-El proveedor admite streaming; **esta primera ruta usa respuesta completa**, sin streaming de tokens. No hay medición de latencia desde el Nothing Phone: la app mide acceso y generación en sus botones de prueba, por separado. No se extrapolan velocidades publicitarias a la conversación completa.
+Desde la optimización del 28/10 la ruta Groq utiliza **streaming SSE**, actualiza mensajes progresivamente y prepara voz por frases. Registra TTFT, completado, síntesis y primera trama de AudioTrack sin texto/audio en las métricas. No hay medición acústica desde el Nothing Phone ni generación con clave Free real acreditada. No se extrapolan velocidades publicitarias a la conversación completa.
 
 El acuerdo contempla integración de APIs en aplicaciones y acceso de usuarios finales (§3.1). Es un servicio para desarrolladores/empresas, no una suscripción de consumo; el titular BYOK debe poder aceptar ese acuerdo, la política de uso y la licencia del modelo. No se redistribuye una clave compartida. [Acuerdo vigente](https://console.groq.com/docs/legal/services-agreement), [privacidad de los datos](https://console.groq.com/docs/your-data).
 
@@ -74,7 +76,7 @@ No se afirma que ningún servicio pueda existir: **no se ha encontrado y probado
 
 1. Primer inicio → Servicio → GroqCloud Free. Registrarse y generar la clave en la web oficial; guardarla exclusivamente en el campo cifrado de la app.
 2. Confirmar plan Free y autorizar envío de texto/contexto. Guardar. Comprobar acceso/modelos y después «Probar respuesta real». Una prueba de modelos no acredita generación.
-3. Guardar un asistente. En Voz elegir una voz Android instalada; o probar Qwen experimental con su consentimiento propio, voz, tamaño e idioma compatibles.
+3. Elegir voz en el segundo paso; realizar la prueba opcional del tercero o finalizar. Después, en Voces elegir Rápida con una voz Android instalada, Natural con Qwen experimental y consentimiento, o Personalizada para ajustes avanzados. Guardar por asistente.
 4. Iniciar la sesión gratuita y escribir una petición. Confirmar respuesta identificada como GroqCloud y audio por la voz del perfil.
 5. Instalar Vosk español desde Activación por voz, conceder micrófono y notificación. Probar «Atento + nombre» y dictado local. La ruta gratuita no envía grabaciones a Groq.
 6. Probar por separado el altavoz del teléfono y la salida Bluetooth de las gafas. La captura nueva Vosk usa el teléfono; no se acredita el micrófono de las gafas. Perder foco de audio detiene reproducción/sesión.

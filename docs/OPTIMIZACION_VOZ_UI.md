@@ -70,6 +70,26 @@ Corrección de evidencia de CI: las ejecuciones `1b964a0` y `5567726` capturaron
 
 OpenAI opcional: resolución de Rápida a una voz Android antes de abrir audio y solicitar credenciales; el perfil efectivo se utiliza también al emitir la credencial efímera. Se borra la selección de sesión al detener para evitar reutilizar un perfil anterior. Se conserva la modalidad textual para TTS alternativo, según [OpenAI Docs, client secrets](https://developers.openai.com/api/reference/resources/realtime/subresources/client_secrets/methods/create). La integración sigue requiriendo elección expresa; no consume una clave OpenAI desde Groq.
 
-Prueba instrumentada de a175a93: 28 casos en cada API; 27 correctos y fallo en la última aserción del retorno con tecla Atrás de `cuatroApartadosYVozNaturalSinReproduccionAutomatica`. Las aserciones previas de cuatro destinos, consentimiento, guardado Natural y ausencia de reproducción automática pasaron. Se añade sincronización con el looper Android y espera condicionada de la pantalla tras inyectar la tecla; se conserva la aserción de visibilidad y se repite la suite completa. No se acredita la corrección hasta el nuevo resultado.
+## Evidencia final del código y APK
 
-La espera posterior a KEYCODE_BACK no resolvió esa comprobación en la segunda pasada. La prueba pasa a invocar el despachador real `Activity.onBackPressedDispatcher` en el hilo principal, manteniendo la espera y la aserción de Inicio; comprueba el BackHandler de la app sin depender de la retirada de la ventana del diálogo. La tecla/gesto físico sigue pendiente. También se corrige el botón de retorno de Diagnóstico: utiliza ese despachador para volver a Ajustes, en lugar de mostrar una instrucción sin navegar.
+[Android 40606942378](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40606942378), SHA **cc489d5f33872bc0c5014b43da13307d0991cbcf**, terminó correctamente a las 00:20 UTC del 28/10/2026. Desde el inicio a las 23:07 UTC transcurrieron 73 minutos hasta la APK.
+
+- JVM: 108 casos, cero fallos/errores y uno omitido: el benchmark remoto optativo, ejecutado por separado con resultado fallido descrito arriba.
+- Python: 32; Node: 19; Android Lint, ensamblado y escaneo de fuentes/APK correctos.
+- Android15/API35: 28/28; Android16/API36: 28/28. Incluyen inferencia Sherpa de fixture, Keystore, permisos, perfiles, setup, catálogo de voces, consentimiento y navegación Compose.
+- El retorno se comprueba mediante el despachador real de Activity, con espera condicionada y aserción de Inicio. No se omite la prueba. La tecla/gesto físico permanece pendiente. Diagnóstico también vuelve a Ajustes mediante este despachador.
+- [APK experimental](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40606942378/artifacts/12781607132), artifact ID **12781607132**, solo después de ambas APIs. Digest del artifact ZIP: `01527c60661fc75313edcd6e898e91cc887d528a15e7ce206f38864d6fed07f5`; no es el hash del APK extraído.
+
+La CI posterior de documentación tiene su propio SHA y debe comprobarse también antes de cerrar la entrega. Los archivos protegidos siguen fuera de commits y sus siete hashes originales coinciden. No se ha firmado una Release estable ni se acredita actualización binaria sobre una instalación física anterior.
+
+## Comprobaciones pendientes con cuenta y dispositivo
+
+El usuario confirmó que el Nothing no está disponible. No se solicitan claves por chat ni se presume acceso a una cuenta Free.
+
+1. Introducir la clave propia en la app, confirmar plan Free/consentimiento y hacer una petición sintética en español. Comprobar texto incremental, identidad GroqCloud y voz Rápida instalada; las pruebas de modelos no acreditan generación.
+2. Consultar Ajustes → Diagnóstico → latencia. Comparar ensayos equivalentes de la versión anterior y nueva, separando inicio frío/caliente, dictado, modelo, ruta y modo. Usar pocas muestras y respetar cualquier cuota; registrar solo números. Primera trama no equivale a primera palabra audible.
+3. Medir y confirmar auditivamente la primera palabra en teléfono y gafas por separado. Bluetooth emparejado y sesión DAT no prueban la ruta. El dictado Groq/Vosk capta desde el teléfono. Validar asimismo parada, pérdida de foco y recuperación de «Atento» con notificación persistente.
+4. Probar Natural solo con consentimiento y disponibilidad real del Space. Si hay fallo o cuota, conservar texto y comprobar reintento/cambio explícito; no agotar cuotas para fabricar errores ni cambiar a APIs facturables.
+5. Comprobar batería, escucha con pantalla bloqueada y launcher real. Las migraciones y recreaciones en emulador no sustituyen la prueba de actualización física conservando preferencias y firma.
+
+La entrega se mantiene en 75 %: las funciones de interfaz y la canalización están implementadas y comprobadas automáticamente; Groq real, Qwen actual operativo y la mejora de latencia audible siguen sin acreditarse. No se impone self-hosting para resolver esos pendientes.
