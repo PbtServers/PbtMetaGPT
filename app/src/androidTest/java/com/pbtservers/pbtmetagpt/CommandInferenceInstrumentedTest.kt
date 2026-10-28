@@ -27,7 +27,7 @@ class CommandInferenceInstrumentedTest {
             val positive = engine.synthesize(voice, "Para.")
             val negative = engine.synthesize(voice, "Esto es para mañana.")
             val recognized = decode(wake, positive)
-            assertTrue("Vosk debe reconocer la orden aislada sintetizada por Piper", recognized.any {
+            assertTrue("Vosk debe reconocer la orden aislada sintetizada por Piper: ${recognized.map { Triple(it.text, it.confidence, it.onsetSeconds) }}; PCM=${positive.bytes.size}", recognized.any {
                 InterruptionGate().accept(it.text, it.confidence, 5000, 0, true, "Jarvis", ListeningOptions()) == LocalVoiceCommand.INTERRUPT
             })
             assertTrue("La frase normal no debe interrumpir", decode(wake, negative).none {
@@ -45,6 +45,9 @@ class CommandInferenceInstrumentedTest {
         val results = mutableListOf<CommandHypothesis>()
         LocalCommandDecoder(wake.model.absolutePath, audio.sampleRate.toFloat()).use { decoder ->
             val buffer = ShortArray(audio.sampleRate / 50)
+            // El detector real ya recibe silencio/ruido antes de una orden. El
+            // arranque directo con una palabra corta omite esa precaptura acústica.
+            repeat(50) { decoder.accept(buffer, buffer.size) }
             var offset = 0
             while (offset < audio.bytes.size) {
                 val n = minOf(buffer.size, (audio.bytes.size - offset) / 2)
