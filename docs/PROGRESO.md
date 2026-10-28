@@ -2,7 +2,7 @@
 
 ## Escucha, motores neuronales y simplificación · intervención actual 28/10/2026
 
-Base `e263ec42bda840c5cfb6427c945f562d57a086d9`; trabajo exclusivamente en `master`, sin ramas ni worktrees. Se preservan seis archivos locales previos, comprobados por SHA-256 y excluidos de los commits. La versión continúa **0.5.0-rc1**. Implementación guardada en el commit local `4a87663`; sin publicación remota ni APK de estos cambios hasta desbloquear los accesos y superar CI.
+Base `e263ec42bda840c5cfb6427c945f562d57a086d9`; trabajo exclusivamente en `master`, sin ramas ni worktrees. Se preservan seis archivos locales previos, comprobados por SHA-256 y excluidos de los commits. La versión continúa **0.5.0-rc1**. Implementación publicada desde `4a87663` en `origin/master`; todavía sin APK validada de estos cambios.
 
 **Estimación global orientativa: 45 %; objetivo incompleto.** No se mezcla con porcentajes históricos posteriores en este documento ni representa una aprobación de inferencia, calidad o hardware.
 
@@ -13,7 +13,7 @@ Base `e263ec42bda840c5cfb6427c945f562d57a086d9`; trabajo exclusivamente en `mast
 | Interfaz y persistencia | 10/20 | Cuatro destinos, ajustes agrupados, categorías separadas, estado restaurable; instrumentadas del nuevo código pendientes |
 | Motores locales | 5/20 | Inferencia programada, instalador con hashes, Piper es-ES y Kokoro separados; **sin ejecución de pesos nuevos** |
 | Documentación y pruebas locales | 3/10 | Guía técnica/README y subconjunto JVM; falta suite Android completa y revisión de distribución |
-| CI, APK y aceptación física | 0/10 | Bloqueado acceso de escritura y SDK; Nothing/Ray-Ban no validados |
+| CI, APK y aceptación física | 0/10 | Push operativo y CI ejecutada con errores de compilación; Nothing/Ray-Ban no validados |
 
 La preferencia confirmada por el usuario es **acento de España**: Natural prioriza Piper Davefx `es_ES`, publicado expresamente con esa variante; Kokoro conserva Dora/Alex/Santa sin atribuirles acento peninsular. Android TTS está en Rápida y Qwen remoto en Avanzada. No se sustituye silenciosamente es-ES por una variante americana. Las selecciones antiguas se conservan/migran de categoría. Todo el detalle y las limitaciones están en [VOZ_LOCAL_0.5.0.md](VOZ_LOCAL_0.5.0.md).
 
@@ -30,6 +30,8 @@ Latencia de conversación, TTFS de los motores, PSS, consumo, temperatura y acen
 Próxima tarea: conseguir SDK y descarga de dependencias o acceso de publicación para que CI compile y ejecute todas las regresiones; corregir cualquier fallo de tipos/JNI/inferencia. Después comprobar la APK del mismo SHA, escuchar Davefx/Kokoro y ejecutar el protocolo físico en Nothing/Ray-Ban. Estimación de compilación/emuladores una vez desbloqueados: **1–3 horas**, ampliable si hay errores; no hay plazo fiable de entrega mientras continúen los bloqueos. No publicar una Release estable ni declarar aceptación completa por superar únicamente tests.
 
 **Actualización de acceso:** el push posterior sí ha funcionado: `4a87663` y `8facf9b` están en `origin/master`. El rechazo 403 del conector y el bloqueo REST de la consola no demuestran que Git siga bloqueado. Para poder localizar y revisar las ejecuciones push desde clientes que solo exponen runs de PR, Actions publica su enlace y resultado en el estado del commit, con permiso mínimo `statuses: write` y token efímero solo en CI. No cambia las puertas de JVM/Lint/emulador/APK ni solicita claves personales. Pendiente consultar ese resultado y corregir los fallos reales antes de cerrar la intervención.
+
+**Primera validación Android ejecutada:** [Actions 40685008359](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40685008359), SHA `85337ab`. El backend y contenedores pasan. La compilación detecta dos errores de contexto de corrutinas en Kotlin y una cabecera UCD no propagada al puente JNI de eSpeak. Se corrigen usando el contexto explícito del servicio, comprobando la cancelación del contexto activo y enlazando el objetivo CMake UCD con sus includes públicos. Las 35 pruebas Python vuelven a pasar. Pendiente repetir compilación, Lint y las instrumentadas API 35/36 con modelos auténticos; no hay aún métricas de inferencia ni APK aprobada.
 
 ## Seguimiento de RVC local y límites opcionales · 28/10/2026
 

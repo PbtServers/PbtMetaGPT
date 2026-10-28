@@ -14,5 +14,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # tools/preparar_fonemizador.py comprueba la revisión y genera sus datos.
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../build/native-sources/espeak espeak)
 add_library(pbt_phonemes SHARED phonemes.cpp)
-target_link_libraries(pbt_phonemes PRIVATE espeak-ng)
+# Las cabeceras de compatibilidad de eSpeak también requieren las de UCD.
+# El enlace al objetivo propaga su include público y resuelve sus símbolos.
+target_link_libraries(pbt_phonemes PRIVATE espeak-ng ucd)
 target_link_options(pbt_phonemes PRIVATE "-Wl,-z,max-page-size=16384")

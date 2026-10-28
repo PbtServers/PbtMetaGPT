@@ -216,7 +216,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
                         val output = ByteArrayOutputStream()
                         var rate = 0
                         for (segment in RvcAudioSegments.split(normalAudio)) {
-                            ensureActive()
+                            currentCoroutineContext().ensureActive()
                             val converted = converter.convert(segment)
                             check(rate == 0 || rate == converted.sampleRate)
                             rate = converted.sampleRate

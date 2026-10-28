@@ -46,7 +46,7 @@ class ContinuousWakeService : Service() {
             if (!manager.areNotificationsEnabled() || manager.getNotificationChannel(CHANNEL)?.importance == NotificationManager.IMPORTANCE_NONE) throw SecurityException()
             startForeground(41, notification(ListeningPhase.LOADING), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
             foregroundStarted = true
-            candidates = ProfileStore(this).load().filter { it.language.startsWith("es") && it.activationPhrases.any { p -> p.enabled } }
+            candidates = ProfileStore(this@ContinuousWakeService).load().filter { it.language.startsWith("es") && it.activationPhrases.any { p -> p.enabled } }
             check(candidates.isNotEmpty() && WakeModel(this).installed())
             session.authorize()
             getSharedPreferences("escucha", MODE_PRIVATE).edit().putBoolean("proceso-activo", true).apply()
@@ -75,22 +75,22 @@ class ContinuousWakeService : Service() {
                 // El backend usa token solo en memoria de la sesión actual; no se exporta ni persiste aquí.
                 val connection = app.connection
                 val direct = connection?.direct ?: preferences.getBoolean("directo", true)
-                if (HostedSettings(this).provider == "groq") {
+                if (HostedSettings(this@ContinuousWakeService).provider == "groq") {
                     try {
-                        if (!HostedSettings(this).authorized || !KeyVault(this, provider = "groq").exists()) suspendListening()
+                        if (!HostedSettings(this@ContinuousWakeService).authorized || !KeyVault(this@ContinuousWakeService, provider = "groq").exists()) suspendListening()
                         else {
-                            val store = ProfileStore(this)
+                            val store = ProfileStore(this@ContinuousWakeService)
                             store.save(store.load(), matched.id)
                             app.hosted.start(matched, dictate = true, initialQuestion = question)
                         }
                     } catch (problem: Exception) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); suspendListening() }
                 }
-                else if ((direct && !KeyVault(this).exists()) || (!direct && connection == null)) suspendListening()
+                else if ((direct && !KeyVault(this@ContinuousWakeService).exists()) || (!direct && connection == null)) suspendListening()
                 else {
                     try {
-                        val store = ProfileStore(this)
+                        val store = ProfileStore(this@ContinuousWakeService)
                         store.save(store.load(), matched.id)
-                        app.voice.configure(matched, if (direct) ({ KeyVault(this).read() }) else null)
+                        app.voice.configure(matched, if (direct) ({ KeyVault(this@ContinuousWakeService).read() }) else null)
                         app.voice.start(connection?.backend.orEmpty(), connection?.token.orEmpty(), preferences.getBoolean("audio-bluetooth", false))
                     } catch (problem: IllegalStateException) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); suspendListening() }
                     catch (problem: IllegalArgumentException) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); suspendListening() }
