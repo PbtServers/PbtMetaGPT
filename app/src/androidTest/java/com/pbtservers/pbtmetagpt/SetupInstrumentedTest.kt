@@ -23,6 +23,10 @@ class SetupInstrumentedTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
     @Before fun preparar() {
+        instrumentation.runOnMainSync {
+            val application = context.applicationContext as PbtApplication
+            application.voice.stop(); application.hosted.stop(); application.clearMessage()
+        }
         KeyVault(context).delete()
         context.getSharedPreferences("servicios_alojados", 0).edit().clear().commit()
         ProfileStore(context).save(emptyList(), null)
@@ -231,7 +235,8 @@ class SetupInstrumentedTest {
     }
 
     private fun abrirAvanzadas() {
-        compose.onNodeWithText("Avanzada").performScrollTo().performClick()
+        compose.onNodeWithText("Avanzada").performScrollTo()
+            .performSemanticsAction(SemanticsActions.OnClick) { it() }.assertIsSelected()
     }
 
     @Test fun migraBorradorAnteriorSinPerderVozNiRepetirConfiguracionTerminada() {

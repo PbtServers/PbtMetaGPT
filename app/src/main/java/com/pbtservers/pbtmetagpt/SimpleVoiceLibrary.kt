@@ -49,13 +49,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
         catch (_: Exception) { status = "No se pudieron consultar las voces del sistema." }
     }
     Text("Android TTS rápido", style = MaterialTheme.typography.titleMedium)
+    // Conservar la posición del botón mientras Android añade las voces disponibles.
+    Button(onClick = save) { Text("Guardar voz") }
     Text(status)
     voices.forEach { local ->
         val target = profile.copy(ttsEngine = "android", ttsVoice = local.name, ttsPackage = local.engine, voiceMode = "rapida")
         VoiceChoice(local.name, local.language, "Android TTS", profile.ttsEngine == "android" && profile.ttsVoice == local.name,
             { stop(); change(target) }, { stop(); preview(target) }, true)
     }
-    Button(onClick = save) { Text("Guardar voz") }
 }
 
 @Composable private fun KokoroVoicePanel(context: Context, profile: AssistantProfile, change: (AssistantProfile) -> Unit,

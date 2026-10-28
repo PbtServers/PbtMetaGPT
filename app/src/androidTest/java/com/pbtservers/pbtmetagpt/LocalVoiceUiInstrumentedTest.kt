@@ -20,7 +20,7 @@ class LocalVoiceUiInstrumentedTest {
         val model = KokoroModel(context)
         val preferences = context.getSharedPreferences("configuracion", 0)
         try {
-            instrumentation.runOnMainSync { application.voice.stop(); application.hosted.stop() }
+            instrumentation.runOnMainSync { application.voice.stop(); application.hosted.stop(); application.clearMessage() }
             KeyVault(context).delete()
             context.getSharedPreferences("servicios_alojados", 0).edit().clear().commit()
             preferences.edit().clear().putBoolean("bienvenida", true).commit()
@@ -51,7 +51,7 @@ class LocalVoiceUiInstrumentedTest {
                 compose.onAllNodesWithText("Android TTS", substring = true).assertCountEquals(0)
             }
         } finally {
-            instrumentation.runOnMainSync { application.voice.stop(); application.hosted.stop() }
+            instrumentation.runOnMainSync { application.voice.stop(); application.hosted.stop(); application.clearMessage() }
             model.delete()
             ProfileStore(context).save(emptyList(), null)
             preferences.edit().clear().commit()
@@ -72,6 +72,6 @@ class LocalVoiceUiInstrumentedTest {
             compose.waitUntil(10_000) { application.voice.state.value.failed }
             assertFalse(application.voice.state.value.active)
             assertFalse(application.voice.state.value.responding)
-        } finally { instrumentation.runOnMainSync { application.voice.stop() } }
+        } finally { instrumentation.runOnMainSync { application.voice.stop(); application.clearMessage() } }
     }
 }
