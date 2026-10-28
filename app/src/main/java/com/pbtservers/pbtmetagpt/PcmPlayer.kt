@@ -9,11 +9,33 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flowOf
 
 class PcmPlayer {
-    private var track: AudioTrack? = null
+    private val ownerLock = Any()
+    private var revision = 0L
+    private var track: Output? = null
+
+    /** Una escritura no bloqueante y la liberación nunca acceden a la vez al puntero JNI. */
+    private class Output(private val native: AudioTrack) {
+        private var closed = false
+        @Synchronized fun play() { checkOpen(); native.play() }
+        @Synchronized fun head(): Long { checkOpen(); return native.playbackHeadPosition.toLong() and 0xffffffffL }
+        @Synchronized fun write(bytes: ByteArray, offset: Int, count: Int): Int {
+            checkOpen()
+            return native.write(bytes, offset, count, AudioTrack.WRITE_NON_BLOCKING)
+        }
+        private fun checkOpen() { if (closed) throw CancellationException("Reproducción interrumpida") }
+        @Synchronized fun close() {
+            if (closed) return
+            closed = true
+            runCatching { native.pause() }; runCatching { native.flush() }
+            runCatching { native.stop() }; runCatching { native.release() }
+        }
+    }
     suspend fun play(audio: PcmAudio) { playStream(flowOf(audio)) }
     suspend fun playStream(chunks: Flow<PcmAudio>, firstFrame: () -> Unit = {}, preRollMs: Int = 0): Unit = coroutineScope {
         require(preRollMs in 0..500)
-        var output: AudioTrack? = null
+        ensureActive()
+        val token = synchronized(ownerLock) { revision }
+        var output: Output? = null
         var rate = 0; var totalFrames = 0L; var preRollFrames = 0; var observing: Job? = null
         try {
             chunks.collect { audio ->
@@ -22,11 +44,16 @@ class PcmPlayer {
                     rate = audio.sampleRate
                     val minimum = AudioTrack.getMinBufferSize(rate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
                     require(minimum > 0)
-                    output = AudioTrack.Builder().setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                    val created = Output(AudioTrack.Builder().setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
                         .setAudioFormat(AudioFormat.Builder().setSampleRate(rate).setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
-                        .setTransferMode(AudioTrack.MODE_STREAM).setBufferSizeInBytes(minimum * 2).build()
-                    track = output
+                        .setTransferMode(AudioTrack.MODE_STREAM).setBufferSizeInBytes(minimum * 2).build())
+                    output = created
+                    synchronized(ownerLock) {
+                        if (token != revision) throw CancellationException("Reproducción interrumpida antes de abrir salida")
+                        check(track == null) { "Ya hay una salida PCM activa" }
+                        track = created
+                    }
                 }
                 require(rate == audio.sampleRate)
                 val current = requireNotNull(output)
@@ -41,16 +68,16 @@ class PcmPlayer {
                             var offset = 0
                             while (offset < silence.size) {
                                 ensureActive()
-                                val written = current.write(silence, offset, silence.size - offset)
-                                check(written > 0)
-                                offset += written
+                                val written = current.write(silence, offset, minOf(8192, silence.size - offset))
+                                check(written >= 0)
+                                if (written == 0) delay(2) else offset += written
                             }
                         }
                         totalFrames += preRollFrames
                     }
                     observing = launch {
                         try {
-                            withTimeoutOrNull(5000) { while (current.playbackHeadPosition.toLong() <= preRollFrames) delay(5); firstFrame() }
+                            withTimeoutOrNull(5000) { while (current.head() <= preRollFrames) delay(5); firstFrame() }
                         } catch (cancel: CancellationException) { throw cancel }
                         catch (_: IllegalStateException) { /* salida cancelada antes de la primera trama */ }
                     }
@@ -60,20 +87,25 @@ class PcmPlayer {
                     while (offset < audio.bytes.size) {
                         ensureActive()
                         val written = current.write(audio.bytes, offset, minOf(8192, audio.bytes.size - offset))
-                        check(written > 0); offset += written
+                        check(written >= 0)
+                        if (written == 0) delay(2) else offset += written
                     }
                 }
                 totalFrames += audio.bytes.size / 2L
             }
             output?.let { current -> withTimeout(totalFrames * 1000 / rate + 3000) {
-                while ((current.playbackHeadPosition.toLong() and 0xffffffffL) < totalFrames) delay(10)
+                while (current.head() < totalFrames) delay(10)
             } }
         } finally {
             observing?.cancel()
             val current = output
-            if (track === current) { track = null; runCatching { current?.stop() }; current?.release() }
+            synchronized(ownerLock) { if (track === current) track = null }
+            current?.close()
         }
         Unit
     }
-    fun stop() { val previous = track; track = null; runCatching { previous?.pause() }; runCatching { previous?.flush() }; runCatching { previous?.stop() }; runCatching { previous?.release() } }
+    fun stop() {
+        val previous = synchronized(ownerLock) { revision++; track.also { track = null } }
+        previous?.close()
+    }
 }

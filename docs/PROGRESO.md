@@ -2,6 +2,10 @@
 
 ## Conversación continua, interrupción local y ChatGPT · 28/10/2026
 
+Actualización 19:34 UTC (3 h 29 min desde la marca inicial; estimación anterior de plazo superada por incidencias y validación). `fae3df5`, [Actions 40732697827](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40732697827): **165 JVM, cero fallos/errores, una remota optativa omitida; Lint, compilación, seguridad y backend correctos. API35 45/46 y API36 45/46**. Pasan servicio con pantalla bloqueada/notificación y callback PCM real del módulo WebRTC. La APK continúa bloqueada. El XML solo mostraba el timeout posterior de limpieza; el logcat completo identifica la causa primaria: `AudioTrack.write` usaba un puntero nativo liberado por Parar. Se corrige la carrera con escrituras no bloqueantes y exclusión por pista; la prueba mantiene reproducción/captura y exige liberar todos los recursos. Se conserva el diagnóstico, sin omitir pruebas.
+
+Se detectó además que el grafo español no contiene GPT/ChatGPT. Una inferencia local real con Piper/Vosk Windows demostró que una gramática sola reconoce las cuatro órdenes pero también puede omitir negaciones. Se añade comparación temporal con el dictado libre y regresiones de audio positivas/negativas usando el mismo decodificador de producción, sin cambiar el detector abierto de «Para». No se atribuyen esos resultados de escritorio a Android ni a voz física: la nueva instrumentada debe pasar en ambas APIs. **40/40 JVM locales (0,126 s), 39 Python y escáner de fuentes correctos**. El servicio del emulador se mantiene bloqueado hasta obtener una ventana real de CPU/PSS del proceso; resultados pendientes del nuevo SHA. Se elimina una dependencia de tests duplicada.
+
 Base `879fd8f97a84f55b1b4c6b01f36ff658aba9097a`, exclusivamente `master`, sin ramas/worktrees/PR. Se preservan los seis archivos locales previos (CONTRIBUTING, DESARROLLO, README de capturas, dos plantillas y version.json), con huellas SHA-256 fuera del repositorio. Inicio registrado 16:05 UTC. **Entrega experimental; objetivo incompleto**, sin aceptación física ni nueva APK validada todavía.
 
 Primer bloque publicado `5383e1f`: [Actions 40724828293](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40724828293). Backend/contenedores correctos; Android detectó colisión del identificador `android` con `android.os.SystemClock` y visibilidad privada del control Compose reutilizado. Se corrigen mediante import explícito y visibilidad interna, sin omitir pruebas. Se añade inferencia Piper es-ES → Vosk real para orden aislada/frase negativa, exclusivamente en la APK de tests. El ZIP oficial Vosk se fija por SHA-256 `09b23988…62c6511f`, verificado tras descarga de 39 817 833 bytes; no se versiona ni se incluye en la APK principal. **37 Python y escáner de fuentes correctos** en esta revisión. Compilación/API35/API36 requieren repetir CI; no se publicó APK de la ejecución fallida.
@@ -23,12 +27,12 @@ Auditoría: servicio Vosk/AudioRecord, política de activación, exclusión de m
 | Subfase | Avance estimado/peso | Evidencia y pendiente |
 | --- | ---: | --- |
 | Auditoría y contratos | 18/25 | Código, fuentes oficiales Android/Meta/OpenAI y Vosk consultados; falta contrato físico de rutas |
-| Conversación y cancelación | 10/15 | Cinco turnos, límites y resultado nativo tardío en JVM; falta E2E Groq real |
-| Interrupción por voz | 10/20 | Captura concurrente y callback WebRTC conectados, filtros y generaciones; sin validación acústica/proveedor real |
-| Servicio e integración | 12/20 | Servicio previo reutilizado, pausa y entrega a ChatGPT; falta emulador y segundo plano real |
-| Interfaz y documentación | 7/10 | Controles integrados, límites documentados; aceptación de uso pendiente |
-| Validación y publicación | 2/10 | 17 JVM locales nuevas, 35 Python, 16 Node y escáner de fuentes correctos; Gradle/API35/API36 pendientes |
-| **Total orientativo** | **59/100** | **No es Release estable ni acredita latencia o gafas** |
+| Conversación y cancelación | 11/15 | Cinco turnos, límites y resultado nativo tardío en JVM; falta E2E Groq real |
+| Interrupción por voz | 11/20 | PCM Piper/Vosk y callback WebRTC pasan en emulador; carrera de escritura corregida pendiente CI, sin acústica física |
+| Servicio e integración | 13/20 | Servicio/pantalla bloqueada/notificación pasan en emulador; consumo y aceptación Nothing/Ray-Ban pendientes |
+| Interfaz y documentación | 8/10 | Controles integrados, límites documentados; aceptación de uso pendiente |
+| Validación y publicación | 4/10 | 165 JVM CI, 39 Python, Lint/backend/seguridad correctos; 45/46 por API, sin APK del nuevo SHA |
+| **Total orientativo** | **65/100** | **No es Release estable ni acredita latencia o gafas** |
 
 Las 17 pruebas JVM nuevas pasan con Java 17 y Kotlin 2.0.21 del Gradle almacenado: 0,154 s, sin Android. La compilación real de CI usa Kotlin 2.2.21. Preparar Sherpa local descargó/verificó el AAR oficial, pero falta `patchelf`; SDK Android ausente. Se preparan cinco instrumentadas adicionales sin claves ni servicios reales. No se omiten ni relajan pruebas anteriores. La CI debe aprobar JVM, Lint, seguridad, API 35/36 y compilación antes de publicar APK del mismo SHA.
 

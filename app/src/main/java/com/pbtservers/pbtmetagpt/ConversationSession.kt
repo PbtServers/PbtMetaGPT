@@ -43,7 +43,7 @@ object VoiceCommands {
             command == "deja de escuchar" -> LocalVoiceCommand.STOP_LISTENING
             command in setOf("termina", "termina la conversacion", normalize(options.endPhrase)) -> LocalVoiceCommand.END
             command == "hasta luego" && options.goodbye -> LocalVoiceCommand.END
-            command in setOf("abre gpt live", "inicia gpt live", "abre chatgpt en voz", "quiero hablar con chatgpt") -> LocalVoiceCommand.CHATGPT
+            command in setOf("abre gpt live", "inicia gpt live", "abre chatgpt en voz", "quiero hablar con chatgpt") || command in ChatGptCommandGrammar.phrases -> LocalVoiceCommand.CHATGPT
             else -> null
         }
     }

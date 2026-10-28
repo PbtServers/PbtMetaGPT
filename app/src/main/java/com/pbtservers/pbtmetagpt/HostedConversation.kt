@@ -10,11 +10,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import org.json.JSONObject
 import org.vosk.LibVosk
 import org.vosk.LogLevel
-import org.vosk.Model
-import org.vosk.Recognizer
 
 /** Configuración sin secretos. Una cuenta Free es responsabilidad del titular: la API no certifica su plan. */
 class HostedSettings(context: Context) {
@@ -76,7 +73,7 @@ class HostedDictation(private val context: Context) {
             val bluetooth = context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false)
             route.start(bluetooth, speaker = !bluetooth)
             LibVosk.setLogLevel(LogLevel.WARNINGS)
-            Model(WakeModel(context).model.absolutePath).use { model -> Recognizer(model, 16000f).use { recognizer ->
+            LocalCommandDecoder(WakeModel(context).model.absolutePath).use { recognizer ->
                 val minimum = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
                 check(minimum > 0)
                 val recorder = AudioRecord(if (bluetooth) MediaRecorder.AudioSource.VOICE_COMMUNICATION else MediaRecorder.AudioSource.VOICE_RECOGNITION, 16000, AudioFormat.CHANNEL_IN_MONO,
@@ -108,9 +105,7 @@ class HostedDictation(private val context: Context) {
                             }
                             val frame = if (!previouslyStarted && vad.started) preRoll.snapshot() else if (previouslyStarted) buffer.copyOf(n) else shortArrayOf()
                             try {
-                                if (frame.isNotEmpty() && recognizer.acceptWaveForm(frame, frame.size)) {
-                                    JSONObject(recognizer.result).optString("text").trim().takeIf { it.isNotEmpty() }?.let(transcript::add)
-                                }
+                                if (frame.isNotEmpty()) recognizer.accept(frame, frame.size)?.text?.trim()?.takeIf { it.isNotEmpty() }?.let(transcript::add)
                             } finally { frame.fill(0) }
                             if (vad.started) preRoll.clear()
                             if (event == AdaptiveVad.Event.END) break
@@ -118,7 +113,7 @@ class HostedDictation(private val context: Context) {
                         buffer.fill(0); delay(20)
                     }
                     speechEnded()
-                    JSONObject(recognizer.finalResult).optString("text").trim().takeIf { it.isNotEmpty() }?.let(transcript::add)
+                    recognizer.finish().text.trim().takeIf { it.isNotEmpty() }?.let(transcript::add)
                     transcript.joinToString(" ").ifEmpty { throw NoSpeechDetected() }
                 } finally {
                     buffer.fill(0)
@@ -126,7 +121,7 @@ class HostedDictation(private val context: Context) {
                     try { if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) recorder.stop() }
                     finally { recorder.release() }
                 }
-            } }
+            }
         } catch (_: SecurityException) { throw HostedFailure("Android ha denegado el micrófono. Comprueba el permiso de la aplicación.") }
         catch (_: LinkageError) { throw HostedFailure("El runtime local Vosk no está disponible para este dispositivo. Puedes escribir tu petición.") }
         finally { route.close(); gate.release(lease) }

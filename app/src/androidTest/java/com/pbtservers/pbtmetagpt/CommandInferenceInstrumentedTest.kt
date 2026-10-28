@@ -41,6 +41,30 @@ class CommandInferenceInstrumentedTest {
             assertNull((context.applicationContext as PbtApplication).microphone.owner())
         } finally { engine.close(); model.delete(); wake.delete() }
     }
+    @Test fun ordenesChatGptReconocidasSinAceptarNegacionesNiFrasesIncrustadas() = runBlocking<Unit> {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val wake = WakeModel(context)
+        val model = SpainVoiceModel(context)
+        val engine = SpainVoiceEngine(context)
+        try {
+            withContext(Dispatchers.IO) {
+                wake.install { instrumentation.context.assets.open("activacion-prueba.zip") }
+                model.install(source = { instrumentation.context.assets.open("piper-es/${it.name}") })
+            }
+            val voice = VoiceModes.spain(AssistantProfile(name = "Jarvis")).validated()
+            val positive = listOf("Abre GPT Live.", "Inicia GPT Live.", "Abre ChatGPT en voz.", "Quiero hablar con ChatGPT.")
+            val negative = listOf("No quiero hablar con ChatGPT.", "Explícame cómo abre GPT Live.", "Esto es para mañana.", "Quiero hablar contigo.")
+            for (phrase in positive + negative) {
+                val pcm = engine.synthesize(voice, phrase)
+                try {
+                    val heard = decode(wake, pcm)
+                    val opens = heard.any { VoiceCommands.parse(it.text, "Jarvis", ListeningOptions()) == LocalVoiceCommand.CHATGPT }
+                    assertEquals("Fixture fija $phrase → ${heard.map { Triple(it.text, it.confidence, it.onsetSeconds) }}", phrase in positive, opens)
+                } finally { pcm.bytes.fill(0) }
+            }
+        } finally { engine.close(); model.delete(); wake.delete() }
+    }
     private suspend fun decode(wake: WakeModel, audio: PcmAudio): List<CommandHypothesis> = withContext(Dispatchers.IO) {
         val results = mutableListOf<CommandHypothesis>()
         LocalCommandDecoder(wake.model.absolutePath, audio.sampleRate.toFloat()).use { decoder ->
@@ -59,6 +83,7 @@ class CommandInferenceInstrumentedTest {
             }
             buffer.fill(0)
             repeat(150) { decoder.accept(buffer, buffer.size)?.let(results::add) }
+            decoder.finish().takeIf { it.text.isNotBlank() }?.let(results::add)
         }
         results
     }

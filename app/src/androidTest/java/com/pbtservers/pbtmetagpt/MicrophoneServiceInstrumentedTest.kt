@@ -31,6 +31,7 @@ class MicrophoneServiceInstrumentedTest {
         ProfileStore(context).save(emptyList(), null)
         context.getSharedPreferences("voz_escucha", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("configuracion", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("medidas_escucha", Context.MODE_PRIVATE).edit().clear().commit()
     }
     @Test fun servicioCapturaEnOtraTareaYPantallaBloqueadaYNotificacionPausaYDetiene() = runBlocking<Unit> {
         assertEquals(PackageManager.PERMISSION_GRANTED, context.checkSelfPermission(Manifest.permission.RECORD_AUDIO))
@@ -46,7 +47,10 @@ class MicrophoneServiceInstrumentedTest {
             activity.moveToState(Lifecycle.State.CREATED)
             shell("input keyevent KEYCODE_SLEEP")
             try {
-                delay(1200)
+                // Primera ventana completa ya en espera: CPU/PSS del emulador,
+                // sin convertirlos en consumo o latencia del teléfono/gafas.
+                withTimeout(70000) { while (ListeningMeasurements(context).report() == "[]") delay(100) }
+                android.util.Log.i("PbtListenTest", "Servicio pantalla bloqueada: ${ListeningMeasurements(context).report()}")
                 assertTrue(ContinuousWakeService.running)
                 assertEquals(ListeningPhase.LISTENING, ContinuousWakeService.state.value)
                 val notifications = context.getSystemService(NotificationManager::class.java)
@@ -107,8 +111,11 @@ class MicrophoneServiceInstrumentedTest {
             pcm.fill(0)
             // Se han leído tramas durante la salida real del emulador. No prueba acústica ni Bluetooth.
         } finally {
-            player.stop(); playback?.cancelAndJoin()
-            runCatching { recorder?.stop() }; recorder?.release(); route.close(); gate.release(lease); activity?.close()
+            withContext(NonCancellable) {
+                player.stop(); playback?.cancelAndJoin()
+                try { runCatching { recorder?.stop() }; recorder?.release() }
+                finally { try { route.close() } finally { gate.release(lease); activity?.close() } }
+            }
         }
         assertNull(gate.owner())
     }
