@@ -31,7 +31,6 @@ class HostedSettings(context: Context) {
 
 /** Captura Vosk acotada por turno. Ningún audio sale del dispositivo ni se conserva. */
 class HostedDictation(private val context: Context) {
-    @android.annotation.SuppressLint("MissingPermission") // comprobación explícita inmediatamente antes de AudioRecord
     suspend fun capture(): String {
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) throw HostedFailure("Falta permiso de micrófono.")
         // Usar reconocimiento libre del sistema para frases largas; Vosk permanece
@@ -42,6 +41,9 @@ class HostedDictation(private val context: Context) {
     }
     private suspend fun captureVosk(): String = withContext(Dispatchers.IO) {
         require(WakeModel(context).installed()) { "Instala el modelo Vosk o el reconocimiento offline de Android para dictar." }
+        // Android puede revocar RECORD_AUDIO entre la selección del motor y el fallback Vosk.
+        if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+            throw HostedFailure("Falta permiso de micrófono. Concédelo antes de dictar.")
         val gate = (context.applicationContext as PbtApplication).microphone
         val lease = gate.acquire(MicrophoneOwner.HOSTED_LOCAL) ?: throw HostedFailure("Micrófono ocupado. Detén la otra escucha.")
         try {
@@ -75,7 +77,8 @@ class HostedDictation(private val context: Context) {
                     finally { recorder.release() }
                 }
             } }
-        } catch (_: LinkageError) { throw HostedFailure("El runtime local Vosk no está disponible para este dispositivo. Puedes escribir tu petición.") }
+        } catch (_: SecurityException) { throw HostedFailure("Android ha denegado el micrófono. Comprueba el permiso de la aplicación.") }
+        catch (_: LinkageError) { throw HostedFailure("El runtime local Vosk no está disponible para este dispositivo. Puedes escribir tu petición.") }
         finally { gate.release(lease) }
     }
 }

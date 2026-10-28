@@ -1,6 +1,6 @@
 # PbtMetaGPT
 
-<p align="center"><img src="docs/assets/icono-launcher.png" alt="Icono de PbtMetaGPT: gafas e inteligencia artificial, negro, blanco y azul" width="128" height="128"></p>
+<p align="center"><img src="docs/assets/icono-app.png" alt="Icono único de PbtMetaGPT, obtenido del launcher Android" width="128" height="128"></p>
 
 <p align="center">
   <strong>Tu asistente de voz, tus reglas.</strong><br>
