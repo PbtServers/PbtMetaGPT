@@ -20,11 +20,11 @@ class PhotoAnalysisInstrumentedTest {
             PhotoAnalysisPanel(image, true, VoiceState(), null,
                 onConfirm = { assertSame(image, it); sends++ }, discard = {}, resume = {}, cancel = {})
         } } }
-        compose.onNodeWithText("Preguntar a ChatGPT sobre esta foto").assertIsEnabled().performClick()
+        compose.onNodeWithText("Preguntar sobre esta foto").assertIsEnabled().performClick()
         compose.runOnIdle { assertEquals(0, sends) }
         compose.onNodeWithText("Cancelar").performClick()
         compose.runOnIdle { assertEquals(0, sends) }
-        compose.onNodeWithText("Preguntar a ChatGPT sobre esta foto").performClick()
+        compose.onNodeWithText("Preguntar sobre esta foto").performClick()
         compose.onNodeWithText("Enviar y preguntar").performClick()
         compose.runOnIdle { assertEquals(1, sends); assertFalse(image.isRecycled) }
     }
@@ -34,7 +34,7 @@ class PhotoAnalysisInstrumentedTest {
             PhotoAnalysisPanel(image, false, VoiceState(), null,
                 onConfirm = { fail("No debe enviarse sin configuración") }, discard = {}, resume = {}, cancel = {})
         } } }
-        compose.onNodeWithText("Preguntar a ChatGPT sobre esta foto").assertIsNotEnabled()
+        compose.onNodeWithText("Preguntar sobre esta foto").assertIsNotEnabled()
         compose.onNodeWithText(PhotoAnalysisStatus.NEEDS_CONFIGURATION.message).assertIsDisplayed()
         assertFalse(image.isRecycled)
     }
