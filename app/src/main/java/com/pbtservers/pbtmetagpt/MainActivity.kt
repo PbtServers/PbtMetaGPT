@@ -97,6 +97,8 @@ class MainActivity : ComponentActivity() {
             PbtTheme(themeMode) {
                 val gs by glasses.state.collectAsStateWithLifecycle()
                 val vs by voice.state.collectAsStateWithLifecycle()
+                val freeVoice by app.hosted.state.collectAsStateWithLifecycle()
+                val groqSelected = HostedSettings(this).provider == "groq"
                 var captureConsent by remember { mutableStateOf(false) }
                 var deviceAdvanced by remember { mutableStateOf(false) }
                 val localBusy by localAudio.busy.collectAsStateWithLifecycle()
@@ -116,7 +118,7 @@ class MainActivity : ComponentActivity() {
                         Text("PBT / ASISTENTE PERSONAL", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
                         Text(if (page == "Inicio") "Tu asistente, a tu manera" else page, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                         Text(page, style = MaterialTheme.typography.titleMedium)
-                        Text("Conversa con el proveedor que elijas. Análisis de fotos mediante OpenAI API opcional y confirmación propia. Gafas pendientes de validación física.")
+                        Text("Conversa con el proveedor que elijas. Análisis de fotos mediante Groq Vision u OpenAI API, siempre con confirmación. Gafas pendientes de validación física.")
                         if (page == "Inicio" || page == "Dispositivos") Panel("01 · Tus gafas", "Gafas Meta Wearables") {
                             Text(gs.status, color = MaterialTheme.colorScheme.primary)
                             Text(if (gs.registered) "Aplicación registrada en Meta AI" else "Aplicación sin registrar en Meta AI")
@@ -196,17 +198,18 @@ class MainActivity : ComponentActivity() {
                             Text(when (gs.cameraAvailable) { true -> "DAT permite cámara en esta sesión; calidad física sin validar"; false -> "DAT no pudo habilitar cámara. Revisa permisos y compatibilidad antes de reconectar."; null -> "Capacidad de cámara sin comprobar en esta sesión" })
                             Button(onClick = { captureConsent = true }, enabled = gs.connected && gs.cameraAvailable != false && !gs.capturing && gs.photo == null) { Text("Capturar foto con las gafas") }
                             if (gs.capturing) OutlinedButton(onClick = glasses::stopCapture) { Text("Cancelar captura") }
-                            PhotoAnalysisPanel(gs.photo, configured, vs, photoMemory.error,
+                            PhotoAnalysisPanel(gs.photo, configured, if (groqSelected) freeVoice else vs, photoMemory.error,
+                                provider = if (groqSelected) "groq" else "openai",
                                 onConfirm = { photoMemory.error = null; analyzePhoto(it) }, discard = glasses::discardPhoto,
-                                resume = voice::pauseOrResume, cancel = voice::stop)
+                                resume = voice::pauseOrResume, cancel = { if (groqSelected) app.hosted.stop() else voice.stop() })
                         }
                         Text("Privacidad bajo tu control", style = MaterialTheme.typography.titleMedium)
-                        Text("El proveedor de conversación se elige en Servicios de IA. Las fotos se envían a OpenAI solo por elección y confirmación explícitas. ChatGPT y OpenAI API tienen facturación independiente. Pendiente de pruebas con gafas reales.", style = MaterialTheme.typography.bodySmall)
+                        Text("Las fotos se envían únicamente al proveedor seleccionado, Groq Vision u OpenAI, tras confirmación explícita. Los límites del plan gratuito de Groq se aplican también a imágenes. Pendiente de pruebas con gafas reales.", style = MaterialTheme.typography.bodySmall)
                     }
                 }
                 }
                 if (captureConsent) AlertDialog(onDismissRequest = { captureConsent = false }, title = { Text("Autorizar captura") },
-                    text = { Text("Se abrirá brevemente la cámara de las gafas para una única foto. Revísala antes de autorizar su envío a OpenAI.") },
+                    text = { Text("Se abrirá brevemente la cámara de las gafas para una única foto. Revísala antes de autorizar su envío al proveedor de IA seleccionado.") },
                     confirmButton = { TextButton(onClick = {
                         captureConsent = false
                         lifecycleScope.launch {

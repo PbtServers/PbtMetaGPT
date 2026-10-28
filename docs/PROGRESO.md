@@ -1,5 +1,18 @@
 # Seguimiento de PbtMetaGPT
 
+## Candidata v0.5.0-rc1 · 28/10/2026 · en desarrollo
+
+Esta intervención parte del último `origin/master` `5b9855f`, en una rama de trabajo aislada. **No existe todavía una CI ni APK verificadas de v0.5.0-rc1** hasta que termine su compilación; las ejecuciones 0.4.1-dev anteriores no avalan los cambios nuevos.
+
+- Audio de las gafas: propuesta de precalentamiento silencioso para evitar la pérdida de la primera palabra al abrir la ruta Bluetooth. Requiere reproducción y medición física en 00R6.
+- Activación: señal audible de confirmación y reconocimiento libre del motor Android estrictamente offline, con alternativa Vosk, sin registrar ni subir audio.
+- Voz local natural: compatibilidad con motores neuronales de Android TTS instalables voluntariamente (HayaiTTS/Kokoly), prioridad a variantes `es-ES`. Su calidad y latencia en Nothing Phone 3a Lite quedan por medir.
+- Cámara y Groq: cliente de visión multimodal con consentimiento de envío por foto; el modelo público documentado es `qwen/qwen3.8-27b`. Falta llamada con clave real.
+- **RVC importable:** permite ZIP, `.pth` y `.index` en una biblioteca separada, con límites, rechazo de rutas peligrosas, almacenamiento privado y limpieza. Se almacenan como datos y no se ejecutan. **La inferencia RVC sigue desactivada** hasta encontrar un motor/proveedor autorizado y compatible sin self-hosting.
+- Documentación: README actualizado al estado de candidata, icono del launcher incorporado y lista de aceptación en [RELEASE_0.5.0.md](RELEASE_0.5.0.md).
+
+La meta es una candidata funcional que se pueda someter a pruebas; **no se declara v0.5.0 estable ni 100 % por compilar o importar un modelo RVC**. Toda la aceptación del audio y la cámara precisa hardware y proveedor reales.
+
 ## Optimización de voz, interfaz simplificada e icono profesional · 28/10/2026
 
 **75 % de esta intervención; entrega experimental**, independiente del 70 % histórico. Código `cc489d5f33872bc0c5014b43da13307d0991cbcf`, [CI completa correcta](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40606942378) y [APK experimental](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40606942378/artifacts/12781607132). Inicio medido 23:07 UTC del 27/10; CI/APK terminadas a las 00:20 UTC del 28/10: **73 minutos hasta la APK**, incluida la corrección de regresiones. La documentación posterior se comprueba de nuevo en CI con su propio SHA.
