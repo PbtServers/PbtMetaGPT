@@ -61,6 +61,22 @@ class GroqApi(private val http: OkHttpClient = HostedHttp.groq) {
     suspend fun answer(key: String, model: String, messages: List<Pair<String, String>>): String {
         return answerStream(key, model, messages) {}
     }
+    /** Imagen privada enviada solo tras una confirmación explícita; sin URLs públicas ni almacenamiento remoto propio. */
+    suspend fun analyzeImage(key: String, jpeg: ByteArray, question: String = "Describe esta imagen en español y explica lo importante."): String {
+        require(jpeg.size in 100..4_000_000 && jpeg[0] == 0xff.toByte() && jpeg[1] == 0xd8.toByte())
+        require(question.length in 1..500 && !SecretPatterns.contains(question))
+        val image = "data:image/jpeg;base64," + android.util.Base64.encodeToString(jpeg, android.util.Base64.NO_WRAP)
+        val content = JSONArray().put(JSONObject().put("type", "text").put("text", question))
+            .put(JSONObject().put("type", "image_url").put("image_url", JSONObject().put("url", image)))
+        val data = JSONObject().put("model", "qwen/qwen3.8-27b").put("max_completion_tokens", 700)
+            .put("reasoning_effort", "none")
+            .put("stream", false).put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", content)))
+        val req = request("chat/completions", key).post(data.toString().toRequestBody("application/json".toMediaType())).build()
+        val response = JSONObject(String(http.newCall(req).hostedBytes(1_048_576), Charsets.UTF_8))
+            .getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content").trim()
+        if (response.isBlank() || response.length > 4000) throw HostedFailure("Groq Vision no ha devuelto una descripción válida.")
+        return response
+    }
     suspend fun answerStream(key: String, model: String, messages: List<Pair<String, String>>, delta: suspend (String) -> Unit): String {
         require(messages.size in 2..18 && messages.sumOf { it.second.length } <= 24000)
         val data = JSONObject().put("model", HostedPolicy.model(model)).put("max_completion_tokens", 1024).put("stream", true)

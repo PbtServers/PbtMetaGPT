@@ -23,7 +23,7 @@ data class AssistantProfile(
     val activationPhrases: List<ActivationPhrase> = listOf(ActivationPhrase(id = "principal", primary = true)),
     val tolerantActivation: Boolean = false,
     val avatar: String = "",
-    val confirmationSound: Boolean = false,
+    val confirmationSound: Boolean = true,
     val welcomeMessage: String = "",
     val sessionMinutes: Int = 10,
     val ttsEngine: String = "realtime",
@@ -84,7 +84,7 @@ data class AssistantProfile(
                 j.optString("personality"), j.optString("tone"), j.optBoolean("formal"), j.optString("humor"), j.optString("vocabulary"),
                 j.optString("instructions"), j.getString("voice"), j.getString("language"), j.optBoolean("detailed"), j.optDouble("speed", 1.0),
                 activationPhrases = if (j.has("activationPhrases")) j.getJSONArray("activationPhrases").let { a -> (0 until a.length()).map { ActivationPhrase.parse(a.getJSONObject(it)) } } else listOf(ActivationPhrase(id = "principal", primary = true)),
-                tolerantActivation = j.optBoolean("tolerantActivation"), avatar = j.optString("avatar"), confirmationSound = j.optBoolean("confirmationSound"),
+                tolerantActivation = j.optBoolean("tolerantActivation"), avatar = j.optString("avatar"), confirmationSound = j.optBoolean("confirmationSound", true),
                 welcomeMessage = j.optString("welcomeMessage"), sessionMinutes = j.optInt("sessionMinutes", 10), ttsEngine = j.optString("ttsEngine", "realtime"),
                 ttsVoice = j.optString("ttsVoice"), ttsPackage = j.optString("ttsPackage"), pitch = j.optDouble("pitch", 1.0),
                 voiceMode = j.optString("voiceMode", VoiceModes.forEngine(j.optString("ttsEngine", "realtime")))).let { if (validate) it.validated() else it }

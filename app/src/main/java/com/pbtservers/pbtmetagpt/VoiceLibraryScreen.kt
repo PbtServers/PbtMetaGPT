@@ -20,7 +20,10 @@ fun AdvancedVoiceLibraryScreen(context: Context, profile: AssistantProfile, chan
 ) {
     val scope = rememberCoroutineScope()
     val store = remember { VoicePackageStore(File(context.filesDir, "voces")) }
+    val rvcStore = remember { RvcModelStore(File(context.filesDir, "modelos_rvc")) }
     var packages by remember { mutableStateOf(emptyList<VoicePackage>()) }
+    var rvcModels by remember { mutableStateOf(rvcStore.list()) }
+    var selectedRvcIndex by remember { mutableStateOf<String?>(null) }
     var voices by remember { mutableStateOf(emptyList<AndroidVoice>()) }
     var busy by remember { mutableStateOf(false) }
     var operation by remember { mutableStateOf<Job?>(null) }
@@ -60,6 +63,46 @@ fun AdvancedVoiceLibraryScreen(context: Context, profile: AssistantProfile, chan
             }
         }
     }
+    val importRvc = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) {
+            operation = scope.launch {
+                busy = true
+                try {
+                    withContext(Dispatchers.IO) {
+                        val names = uris.map { uri ->
+                            val filename = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                                ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+                                .orEmpty()
+                            uri to filename
+                        }
+                        val job = currentCoroutineContext()
+                        val zip = names.singleOrNull()?.takeIf { it.second.endsWith(".zip", true) }
+                        if (zip != null) {
+                            context.contentResolver.openInputStream(zip.first)?.use { rvcStore.installZip(it) { job.ensureActive() } } ?: error("No se pudo abrir ZIP")
+                        } else {
+                            val model = names.singleOrNull { it.second.endsWith(".pth", true) }
+                            val index = names.singleOrNull { it.second.endsWith(".index", true) }
+                            if (model != null && names.size <= 2) {
+                                context.contentResolver.openInputStream(model.first)?.use { input ->
+                                    if (index != null) context.contentResolver.openInputStream(index.first)?.use { idx ->
+                                        rvcStore.install(model.second, input, idx) { job.ensureActive() }
+                                    } ?: error("No se pudo abrir índice")
+                                    else rvcStore.install(model.second, input) { job.ensureActive() }
+                                } ?: error("No se pudo abrir modelo")
+                            } else if (index != null && names.size == 1 && selectedRvcIndex != null) {
+                                context.contentResolver.openInputStream(index.first)?.use { rvcStore.attachIndex(requireNotNull(selectedRvcIndex), it) { job.ensureActive() } }
+                                    ?: error("No se pudo abrir índice")
+                            } else error("Selecciona un ZIP RVC, un .pth con su .index opcional, o un .index para un modelo existente.")
+                        }
+                    }
+                    rvcModels = rvcStore.list()
+                    report("Modelo RVC importado y almacenado como datos. No puede reproducirse sin un motor de conversión compatible.")
+                } catch (cancel: CancellationException) { throw cancel }
+                catch (_: Exception) { report("Importación RVC rechazada: revisa formato, nombre, tamaño, estructura, autorización o almacenamiento.") }
+                finally { busy = false }
+            }
+        }
+    }
     Text("Biblioteca de voces", style = MaterialTheme.typography.headlineMedium)
     if (HostedSettings(context).provider == "groq") Text("GroqCloud Free: para reproducir respuestas elige Android TTS o Qwen3-TTS experimental. Las voces OpenAI y la API externa se conservan para otros modos; no se utilizan ni se facturan desde la conversación gratuita.")
     if (!compact) ElevatedCard(Modifier.fillMaxWidth()) {
@@ -73,8 +116,30 @@ fun AdvancedVoiceLibraryScreen(context: Context, profile: AssistantProfile, chan
     }
     Text("Las voces son síntesis de IA. Utiliza voces originales o autorizadas. No se incluyen modelos ni clonaciones de actores. Una importación válida no garantiza inferencia ni calidad.")
     Text("RVC · voces entrenadas", style = MaterialTheme.typography.titleLarge)
-    Text("Experimental no disponible: no hay proveedor gratuito con API autorizada y modelos personalizados verificado. Importación .pth/.index, TTS base, conversión y muestras desactivados. No se cargan modelos PyTorch en Android ni se suben a terceros.")
-    val engines = listOf("qwen_space" to "Qwen3-TTS online · experimental sin validar", "realtime" to "OpenAI Realtime · audio nativo", "android" to "Android TTS · voces locales instaladas", "openai_tts" to "OpenAI Speech · transitorio hasta 06/01/2027", "external" to "API TTS externa · contrato PCM", "sherpa_vits" to "Modelo Piper/VITS · Sherpa local")
+    Text("Importa ZIP de RVC o archivos .pth y .index. Se almacenan sin ejecutarlos: la conversión de voz requiere un motor compatible todavía no disponible sin self-hosting. No se suben a terceros.")
+    Row { Checkbox(rights, { rights = it }); Text("He revisado los derechos y la procedencia de la voz") }
+    Button(onClick = { importRvc.launch(arrayOf("*/*")) }, enabled = rights && !busy) { Text("Importar modelo RVC (.zip, .pth, .index)") }
+    if (rvcModels.isEmpty()) Text("No hay voces RVC importadas.")
+    rvcModels.forEach { model ->
+        ElevatedCard(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(model.name, style = MaterialTheme.typography.titleMedium)
+                Text("Modelo: ${model.modelBytes / 1048576} MiB · índice: ${if (model.indexBytes > 0) "presente" else "opcional, sin importar"}")
+                Text("Importado · inferencia no disponible. No es una voz lista para seleccionar ni previsualizar.")
+                if (model.indexBytes == 0L) TextButton(onClick = {
+                    selectedRvcIndex = model.id
+                    importRvc.launch(arrayOf("*/*"))
+                }, enabled = !busy && rights) { Text("Añadir archivo .index") }
+                TextButton(onClick = { operation = scope.launch {
+                    busy = true
+                    try { withContext(Dispatchers.IO) { rvcStore.delete(model.id) }; rvcModels = rvcStore.list() }
+                    catch (_: Exception) { report("No se pudo eliminar el modelo RVC.") }
+                    finally { busy = false }
+                } }, enabled = !busy) { Text("Eliminar modelo") }
+            }
+        }
+    }
+    val engines = listOf("qwen_space" to "Qwen3-TTS online · cola pública", "realtime" to "OpenAI Realtime · audio nativo", "android" to "Android TTS · voces offline (también neuronales)", "openai_tts" to "OpenAI Speech · transitorio hasta 06/01/2027", "external" to "API TTS externa · contrato PCM", "sherpa_vits" to "Modelo Piper/VITS · Sherpa local")
     if (compact) Box {
         OutlinedButton(onClick = { engineMenu = true }) { Text("Motor: ${VoiceSynthesisContract.label(profile.ttsEngine)}") }
         DropdownMenu(expanded = engineMenu, onDismissRequest = { engineMenu = false }) {
@@ -100,7 +165,11 @@ fun AdvancedVoiceLibraryScreen(context: Context, profile: AssistantProfile, chan
         if (advanced) OutlinedTextField(profile.tone, { change(profile.copy(tone = it.take(4000))) }, label = { Text("Instrucciones de tono y expresión") }, modifier = Modifier.fillMaxWidth())
     }
     if (profile.ttsEngine == "android") {
-        Text("Solo se ofrecen voces que el motor declara instaladas y sin requisito de red. Su comportamiento y privacidad dependen también del proveedor Android.")
+        Text("Voces offline instaladas. Para una voz española más natural prueba un motor neuronal gratuito como HayaiTTS o Kokoly y descarga dentro de él una voz española. Se integra mediante la API Android TTS, sin servidor ni pagos por síntesis; calidad y velocidad dependen del modelo y del teléfono.")
+        OutlinedButton(onClick = {
+            runCatching { context.startActivity(android.content.Intent("com.android.settings.TTS_SETTINGS").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                .onFailure { report("Abre Ajustes de Android → Texto a voz para instalar y elegir un motor neuronal.") }
+        }) { Text("Configurar motor de voz en Android") }
         Button(onClick = { stop(); operation = scope.launch {
             busy = true
             try { voices = AndroidVoiceEngine(context).voices(); if (voices.isEmpty()) report("No se han encontrado voces locales instaladas. Instala un motor y su idioma en los ajustes de síntesis de Android.") }
@@ -108,7 +177,8 @@ fun AdvancedVoiceLibraryScreen(context: Context, profile: AssistantProfile, chan
             catch (_: Exception) { report("No se pudieron consultar los motores TTS instalados.") }
             finally { busy = false }
         } }, enabled = !busy) { Text("Consultar voces locales instaladas") }
-        voices.forEach { voice -> FilterChip(selected = profile.ttsVoice == voice.name && profile.ttsPackage == voice.engine,
+        voices.sortedWith(compareByDescending<AndroidVoice> { it.language.equals("es-ES", true) }
+            .thenByDescending { it.engine.contains("hayai", true) || it.engine.contains("kokoly", true) }).forEach { voice -> FilterChip(selected = profile.ttsVoice == voice.name && profile.ttsPackage == voice.engine,
             onClick = { change(profile.copy(ttsVoice = voice.name, ttsPackage = voice.engine, language = voice.language)) },
             label = { Text("${voice.name} · ${voice.language} · ${voice.engine}") }) }
         Text("Tono solicitado al motor Android: ${"%.2f".format(java.util.Locale.ROOT, profile.pitch)}×. Debe comprobarse acústicamente en ese motor.")

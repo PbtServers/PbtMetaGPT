@@ -32,9 +32,16 @@ class HostedSettings(context: Context) {
 /** Captura Vosk acotada por turno. Ningún audio sale del dispositivo ni se conserva. */
 class HostedDictation(private val context: Context) {
     @android.annotation.SuppressLint("MissingPermission") // comprobación explícita inmediatamente antes de AudioRecord
-    suspend fun capture(): String = withContext(Dispatchers.IO) {
-        require(WakeModel(context).installed()) { "Instala el modelo Vosk desde Activación por voz o escribe tu petición." }
+    suspend fun capture(): String {
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) throw HostedFailure("Falta permiso de micrófono.")
+        // Usar reconocimiento libre del sistema para frases largas; Vosk permanece
+        // disponible cuando Android no tiene un motor on-device instalado.
+        val offline = OnDeviceDictation(context)
+        if (offline.available()) return offline.capture("es-ES")
+        return captureVosk()
+    }
+    private suspend fun captureVosk(): String = withContext(Dispatchers.IO) {
+        require(WakeModel(context).installed()) { "Instala el modelo Vosk o el reconocimiento offline de Android para dictar." }
         val gate = (context.applicationContext as PbtApplication).microphone
         val lease = gate.acquire(MicrophoneOwner.HOSTED_LOCAL) ?: throw HostedFailure("Micrófono ocupado. Detén la otra escucha.")
         try {

@@ -15,8 +15,8 @@ android {
         applicationId = "com.pbtservers.pbtmetagpt"
         minSdk = 31
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.4.1-dev"
+        versionCode = 6
+        versionName = "0.5.0-rc1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["mwdat_application_id"] = local.getProperty("mwdat_application_id", "0")
         manifestPlaceholders["mwdat_client_token"] = local.getProperty("mwdat_client_token", "0")

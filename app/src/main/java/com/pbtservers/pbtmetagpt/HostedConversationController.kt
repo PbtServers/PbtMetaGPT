@@ -1,6 +1,8 @@
 package com.pbtservers.pbtmetagpt
 
 import android.content.Context
+import android.graphics.Bitmap
+import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -88,6 +90,34 @@ class HostedConversation(private val context: Context, private val scope: Corout
         generate(text, trace)
     }
     fun send(text: String) = turn { generate(text, it) }
+    /** La fotografía solo llega aquí después de confirmar su envío en la interfaz. */
+    fun analyzePhoto(bitmap: Bitmap) = turn { trace ->
+        check(settings.authorized && settings.provider == "groq")
+        if (bitmap.isRecycled) throw HostedFailure("La fotografía ya no está disponible.")
+        val image = withContext(Dispatchers.Default) {
+            val size = maxOf(bitmap.width, bitmap.height)
+            val scaled = if (size > 1280) Bitmap.createScaledBitmap(bitmap,
+                maxOf(1, bitmap.width * 1280 / size), maxOf(1, bitmap.height * 1280 / size), true) else bitmap
+            try {
+                ByteArrayOutputStream().use { stream ->
+                    check(scaled.compress(Bitmap.CompressFormat.JPEG, 78, stream))
+                    stream.toByteArray()
+                }
+            } finally { if (scaled !== bitmap) scaled.recycle() }
+        }
+        phaseValue.value = ConversationPhase.THINKING
+        mutable.update { it.copy(status = "Analizando foto con Groq Vision", connecting = true) }
+        val question = "Describe lo que se ve en esta fotografía en español de España. Señala cualquier incertidumbre."
+        val started = trace.now()
+        val answer = api.analyzeImage(KeyVault(context, provider = "groq").read(), image, question)
+        trace.add(VoiceStage.GROQ_COMPLETE, trace.now() - started)
+        chat.update { (it + ChatMessage(++messageId, false, "¿Qué hay en la fotografía?")
+            + ChatMessage(++messageId, true, answer)).takeLast(20) }
+        mutable.update { it.copy(connecting = false, transcript = answer, sessionConfirmed = true) }
+        val selected = requireNotNull(profile)
+        lastAnswer = selected to answer
+        speakStream(selected, trace, produce = { delta -> delta(answer); answer }, text = {})
+    }
 
     private suspend fun generate(text: String, trace: VoiceLatency) {
         trace.responseStarted()
@@ -150,18 +180,19 @@ class HostedConversation(private val context: Context, private val scope: Corout
             } finally { trace.add(VoiceStage.TTS_SYNTHESIS, trace.now() - started) }
         }, play = { audio ->
             try {
+                val bluetooth = context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false)
                 player.playStream(flow {
                     for (chunk in audio) {
                         if (route == null) {
                             route = AudioRoute(context) { stop() }
-                            val bluetooth = context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false)
                             val label = route!!.start(bluetooth)
                             mutable.update { it.copy(route = label, responding = true, status = "Hablando") }
                         }
                         phaseValue.value = ConversationPhase.SPEAKING
                         emit(chunk)
                     }
-                }) { trace.mark(VoiceStage.FIRST_AUDIO_FRAME); timing.value = trace.snapshot() }
+                }, firstFrame = { trace.mark(VoiceStage.FIRST_AUDIO_FRAME); timing.value = trace.snapshot() },
+                    preRollMs = if (bluetooth) 250 else 0)
             } finally { route?.close(); route = null }
         }, failed = { problem ->
             voiceFailure.value = publicError(problem)
