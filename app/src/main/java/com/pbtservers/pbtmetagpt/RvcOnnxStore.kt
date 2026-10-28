@@ -24,6 +24,7 @@ object RvcOnnxNames {
  */
 class RvcOnnxStore(private val context: Context) {
     private val parent = File(context.filesDir, "rvc_onnx")
+    private val backup = File(context.filesDir, "rvc_onnx_backup")
     private val prefs = context.getSharedPreferences("rvc_onnx", Context.MODE_PRIVATE)
     val enabled: Boolean get() = prefs.getBoolean("enabled", false) && ready()
     fun setEnabled(value: Boolean) {
@@ -38,6 +39,9 @@ class RvcOnnxStore(private val context: Context) {
     }
     fun install(models: Map<String, InputStream>, checkActive: () -> Unit = {}) {
         require(models.keys == setOf("synth", "hubert", "rmvpe")) { "Selecciona exactamente tres modelos ONNX RVC." }
+        // Restaurar una versión anterior si Android finalizó una instalación
+        // entre el renombrado inicial y la confirmación de la nueva carpeta.
+        if (!parent.exists() && backup.isDirectory) require(backup.renameTo(parent))
         val temporary = File(context.filesDir, "rvc_onnx_" + UUID.randomUUID())
         require(temporary.mkdir())
         try {
@@ -61,8 +65,13 @@ class RvcOnnxStore(private val context: Context) {
             checkActive()
             // No activar un modelo nuevo sin completar los tres archivos.
             setEnabled(false)
-            if (parent.exists()) require(parent.deleteRecursively())
-            require(temporary.renameTo(parent)) { "No se pudo instalar el conjunto RVC local." }
+            if (backup.exists()) require(backup.deleteRecursively())
+            if (parent.exists()) require(parent.renameTo(backup))
+            if (!temporary.renameTo(parent)) {
+                if (backup.exists()) require(backup.renameTo(parent))
+                error("No se pudo instalar el conjunto RVC local.")
+            }
+            if (backup.exists()) require(backup.deleteRecursively())
         } finally { if (temporary.exists()) temporary.deleteRecursively() }
     }
     fun clear() {

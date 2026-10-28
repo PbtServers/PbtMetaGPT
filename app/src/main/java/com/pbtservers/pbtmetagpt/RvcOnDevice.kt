@@ -161,7 +161,13 @@ class RvcOnDevice(private val store: RvcOnnxStore) : Closeable {
     private fun featureTensor(data: FloatArray, vararg dimensions: Long): OnnxTensor {
         val kind = (synth.inputInfo["feats"]?.info as? TensorInfo)?.type
         return if (kind == OnnxJavaType.FLOAT16) {
-            OnnxTensor.createTensor(env, ShortBuffer.wrap(ShortArray(data.size) { Half.toHalf(data[it]) }),
+            // Los bits IEEE 754 FP16 se almacenan en short; evitar devolver
+            // valores @HalfFloat desde una lambda genérica ShortArray(size).
+            val halfBits = ShortArray(data.size)
+            for (index in data.indices) {
+                halfBits[index] = Half.toHalf(data[index])
+            }
+            OnnxTensor.createTensor(env, ShortBuffer.wrap(halfBits),
                 dimensions, OnnxJavaType.FLOAT16)
         } else {
             require(kind == OnnxJavaType.FLOAT) { "Tensor RVC incompatible." }

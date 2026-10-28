@@ -197,9 +197,17 @@ class HostedConversation(private val context: Context, private val scope: Corout
                     else -> throw HostedFailure("Esta voz no está habilitada en Groq Free. Elige Rápida o Natural; no se ha llamado a una API de pago.")
                 }
                 if (chosen.ttsEngine == "android" && chosen.voiceMode == "natural" && rvcStore.enabled) {
-                    val converter = localRvc ?: RvcOnDevice(rvcStore).also { localRvc = it }
                     mutable.update { it.copy(status = "Convirtiendo voz RVC en el teléfono") }
-                    converter.convert(normalAudio)
+                    val rvcStart = trace.now()
+                    try {
+                        val converter = localRvc ?: RvcOnDevice(rvcStore).also { localRvc = it }
+                        converter.convert(normalAudio)
+                    } catch (cancel: CancellationException) { throw cancel }
+                    catch (_: Exception) {
+                        throw HostedFailure("RVC local no pudo convertir la voz. Verifica los tres ONNX compatibles o desactiva RVC en Voces.")
+                    } finally {
+                        trace.add(VoiceStage.RVC_CONVERSION, trace.now() - rvcStart)
+                    }
                 } else normalAudio
             } finally { trace.add(VoiceStage.TTS_SYNTHESIS, trace.now() - started) }
         }, play = { audio ->
