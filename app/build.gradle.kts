@@ -28,10 +28,8 @@ android {
     buildFeatures { compose = true; buildConfig = true }
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        // Sherpa y ONNX Runtime Android incluyen la misma biblioteca C.
-        // Empaquetar una sola instancia evita MergeNativeLibs duplicado.
-        // Los tests instrumentados deben verificar ambos motores en el mismo proceso.
-        jniLibs.pickFirsts += "lib/**/libonnxruntime.so"
+        // tools/preparar_sherpa.py elimina únicamente la biblioteca ORT duplicada
+        // del AAR de Sherpa; una colisión futura debe fallar, no pickFirst.
     }
 }
 kotlin { compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17 } }

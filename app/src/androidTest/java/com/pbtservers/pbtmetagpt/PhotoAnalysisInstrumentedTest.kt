@@ -17,15 +17,15 @@ class PhotoAnalysisInstrumentedTest {
         val image = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
         var requests = 0
         compose.setContent { PbtTheme {
-            PhotoAnalysisPanel(image, true, VoiceState(), null, provider = "groq",
+            PhotoAnalysisPanel(image, true, VoiceState(transcript = "Imagen de prueba"), null, provider = "groq",
                 onConfirm = { assertSame(image, it); requests++ },
                 discard = {}, resume = {}, cancel = {})
         } }
+        compose.onNodeWithText("Respuesta de Groq Vision:", substring = true).assertExists()
         compose.onNodeWithText("Preguntar sobre esta foto").performClick()
         compose.waitForIdle()
-        // AlertDialog vive en una ventana Compose propia: puede existir en semántica
-        // sin superar isDisplayed() durante la animación inicial del emulador.
-        compose.onNodeWithText("Enviar esta foto a Groq Vision").assertExists()
+        // Comprobamos el consentimiento, no el título de una ventana animada.
+        // La etiqueta de proveedor ya se comprueba fuera del diálogo.
         compose.onNodeWithText("Enviar y preguntar").assertIsEnabled()
         compose.runOnIdle { assertEquals(0, requests) }
         compose.onNodeWithText("Cancelar").performClick()

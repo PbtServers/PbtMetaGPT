@@ -29,7 +29,7 @@ class RvcOnnxInstrumentedTest {
         val store = RvcOnnxStore(isolated)
         try {
             val models = listOf("synth", "hubert", "rmvpe").associateWith {
-                context.assets.open("rvc_smoke/" + it + ".onnx")
+                InstrumentationRegistry.getInstrumentation().context.assets.open("rvc_smoke/" + it + ".onnx")
             }
             store.install(models)
             assertTrue(store.ready())
