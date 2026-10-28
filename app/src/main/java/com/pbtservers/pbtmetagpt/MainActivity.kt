@@ -109,7 +109,7 @@ class MainActivity : ComponentActivity() {
                     configured = configured, backend = backend, token = token, bluetooth = bluetooth,
                     microphoneReady = microphoneReady, refresh = ::refreshDiagnostics,
                     requestMic = { microphonePermission.launch(Manifest.permission.RECORD_AUDIO) },
-                    checkCamera = ::checkCameraPermission, onBack = { message = "Selecciona Inicio u otra pantalla en la barra superior." })
+                    checkCamera = ::checkCameraPermission, onBack = { onBackPressedDispatcher.onBackPressed() })
                 else Surface(Modifier.fillMaxSize()) {
                     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
                         .verticalScroll(rememberScrollState()).padding(20.dp).widthIn(max = 840.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {

@@ -193,7 +193,7 @@ class SetupInstrumentedTest {
         val profile = AssistantProfile(name = "Luna")
         ProfileStore(context).save(listOf(profile), profile.id)
         context.getSharedPreferences("configuracion", 0).edit().putBoolean("bienvenida", true).commit()
-        ActivityScenario.launch(MainActivity::class.java).use {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             listOf("Inicio", "Asistentes", "Voces", "Ajustes").forEach { tab ->
                 compose.onNode(hasText(tab) and hasClickAction()).assertIsDisplayed()
             }
@@ -210,9 +210,9 @@ class SetupInstrumentedTest {
             assertEquals("qwen_space", saved.ttsEngine)
             assertFalse(HostedSettings(context).qwenAuthorized)
             assertFalse((context.applicationContext as PbtApplication).hosted.busy.value)
-            instrumentation.waitForIdleSync()
-            instrumentation.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
-            instrumentation.waitForIdleSync()
+            // Despachador real de Activity: comprobar el BackHandler tras cerrar
+            // el diálogo, sin enviar una tecla a una ventana en retirada.
+            scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
             compose.waitUntil(5_000) { compose.onAllNodesWithText("Hablar").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("Hablar").assertIsDisplayed()
         }
