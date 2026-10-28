@@ -492,6 +492,6 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
 }
 
 @Composable private fun Field(label: String, value: String, change: (String) -> Unit) = OutlinedTextField(value, { if (it.length <= 4000) change(it) }, label = { Text(label) }, modifier = Modifier.fillMaxWidth())
-@Composable private fun Toggle(label: String, checked: Boolean, change: (Boolean) -> Unit) {
+@Composable internal fun Toggle(label: String, checked: Boolean, change: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) { Text(label, Modifier.weight(1f)); Switch(checked, change) }
 }

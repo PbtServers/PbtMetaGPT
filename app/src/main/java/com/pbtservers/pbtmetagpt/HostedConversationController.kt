@@ -2,6 +2,7 @@ package com.pbtservers.pbtmetagpt
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.os.SystemClock
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -117,7 +118,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
         val text = HostedDictation(context).capture(profile?.language ?: "es-ES", continuous = session.spoken && options.continuous, ready = {
             mutable.update { it.copy(status = "Te escucho", connecting = false) }
             if (transitionStarted > 0) {
-                LatencyStore(context).record(mapOf(VoiceStage.FOLLOW_UP_READY to (android.os.SystemClock.elapsedRealtime() - transitionStarted)))
+                LatencyStore(context).record(mapOf(VoiceStage.FOLLOW_UP_READY to (SystemClock.elapsedRealtime() - transitionStarted)))
                 transitionStarted = 0
             }
         }) {
@@ -338,7 +339,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
     private fun scheduleFollowUp() {
         followUp?.cancel()
         following = true
-        transitionStarted = android.os.SystemClock.elapsedRealtime()
+        transitionStarted = SystemClock.elapsedRealtime()
         sessionValue.value = session.phase
         followUp = scope.launch { yield(); if (mutable.value.active && session.phase != SessionPhase.SUSPENDED) listen() }
         if (options.inactivitySeconds > 0 && inactivity?.isActive != true) inactivity = scope.launch {
@@ -374,7 +375,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
     /** Prioridad de parada: invalidar antes de detener PCM o esperar trabajo nativo. */
     fun interrupt() {
         if (!mutable.value.active) return
-        val started = android.os.SystemClock.elapsedRealtime()
+        val started = SystemClock.elapsedRealtime()
         session.interrupt(); sessionValue.value = session.phase
         generation++; followUp?.cancel(); inactivity?.cancel(); inactivity = null
         commands?.cancel()
@@ -385,7 +386,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
         mutable.update { it.copy(responding = false, connecting = false, status = "Parando") }
         phaseValue.value = ConversationPhase.READY
         processing.value = false
-        LatencyStore(context).record(mapOf(VoiceStage.STOP_AUDIO_REQUEST to (android.os.SystemClock.elapsedRealtime() - started)))
+        LatencyStore(context).record(mapOf(VoiceStage.STOP_AUDIO_REQUEST to (SystemClock.elapsedRealtime() - started)))
         followUp = scope.launch {
             previous?.join()
             if (mutable.value.active && session.phase == SessionPhase.INTERRUPTING) {

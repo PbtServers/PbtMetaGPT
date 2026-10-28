@@ -29,11 +29,7 @@ class LocalCommandListener(private val context: Context) {
         val buffer = ShortArray(320) // 20 ms; sin asignaciones de PCM por lectura.
         try {
             LibVosk.setLogLevel(LogLevel.WARNINGS)
-            Model(WakeModel(context).model.absolutePath).use { model ->
-                // Gramática abierta: una gramática de una palabra puede forzar ruido/frases a «para».
-                Recognizer(model, 16000f).use { recognizer ->
-                    recognizer.setWords(true)
-                    recognizer.setEndpointerMode(1) // SHORT, contrato público Vosk.
+            LocalCommandDecoder(WakeModel(context).model.absolutePath).use { decoder ->
                     check(context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
                     val minimum = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
                     check(minimum > 0)
@@ -64,28 +60,23 @@ class LocalCommandListener(private val context: Context) {
                         }
                         val n = active.read(buffer, 0, buffer.size, AudioRecord.READ_NON_BLOCKING)
                         check(n >= 0)
-                        if (n > 0 && recognizer.acceptWaveForm(buffer, n)) {
-                            val result = JSONObject(recognizer.result)
-                            val text = result.optString("text")
-                            val words = result.optJSONArray("result")
-                            val confidence = if (words == null || words.length() == 0) 0f else (0 until words.length())
-                                .minOf { words.getJSONObject(it).optDouble("conf", 0.0) }.toFloat()
+                        val result = if (n > 0) decoder.accept(buffer, n) else null
+                        if (result != null) {
+                            val text = result.text
                             val output = VoiceCommands.normalize(echoText())
                             val heard = VoiceCommands.normalize(text)
                             val echoRisk = speaking() && heard.isNotEmpty() && " $output ".contains(" $heard ")
                             val now = SystemClock.elapsedRealtime()
-                            val accepted = filter.accept(text, confidence, now, protection,
+                            val accepted = filter.accept(text, result.confidence, now, protection,
                                 echoSafe = routed != null && (!speaking() || aec?.enabled == true) && !echoRisk, name, options)
                             if (accepted != null) {
-                                val onset = words?.optJSONObject(0)?.optDouble("start", 0.0) ?: 0.0
-                                val detection = (now - started - (onset * 1000).toLong()).coerceAtLeast(0)
+                                val detection = (now - started - (result.onsetSeconds * 1000).toLong()).coerceAtLeast(0)
                                 withContext(Dispatchers.Main) { command(accepted, detection) }
                                 break
                             }
                         }
                         buffer.fill(0); delay(10)
                     }
-                }
             }
         } catch (cancel: CancellationException) { throw cancel }
         catch (_: Exception) { withContext(Dispatchers.Main) { status("Captura de órdenes no disponible · utiliza Parar") } }
