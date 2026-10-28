@@ -13,6 +13,7 @@ Versión Android: `0.5.0-rc1` (`versionCode 6`). No crear la etiqueta final `v0.
 - Voz de España: preferencia para variantes `es-ES` y motores neuronales offline Android compatibles con la API `TextToSpeech`, como HayaiTTS o Kokoly, instalados voluntariamente. No se distribuyen modelos externos en la APK ni se afirma que todos sean rápidos en este teléfono.
 - Visión: enviar una fotografía con confirmación explícita a Groq Vision con `qwen/qwen3.8-27b` mediante chat completions multimodales, sin recurrir a la API de pago de OpenAI. Puede haber límites de cuota Free y acceso condicionado por el proveedor.
 - RVC: importar `.pth`, `.index` o un ZIP con esos archivos. Los modelos se guardan como datos en almacenamiento privado; se validan rutas y tamaños y se impide instalar código ejecutable. **No hay inferencia ni previsualización RVC**: falta un proveedor gratuito de conversión de modelos personalizados verificado que no requiera self-hosting.
+- Viabilidad de RVC on-device: documentada una vía Android con ONNX Runtime, sintetizador RVC ONNX + HuBERT/ContentVec ONNX + RMVPE ONNX, sin autoejecutar `.pth`. Aún faltan adaptación del motor, modelos auxiliares autorizados, prueba de conversión de PCM y aceptación física. Ver [RVC local en Android](RVC_LOCAL_ANDROID.md).
 - Icono de marca: reutiliza el icono actual negro, blanco y azul; visible al principio del README.
 
 ## Pruebas automáticas

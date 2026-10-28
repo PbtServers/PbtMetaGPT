@@ -145,6 +145,8 @@ Para voces españolas neuronales sin esperar las colas de Qwen, instala un motor
 
 En la pantalla **Voces → Natural** también se enumeran las voces offline instaladas, priorizando el idioma `es-ES`. Si eliges una, el asistente conserva el modo Natural con motor local, **sin cambiar a Qwen ni enviar el texto de síntesis a Internet**. La calidad neuronal no puede deducirse del nombre de la voz: depende del motor y modelo que instales. Qwen continúa como alternativa remota, diferenciada y con consentimiento propio.
 
+**RVC local:** la inferencia móvil es técnicamente viable mediante modelos ONNX RVC y auxiliares HuBERT/ContentVec y RMVPE, pero **aún no está implementada dentro de PbtMetaGPT**. Los modelos originales `.pth` e `.index` siguen importándose solo para almacenarlos. Consulta la [evaluación técnica de RVC Android](docs/RVC_LOCAL_ANDROID.md), sus requisitos de exportación y las pruebas pendientes antes de habilitar una voz RVC.
+
 ## Ray-Ban Meta
 
 La app integra componentes de **Meta Wearables Device Access Toolkit (DAT)**. Para probarlos necesitas gafas compatibles emparejadas, Meta AI, permisos y autorización del registro de desarrollador de Meta.
