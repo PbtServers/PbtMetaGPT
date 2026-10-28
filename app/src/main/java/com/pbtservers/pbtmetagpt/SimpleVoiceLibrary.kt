@@ -17,8 +17,9 @@ import kotlinx.coroutines.CancellationException
     val settings = remember { HostedSettings(context) }
     var authorized by remember { mutableStateOf(settings.qwenAuthorized) }
     LaunchedEffect(profile.voiceMode, profile.language) {
-        if (profile.voiceMode == "rapida") try {
-            voices = AndroidVoiceEngine(context).voices().filter { it.language.substringBefore('-') == profile.language.substringBefore('-') }.sortedBy { it.name }
+        if (profile.voiceMode in setOf("rapida", "natural")) try {
+            voices = AndroidVoiceEngine(context).voices().filter { it.language.substringBefore('-') == profile.language.substringBefore('-') }
+                .sortedWith(compareByDescending<AndroidVoice> { it.language.equals("es-ES", true) }.thenBy { it.name })
             status = if (voices.isEmpty()) "No hay voces locales instaladas para este idioma. Instala una voz en los ajustes TTS de Android o elige Natural." else "Voces locales instaladas · sin enviar texto a un servidor."
         } catch (cancel: CancellationException) { throw cancel }
         catch (_: Exception) { status = "No se pudo consultar las voces. Revisa los ajustes TTS de Android." }
@@ -41,7 +42,21 @@ import kotlinx.coroutines.CancellationException
             }
         }
         "natural" -> {
-            Text("Qwen3-TTS · voces neuronales online. Space público experimental: puede haber cola, cuota agotada o suspensión.")
+            Text("Natural en el teléfono · sin cola ni envío de texto. Instala un motor neuronal offline compatible con Android TextToSpeech y una voz es-ES. No todas las voces del sistema son neuronales.")
+            TextButton(onClick = {
+                runCatching { context.startActivity(android.content.Intent("com.android.settings.TTS_SETTINGS").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    .onFailure { report("Abre Ajustes de Android → Síntesis de voz para instalar un motor neuronal.") }
+            }) { Text("Configurar voces offline en Android") }
+            Text(status, style = MaterialTheme.typography.bodySmall)
+            voices.forEach { local ->
+                val target = profile.copy(ttsEngine = "android", ttsVoice = local.name, ttsPackage = local.engine,
+                    language = local.language, voiceMode = "natural")
+                VoiceChoice(local.name, local.language, "Offline · ${local.engine}",
+                    profile.ttsEngine == "android" && profile.ttsVoice == local.name && profile.ttsPackage == local.engine,
+                    { stop(); change(target) }, { stop(); preview(target) }, true)
+            }
+            HorizontalDivider()
+            Text("Natural online · Qwen3-TTS. Opcional: puede tardar por colas y cuotas del Space.")
             Row { Checkbox(authorized, {
                 stop()
                 try { settings.authorizeQwen(it); authorized = it }
@@ -52,7 +67,8 @@ import kotlinx.coroutines.CancellationException
             QwenSpaceContract.speakers.forEach { speaker ->
                 val target = VoiceModes.choose(profile, "natural").copy(ttsVoice = speaker)
                 VoiceChoice(speaker, if (supported) java.util.Locale.forLanguageTag(profile.language).getDisplayLanguage(java.util.Locale.forLanguageTag("es")) else "Idioma no compatible", "Qwen3-TTS · remoto",
-                    profile.ttsVoice == speaker, { stop(); change(target) }, { stop(); preview(target) }, authorized && supported)
+                    profile.ttsEngine == "qwen_space" && profile.ttsVoice == speaker,
+                    { stop(); change(target) }, { stop(); preview(target) }, authorized && supported)
             }
             Text("Cada muestra consume cuota. Las voces difieren en su idioma de referencia; comprueba su pronunciación en español.", style = MaterialTheme.typography.bodySmall)
         }

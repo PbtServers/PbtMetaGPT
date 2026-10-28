@@ -4,6 +4,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class VoiceMigrationTest {
+    @Test fun naturalPuedeReutilizarVozOfflineSinCambiarAProveedorRemoto() {
+        val offline = AssistantProfile(name = "Luna", ttsEngine = "android", ttsVoice = "es_ES_neuronal",
+            ttsPackage = "org.example.offlinetts", voiceMode = "rapida")
+        val natural = VoiceModes.choose(offline, "natural").validated()
+        assertEquals("natural", natural.voiceMode)
+        assertEquals("android", natural.ttsEngine)
+        assertEquals(offline.ttsVoice, natural.ttsVoice)
+        assertEquals(offline.ttsPackage, natural.ttsPackage)
+        assertEquals("qwen_space", VoiceModes.choose(AssistantProfile(name = "Luna"), "natural").ttsEngine)
+    }
     @Test fun rapidaDesdeUnaVozExclusivaNoArrastraUnaConfiguracionIncompatible() {
         val special = AssistantProfile(name = "Luna", ttsEngine = "openai_tts", voice = "onyx", voiceMode = "personalizada")
         val rapid = VoiceModes.choose(special, "rapida").validated()

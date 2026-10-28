@@ -140,6 +140,8 @@ Se admiten paquetes ZIP `sherpa-piper-phonemes-v1` con `voz.json`, `model.onnx`,
 
 Para voces españolas neuronales sin esperar las colas de Qwen, instala un motor de sistema offline como [HayaiTTS](https://github.com/HayaiApp/HayaiTTS) o [Kokoly](https://github.com/loom7/kokoly), descarga una voz española desde él y selecciónala en **Voces → Android TTS**. El reconocimiento de voz sigue siendo independiente del motor de síntesis. PbtMetaGPT también conserva la importación RVC, pero **no ejecuta modelos `.pth`** ni ofrece conversión sin un backend compatible y autorizado.
 
+En la pantalla **Voces → Natural** también se enumeran las voces offline instaladas, priorizando el idioma `es-ES`. Si eliges una, el asistente conserva el modo Natural con motor local, **sin cambiar a Qwen ni enviar el texto de síntesis a Internet**. La calidad neuronal no puede deducirse del nombre de la voz: depende del motor y modelo que instales. Qwen continúa como alternativa remota, diferenciada y con consentimiento propio.
+
 ## Ray-Ban Meta
 
 La app integra componentes de **Meta Wearables Device Access Toolkit (DAT)**. Para probarlos necesitas gafas compatibles emparejadas, Meta AI, permisos y autorización del registro de desarrollador de Meta.
