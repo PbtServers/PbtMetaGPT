@@ -1,5 +1,9 @@
 # Seguimiento de PbtMetaGPT
 
+## RVC local Android: presupuestos de rendimiento · 28/10/2026
+
+**Fase preparatoria; inferencia RVC todavía NO implementada.** Se introduce `RvcLocalBudget` con límites verificables de modelo (192 MiB), índice opcional (64 MiB) y PCM16 mono por fragmentos de hasta 160 ms, más tres pruebas JVM de límites, frames y presión de memoria. El índice de búsqueda no se habilita por defecto: requiere activación explícita, al menos 2 GiB de RAM disponible y ausencia de presión de memoria. La infraestructura existente de Sherpa ONNX/Piper no implementa conversión RVC; no se presenta como tal, ni se cargan directamente modelos `.pth` o índices sin contrato compatible. Falta implementar y medir un runtime RVC Android real para inferencia, extracción de características/F0, compatibilidad de modelos y reproducción; su disponibilidad, velocidad y calidad siguen sin verificar. Se conservan el README y los seis archivos locales anteriores.
+
 ## Optimización de voz, interfaz simplificada e icono profesional · 28/10/2026
 
 **75 % de esta intervención; entrega experimental**, independiente del 70 % histórico. Código `cc489d5f33872bc0c5014b43da13307d0991cbcf`, [CI completa correcta](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40606942378) y [APK experimental](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40606942378/artifacts/12781607132). Inicio medido 23:07 UTC del 27/10; CI/APK terminadas a las 00:20 UTC del 28/10: **73 minutos hasta la APK**, incluida la corrección de regresiones. La documentación posterior se comprueba de nuevo en CI con su propio SHA.
