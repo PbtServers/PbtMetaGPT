@@ -7,11 +7,13 @@ import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.ensureActive
 import org.json.JSONObject
 import java.io.Closeable
 import java.nio.FloatBuffer
 import java.nio.LongBuffer
 import java.nio.ShortBuffer
+import kotlin.coroutines.coroutineContext
 import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -99,6 +101,7 @@ class RvcOnDevice(private val store: RvcOnnxStore) : Closeable {
         }
         require(sixteenK.size in 1600..128000)
         val embed = runFloat(hubert, mapOf("audio" to floatTensor(sixteenK, 1L, sixteenK.size.toLong())), hubertOutput)
+        coroutineContext.ensureActive()
         val shape = embed.second
         require(shape.size == 3 && shape[0] == 1L && shape[2] == channels.toLong() && shape[1] in 1..1200)
         val t = shape[1].toInt()
@@ -115,6 +118,7 @@ class RvcOnDevice(private val store: RvcOnnxStore) : Closeable {
                 "threshold" to floatTensor(floatArrayOf(0.3f), 1L)
             )).first
         } else null
+        coroutineContext.ensureActive()
         val frameCount = minOf(t * 2, f0?.size ?: Int.MAX_VALUE)
         require(frameCount > 0)
         val features = if (frameCount == t * 2) upsampled else upsampled.copyOf(frameCount * channels)
@@ -140,6 +144,7 @@ class RvcOnDevice(private val store: RvcOnnxStore) : Closeable {
                 inputs["pitchf"] = floatTensor(pitchFloat, 1L, frameCount.toLong())
             }
             val samples = runFloat(synth, inputs, "audio", closeInputs = false).first
+            coroutineContext.ensureActive()
             require(samples.isNotEmpty() && samples.size <= outputRate * 20)
             val pcm = ByteArray(samples.size * 2)
             samples.forEachIndexed { i, sample ->
