@@ -46,6 +46,8 @@ Se exige acción explícita con actividad visible, RECORD_AUDIO, FOREGROUND_SERV
 
 Las restricciones while-in-use impiden arrancar arbitrariamente un servicio microphone desde segundo plano y desde BOOT_COMPLETED. Se gestionan rechazos sin reinicios en bucle. Si se desactiva la preferencia, salir de la actividad revoca la escucha. Una pérdida de foco o micrófono requiere intervención explícita; no se reactiva al regresar.
 
+Salir de la interfaz sin habilitar segundo plano detiene el servicio y pausa la conversación autorizada en RAM. Se diferencia de **Detener escucha y conversación**, que finaliza ambas. La destrucción del servicio provocada por esa salida no debe borrar el contexto de la pausa. La instrumentada recorre también salida/retorno sin permiso de segundo plano y comprueba que no se reactive el micrófono; las llamadas reales siguen pendientes de dispositivo.
+
 Referencia: [restricciones de inicio de servicios Android](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start).
 
 ## Ray-Ban Meta

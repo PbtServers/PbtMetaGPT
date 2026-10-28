@@ -68,6 +68,16 @@ class MicrophoneServiceInstrumentedTest {
                 notifications.activeNotifications.single { it.id == 41 }.notification.actions
                     .single { it.title.toString() == "Detener escucha y conversación" }.actionIntent.send()
                 await { !ContinuousWakeService.running && app.microphone.owner() == null }
+                // Sin autorización de segundo plano, cerrar la interfaz detiene el
+                // servicio y volver no reactiva sensores. La conversación se pausa.
+                ListeningSettings(context).save(ListeningOptions(background = false))
+                activity.onActivity { ContinuousWakeService.startVisible(it) }
+                await { ContinuousWakeService.state.value == ListeningPhase.LISTENING }
+                activity.moveToState(Lifecycle.State.CREATED)
+                await { !ContinuousWakeService.running && app.microphone.owner() == null }
+                activity.moveToState(Lifecycle.State.RESUMED)
+                delay(300)
+                assertFalse(ContinuousWakeService.running); assertNull(app.microphone.owner())
             } finally { shell("input keyevent KEYCODE_WAKEUP"); shell("wm dismiss-keyguard") }
         }
     }

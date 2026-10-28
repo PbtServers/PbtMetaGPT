@@ -18,6 +18,7 @@ class ContinuousWakeService : Service() {
     private lateinit var app: PbtApplication
     private val session = WakeSessionPolicy()
     private var foregroundStarted = false
+    private var finishConversationOnDestroy = true
     private var candidates = emptyList<AssistantProfile>()
     private var activation: Job? = null
     override fun onBind(intent: Intent?): IBinder? = null
@@ -40,7 +41,7 @@ class ContinuousWakeService : Service() {
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == PAUSE) { pause(); return START_NOT_STICKY }
-        if (intent?.action != START) { session.stop(); stopSelf(); return START_NOT_STICKY }
+        if (intent?.action != START) { finishConversationOnDestroy = true; session.stop(); stopSelf(); return START_NOT_STICKY }
         if (session.authorized) return START_NOT_STICKY
         try {
             check(checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
@@ -143,9 +144,11 @@ class ContinuousWakeService : Service() {
         getSharedPreferences("escucha", MODE_PRIVATE).edit().putBoolean("proceso-activo", false).apply()
         // El cierre de micrófono se completa antes de cancelar el scope del servicio.
         app.scope.launch { engine.stop(); scope.cancel() }
-        app.voice.stop()
-        app.hosted.stop()
-        app.connection = null
+        if (finishConversationOnDestroy) {
+            app.voice.stop(); app.hosted.stop(); app.connection = null
+        } else {
+            app.voice.suspendForBackground(); app.hosted.suspendConversation()
+        }
         if (mutable.value != ListeningPhase.SUSPENDED) mutable.value = ListeningPhase.OFF
         stopForeground(STOP_FOREGROUND_REMOVE)
         foregroundStarted = false
@@ -167,7 +170,8 @@ class ContinuousWakeService : Service() {
             check((context.applicationContext as PbtApplication).activityVisible) { "Abre la aplicación para iniciar el micrófono" }
             return context.startForegroundService(Intent(context, ContinuousWakeService::class.java).setAction(START))
         }
-        fun stop(context: Context) {
+        fun stop(context: Context, finishConversation: Boolean = true) {
+            instance?.finishConversationOnDestroy = finishConversation
             instance?.session?.stop()
             mutable.value = ListeningPhase.OFF
             context.stopService(Intent(context, ContinuousWakeService::class.java))
