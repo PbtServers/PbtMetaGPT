@@ -29,6 +29,8 @@ Hay medidas puntuales TTFS/PSS de emulador más abajo. **Latencia de activación
 
 Próxima tarea: instalar la APK del SHA validado en Nothing/Ray-Ban, escuchar Davefx/Kokoro, verificar por separado micrófono/salida Bluetooth y ejecutar el protocolo físico. Medir el relevo entre reconocedores, 20 activaciones a volumen normal, cancelación, foto con confirmación y RVC con modelos autorizados. No hay un plazo fiable para la aceptación física sin dispositivo conectado; no convertir en Release estable por superar CI.
 
+**Correctivo adicional de límites RVC, posterior a la evidencia anterior:** el modo RVC local reutilizaba la agrupación remota de Qwen, que conserva el resto de una respuesta en un único bloque. Una respuesta larga podía superar los 1000 caracteres admitidos por Kokoro/Piper. Ahora RVC agrupa desde 80 caracteres pero mantiene las fronteras locales y el límite por palabras, conservando streaming y orden. Se corrige también la detección de punto tras un número: un punto seguido de espacio sí puede cerrar frase; un decimal dividido entre deltas sigue reteniéndose. La regresión usa una respuesta de 25 frases, exige entradas TTS acotadas, reproducción antes de completar el productor y conservación de cada palabra. **7/7 pruebas JVM de pipeline correctas localmente, 0,152 s**. Pendiente CI del nuevo SHA; no atribuir automáticamente las 37/37 anteriores al correctivo.
+
 ### Historial de acceso y correcciones de esta intervención
 
 Los siguientes apartados describen resultados de SHAs anteriores; sus pendientes no sustituyen el estado actual indicado arriba.

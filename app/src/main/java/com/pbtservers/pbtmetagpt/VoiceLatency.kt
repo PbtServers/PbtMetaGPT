@@ -15,17 +15,18 @@ class VoiceLatency(private val clock: () -> Long = { System.nanoTime() / 1000000
 }
 
 /** Fronteras de frases, sin cortar decimales, abreviaturas frecuentes ni palabras. */
-class SpeechSegments(private val remote: Boolean) {
+class SpeechSegments(private val remote: Boolean, private val groupedLocal: Boolean = false) {
     private val pending = StringBuilder()
     private var emitted = 0
     fun append(delta: String): List<String> {
         pending.append(delta)
         val ready = mutableListOf<String>()
         while (!(remote && emitted >= 1)) {
-        val minimum = if (remote) 80 else 24
+        val minimum = if (remote || groupedLocal) 80 else 24
         val boundary = pending.indices.firstOrNull { i ->
             i + 1 >= minimum && pending[i] in ".!?;:\n" &&
-                !(pending[i] == '.' && i > 0 && pending[i - 1].isDigit()) &&
+                !(pending[i] == '.' && i > 0 && pending[i - 1].isDigit() &&
+                    (i == pending.lastIndex || pending[i + 1].isDigit())) &&
                 !pending.substring(0, i + 1).trimEnd().endsWithAbbreviation() &&
                 (i == pending.lastIndex || pending[i + 1].isWhitespace())
         } ?: if (!remote && pending.length > 260) (minOf(240, pending.lastIndex) downTo 80).firstOrNull { pending[it].isWhitespace() } else null

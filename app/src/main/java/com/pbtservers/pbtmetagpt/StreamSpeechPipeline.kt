@@ -9,8 +9,9 @@ class StreamSpeechPipeline {
     suspend fun run(remote: Boolean, produce: suspend (suspend (String) -> Unit) -> String,
         text: (String) -> Unit, synthesize: suspend (String) -> PcmAudio,
         play: suspend (ReceiveChannel<PcmAudio>) -> Unit, failed: (Exception) -> Unit,
+        groupedLocal: Boolean = false,
     ): String = coroutineScope {
-        val segments = SpeechSegments(remote)
+        val segments = SpeechSegments(remote, groupedLocal)
         val phrases = Channel<String>(192) // respuesta <=4000 caracteres: nunca retiene el streaming por esperar TTS
         val audio = Channel<PcmAudio>(1)
         var voiceFailed = false

@@ -44,12 +44,37 @@ class VoicePipelineTest {
         assertTrue(output.size <= 2)
         assertEquals(text, output.joinToString(" "))
     }
+    @Test fun rvcConservaStreamingYAcotaTodoElTextoParaLosMotoresLocales() = runBlocking<Unit> {
+        val sentences = (1..25).map { "Esta respuesta larga conserva todas las palabras de la frase número $it." }
+        val full = sentences.joinToString(" ")
+        val first = CompletableDeferred<Unit>()
+        val heard = mutableListOf<String>()
+        var complete = false
+        withTimeout(2000) {
+            val result = StreamSpeechPipeline().run(remote = false, groupedLocal = true,
+                produce = { emit ->
+                    emit(sentences.take(2).joinToString(" ") + " ")
+                    first.await(); assertFalse(complete)
+                    emit(sentences.drop(2).joinToString(" "))
+                    complete = true; full
+                }, text = {}, synthesize = { phrase ->
+                    require(phrase.length <= 1000) { "Límite real de entrada Kokoro/Piper" }
+                    PcmAudio(phrase.toByteArray(), 24000)
+                }, play = { audio ->
+                    for (chunk in audio) { heard += String(chunk.bytes); first.complete(Unit) }
+                }, failed = { throw it })
+            assertEquals(full, result)
+        }
+        assertEquals(full, heard.joinToString(" "))
+    }
     @Test fun noParteDecimalesNiAbreviaturas() {
         val segmenter = SpeechSegments(false)
         assertTrue(segmenter.append("El valor exacto para el Dr.").isEmpty())
         assertTrue(segmenter.append(" López es 3.").isEmpty())
         val result = segmenter.append("14 euros. Todo está correcto y terminado.") + listOfNotNull(segmenter.finish())
         assertTrue(result.first().contains("3.14")); assertTrue(result.first().contains("Dr. López"))
+        val numberEnding = SpeechSegments(false).append("El resultado comprobado es 42. Ahora se conserva la pausa.")
+        assertTrue(numberEnding.first().endsWith("42."))
     }
     @Test fun metricasSoloNumericasYPrimeraMarcaNoSeSobrescribe() {
         var now = 100L; val trace = VoiceLatency { now }

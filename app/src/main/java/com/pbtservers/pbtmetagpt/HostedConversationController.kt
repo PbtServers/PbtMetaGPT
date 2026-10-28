@@ -175,8 +175,9 @@ class HostedConversation(private val context: Context, private val scope: Corout
             // RVC local tiene coste fijo alto por inferencia HuBERT/RMVPE/ONNX.
             // Agrupar texto en frases mayores evita cargar la CPU con fragmentos
             // cortos; el texto sigue mostrándose por streaming independientemente.
-            val costlyRvc = rvcStore.enabled && target.ttsEngine in setOf("kokoro", "piper_es", "android")
-            return StreamSpeechPipeline().run(remote = (target.voiceMode != "rapida" && target.ttsEngine == "qwen_space") || costlyRvc,
+            val costlyRvc = rvcStore.enabled && (target.voiceMode == "rapida" || target.ttsEngine in setOf("kokoro", "piper_es", "android"))
+            return StreamSpeechPipeline().run(remote = target.voiceMode != "rapida" && target.ttsEngine == "qwen_space",
+                groupedLocal = costlyRvc,
                 produce = produce, text = text,
         synthesize = { phrase ->
             val started = trace.now()
