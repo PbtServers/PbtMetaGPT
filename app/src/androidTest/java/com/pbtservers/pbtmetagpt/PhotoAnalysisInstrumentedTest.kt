@@ -13,6 +13,21 @@ import kotlinx.coroutines.*
 
 class PhotoAnalysisInstrumentedTest {
     @get:Rule val compose = createComposeRule()
+    @Test fun groqVisionIdentificaProveedorYExigeConfirmacionAntesDeEnviar() {
+        val image = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
+        var requests = 0
+        compose.setContent { PbtTheme {
+            PhotoAnalysisPanel(image, true, VoiceState(), null, provider = "groq",
+                onConfirm = { assertSame(image, it); requests++ },
+                discard = {}, resume = {}, cancel = {})
+        } }
+        compose.onNodeWithText("Preguntar sobre esta foto").performClick()
+        compose.onNodeWithText("Enviar esta foto a Groq Vision").assertIsDisplayed()
+        compose.runOnIdle { assertEquals(0, requests) }
+        compose.onNodeWithText("Cancelar").performClick()
+        compose.runOnIdle { assertEquals(0, requests) }
+        assertFalse(image.isRecycled)
+    }
     @Test fun imagenYCredencialesPermitenConfirmarSinSesionNiEnvioAutomatico() {
         val image = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
         var sends = 0
