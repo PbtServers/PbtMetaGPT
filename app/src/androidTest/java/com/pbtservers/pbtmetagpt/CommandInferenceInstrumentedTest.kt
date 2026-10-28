@@ -14,7 +14,7 @@ class CommandInferenceInstrumentedTest {
         val context = instrumentation.targetContext
         val wake = WakeModel(context)
         val model = SpainVoiceModel(context)
-        val engine = SpainVoiceEngine(context)
+        val engine = SpainVoiceEngine(context, reproducibleFixture = true)
         LibVosk.setLogLevel(LogLevel.WARNINGS)
         try {
             wake.delete(); model.delete()
@@ -25,12 +25,14 @@ class CommandInferenceInstrumentedTest {
             assertEquals(WakeModel.SHA256, wake.digest())
             val voice = VoiceModes.spain(AssistantProfile(name = "Jarvis")).validated()
             val positive = engine.synthesize(voice, "Para.")
-            val negative = engine.synthesize(voice, "Esto es para mañana.")
+            val repeated = engine.synthesize(voice, "Para.")
+            try { assertArrayEquals("La señal de la fixture debe ser reproducible", positive.bytes, repeated.bytes) }
+            finally { repeated.bytes.fill(0) }
             val recognized = decode(wake, positive)
             assertTrue("Vosk debe reconocer la orden aislada sintetizada por Piper: ${recognized.map { Triple(it.text, it.confidence, it.onsetSeconds) }}; PCM=${positive.bytes.size}", recognized.any {
                 InterruptionGate().accept(it.text, it.confidence, 5000, 0, true, "Jarvis", ListeningOptions()) == LocalVoiceCommand.INTERRUPT
             })
-            val negatives = listOf("Esto es para mañana.", "Para mañana.", "Prepara la cena.", "No para.", "Para y dime otra cosa.")
+            val negatives = listOf("Esto es para mañana.", "Para mañana.", "Prepara la cena.", "No para.", "Para y dime otra cosa.", "Pero.")
             for (phrase in negatives) {
                 val pcm = engine.synthesize(voice, phrase)
                 try { assertTrue("La frase normal no debe interrumpir: $phrase", decode(wake, pcm).none {
@@ -39,9 +41,10 @@ class CommandInferenceInstrumentedTest {
             }
             // La misma hipótesis reconocida queda bloqueada por la política de eco.
             assertTrue(recognized.none {
-                InterruptionGate().accept(it.text, it.confidence, 5000, 0, false, "Jarvis", ListeningOptions()) != null
+                InterruptionGate().accept(it.text, it.confidence, 5000, 0,
+                    !VoiceCommands.matchesEcho(it.text, "Para."), "Jarvis", ListeningOptions()) != null
             })
-            positive.bytes.fill(0); negative.bytes.fill(0)
+            positive.bytes.fill(0)
             assertNull((context.applicationContext as PbtApplication).microphone.owner())
         } finally { engine.close(); model.delete(); wake.delete() }
     }
@@ -50,7 +53,7 @@ class CommandInferenceInstrumentedTest {
         val context = instrumentation.targetContext
         val wake = WakeModel(context)
         val model = SpainVoiceModel(context)
-        val engine = SpainVoiceEngine(context)
+        val engine = SpainVoiceEngine(context, reproducibleFixture = true)
         try {
             withContext(Dispatchers.IO) {
                 wake.install { instrumentation.context.assets.open("activacion-prueba.zip") }

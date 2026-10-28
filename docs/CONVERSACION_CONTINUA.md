@@ -64,6 +64,10 @@ No se ha encontrado una acción pública estable documentada para iniciar Live m
 
 ## Validación y métricas pendientes
 
+Las fixtures de reconocimiento usan Piper nativo con ruido generativo cero para obtener PCM reproducible; se compara dos veces la misma síntesis y se mantienen todas las aserciones del detector, además de «Pero» como negativo. La síntesis de la aplicación conserva sus parámetros originales y sus pruebas de generación PCM. Esta señal controlada no acredita robustez frente a voces, ruido, variaciones de síntesis o eco reales. El contrato de fonemas se contrastó completo con la configuración oficial de Davefx, sin diferencias. No se acepta «pero» como alias de «Para».
+
+El registro acotado conserva hasta 120 eventos numéricos, suficientes para recoger veinte ciclos con detección/parada/relevo sin que cada evento desplace inmediatamente los anteriores. No guarda voz, texto de conversación ni nombres de dispositivos.
+
 En `392c8bb`, emulador x86_64 Google APIs y entrada Android tipo 15, el servicio permaneció capturando con pantalla bloqueada hasta registrar una ventana completa de espera. API35: ventana 30 028 ms, CPU del proceso 2 169 ms y PSS 222 012 KiB. API36: ventana 30 023 ms, CPU 1 901 ms y PSS 218 269 KiB. Es una sola muestra por API, sin p50/p95, batería ni máximo; no mide Nothing/Ray-Ban ni acredita bajo consumo. La CI de ese SHA sigue fallando en reconocimiento y no publicó APK.
 
 Las pruebas JVM verifican cinco turnos, límites de historial, generaciones, cancelación tardía, comandos exactos, confianza y protección lógica. Las instrumentadas comprueban preferencias Android, permisos denegados, rechazo de inicio sin actividad y launcher ausente/público. Ninguna sustituye voz reconocida, audio concurrente ni segundo plano real.

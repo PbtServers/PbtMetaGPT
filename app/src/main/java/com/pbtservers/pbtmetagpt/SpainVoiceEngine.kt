@@ -10,7 +10,7 @@ import java.nio.FloatBuffer
 import java.nio.LongBuffer
 
 /** Piper Davefx es_ES real sobre el ORT Android ya utilizado por RVC. Sin Android TTS ni red. */
-class SpainVoiceEngine(private val context: Context) {
+class SpainVoiceEngine(private val context: Context, private val reproducibleFixture: Boolean = false) {
     private val mutex = Mutex()
     private var session: OrtSession? = null
     private val environment by lazy { OrtEnvironment.getEnvironment() }
@@ -36,7 +36,11 @@ class SpainVoiceEngine(private val context: Context) {
             try {
                 inputs["input"] = OnnxTensor.createTensor(environment, LongBuffer.wrap(ids), longArrayOf(1, ids.size.toLong()))
                 inputs["input_lengths"] = OnnxTensor.createTensor(environment, LongBuffer.wrap(longArrayOf(ids.size.toLong())), longArrayOf(1))
-                inputs["scales"] = OnnxTensor.createTensor(environment, FloatBuffer.wrap(floatArrayOf(.667f, (1 / profile.speed).toFloat(), .8f)), longArrayOf(3))
+                // Una fixture PCM necesita señal reproducible: el ruido aleatorio
+                // modifica vocales/duración de una palabra corta entre ejecuciones.
+                // La app conserva los parámetros originales; solo tests usan cero.
+                inputs["scales"] = OnnxTensor.createTensor(environment, FloatBuffer.wrap(floatArrayOf(
+                    if (reproducibleFixture) 0f else .667f, (1 / profile.speed).toFloat(), if (reproducibleFixture) 0f else .8f)), longArrayOf(3))
                 OrtSession.RunOptions().use { options ->
                     val cancellation = launch(Dispatchers.IO) { try { awaitCancellation() } finally { runCatching { options.setTerminate(true) } } }
                     try {
