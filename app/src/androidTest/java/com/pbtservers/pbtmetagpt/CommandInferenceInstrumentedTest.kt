@@ -30,9 +30,13 @@ class CommandInferenceInstrumentedTest {
             assertTrue("Vosk debe reconocer la orden aislada sintetizada por Piper: ${recognized.map { Triple(it.text, it.confidence, it.onsetSeconds) }}; PCM=${positive.bytes.size}", recognized.any {
                 InterruptionGate().accept(it.text, it.confidence, 5000, 0, true, "Jarvis", ListeningOptions()) == LocalVoiceCommand.INTERRUPT
             })
-            assertTrue("La frase normal no debe interrumpir", decode(wake, negative).none {
-                VoiceCommands.parse(it.text, "Jarvis", ListeningOptions()) == LocalVoiceCommand.INTERRUPT
-            })
+            val negatives = listOf("Esto es para mañana.", "Para mañana.", "Prepara la cena.", "No para.", "Para y dime otra cosa.")
+            for (phrase in negatives) {
+                val pcm = engine.synthesize(voice, phrase)
+                try { assertTrue("La frase normal no debe interrumpir: $phrase", decode(wake, pcm).none {
+                    VoiceCommands.parse(it.text, "Jarvis", ListeningOptions()) == LocalVoiceCommand.INTERRUPT
+                }) } finally { pcm.bytes.fill(0) }
+            }
             // La misma hipótesis reconocida queda bloqueada por la política de eco.
             assertTrue(recognized.none {
                 InterruptionGate().accept(it.text, it.confidence, 5000, 0, false, "Jarvis", ListeningOptions()) != null
@@ -67,7 +71,9 @@ class CommandInferenceInstrumentedTest {
     }
     private suspend fun decode(wake: WakeModel, audio: PcmAudio): List<CommandHypothesis> = withContext(Dispatchers.IO) {
         val results = mutableListOf<CommandHypothesis>()
-        LocalCommandDecoder(wake.model.absolutePath, audio.sampleRate.toFloat()).use { decoder ->
+        LocalCommandDecoder(wake.model.absolutePath, audio.sampleRate.toFloat(), evaluation = { open, restricted, bounds ->
+            android.util.Log.i("PbtCommandTest", "Fixture fija: libre=$open; restringido=$restricted; voz=$bounds")
+        }).use { decoder ->
             val buffer = ShortArray(audio.sampleRate / 50)
             // El detector real ya recibe silencio/ruido antes de una orden. El
             // arranque directo con una palabra corta omite esa precaptura acústica.

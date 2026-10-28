@@ -23,7 +23,9 @@ data class ListeningOptions(
         require(sensitivity.isFinite() && sensitivity in 0f..1f)
         require(inactivitySeconds == 0 || inactivitySeconds in 30..3600)
         require(endPhrase.length in 1..80 && !SecretPatterns.contains(endPhrase))
-        require(VoiceCommands.normalize(endPhrase) !in setOf("para", "deja de escuchar", "abre gpt live"))
+        val closing = VoiceCommands.normalize(endPhrase)
+        require(closing.isNotBlank())
+        require(VoiceCommands.parse(closing, "", ListeningOptions()) !in setOf(LocalVoiceCommand.INTERRUPT, LocalVoiceCommand.STOP_LISTENING, LocalVoiceCommand.CHATGPT))
         return this
     }
 }
@@ -34,6 +36,12 @@ enum class LocalVoiceCommand { INTERRUPT, END, STOP_LISTENING, CHATGPT }
 object VoiceCommands {
     fun normalize(text: String): String = Normalizer.normalize(text.lowercase(Locale.ROOT), Normalizer.Form.NFD)
         .replace(Regex("\\p{M}+"), "").replace(Regex("[^a-z0-9 ]"), " ").trim().replace(Regex("\\s+"), " ")
+    private fun acousticText(text: String): String = normalize(text)
+        .replace(Regex("\\bchatgpt\\b"), "chat ge pe te").replace(Regex("\\bgpt\\b"), "ge pe te")
+    fun matchesEcho(heard: String, output: String): Boolean {
+        val command = acousticText(heard)
+        return command.isNotBlank() && " ${acousticText(output)} ".contains(" $command ")
+    }
     fun parse(text: String, name: String, options: ListeningOptions): LocalVoiceCommand? {
         val normalized = normalize(text)
         val prefix = normalize(name)

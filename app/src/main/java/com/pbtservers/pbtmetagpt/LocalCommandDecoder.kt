@@ -6,10 +6,15 @@ import org.vosk.Model
 import org.vosk.Recognizer
 
 /** Mismo decodificador para captura real y regresión de inferencia; un único hilo propietario. */
-class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f) : AutoCloseable {
+class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
+    private val evaluation: ((CommandHypothesis, CommandHypothesis, SpeechBounds?) -> Unit)? = null) : AutoCloseable {
     private val model = Model(path)
     private var recognizer: Recognizer
     private var chat: Recognizer
+    private var vad = AdaptiveVad(sampleRate.toInt())
+    private var samples = 0L
+    private var voiceStart: Double? = null
+    private var voiceEnd = 0.0
     init {
         val open = try { create(false) } catch (problem: Throwable) { model.close(); throw problem }
         recognizer = open
@@ -21,6 +26,15 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f) 
         catch (problem: Throwable) { value.close(); throw problem }
     }
     fun accept(buffer: ShortArray, size: Int): CommandHypothesis? {
+        samples += size
+        when (vad.accept(buffer, size)) {
+            AdaptiveVad.Event.START -> {
+                voiceStart = (samples / sampleRate.toDouble() - .060).coerceAtLeast(0.0)
+                voiceEnd = samples / sampleRate.toDouble()
+            }
+            AdaptiveVad.Event.VOICE -> voiceEnd = samples / sampleRate.toDouble()
+            else -> Unit
+        }
         // Ambos reciben exactamente los mismos PCM y cierran el segmento juntos.
         // Solo el reconocedor libre decide el fin; la gramática no corta frases.
         chat.acceptWaveForm(buffer, size)
@@ -31,7 +45,11 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f) 
     private fun combine(open: String, restricted: String): CommandHypothesis {
         val full = decode(open, average = false)
         val command = decode(restricted, average = true)
-        return if (ChatGptCommandGrammar.accepts(full, command)) command else full
+        val bounds = voiceStart?.let { SpeechBounds(it, voiceEnd) }
+        evaluation?.invoke(full, command, bounds)
+        val result = if (bounds != null && ChatGptCommandGrammar.accepts(full, command, bounds)) command else full
+        vad = AdaptiveVad(sampleRate.toInt()); voiceStart = null; voiceEnd = 0.0
+        return result
     }
     private fun decode(json: String, average: Boolean): CommandHypothesis {
         val result = JSONObject(json)
@@ -49,6 +67,7 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f) 
         val nextChat = try { create(true) } catch (problem: Throwable) { nextOpen.close(); throw problem }
         try { recognizer.close() } finally { chat.close() }
         recognizer = nextOpen; chat = nextChat
+        samples = 0; vad = AdaptiveVad(sampleRate.toInt()); voiceStart = null; voiceEnd = 0.0
     }
     override fun close() { try { recognizer.close() } finally { try { chat.close() } finally { model.close() } } }
 }

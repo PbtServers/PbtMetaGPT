@@ -485,8 +485,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     val recording = appContext.getSystemService(AudioManager::class.java).activeRecordingConfigurations.singleOrNull()
                     val speaking = outputPlaying || alternativePlaying
                     val aec = runCatching { module?.platformAudioProcessingState?.echoCancellation?.isActive == true }.getOrDefault(false)
-                    val heard = VoiceCommands.normalize(text)
-                    val echo = speaking && heard.isNotEmpty() && " ${VoiceCommands.normalize(echoText)} ".contains(" $heard ")
+                    val echo = speaking && VoiceCommands.matchesEcho(text, echoText)
                     recording != null && !recording.isClientSilenced && (!speaking || aec) && !echo
                 }, status = { message -> dispatch(token) {
                     val input = appContext.getSystemService(AudioManager::class.java).activeRecordingConfigurations.singleOrNull()?.audioDevice
@@ -536,6 +535,13 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
         if (!state.value.active || !state.value.paused) return
         requestedBluetooth = false; routeSuspended = true
         pauseOrResume()
+    }
+    /** Salir de la interfaz revoca captura; conservar contexto no reactiva sensores al volver. */
+    fun suspendForBackground() {
+        if (!state.value.active || sampleOnly || imageOnly) { stop(); return }
+        if (!state.value.paused) pauseOrResume()
+        route.close(); routeSuspended = true
+        mutable.update { it.copy(status = "Pausado · pulsa Reanudar para continuar", route = "Ruta liberada · micrófono apagado") }
     }
 
     fun interrupt() {

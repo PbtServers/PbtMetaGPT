@@ -65,9 +65,7 @@ class LocalCommandListener(private val context: Context) {
                         val result = if (n > 0) decoder.accept(buffer, n) else null
                         if (result != null) {
                             val text = result.text
-                            val output = VoiceCommands.normalize(echoText())
-                            val heard = VoiceCommands.normalize(text)
-                            val echoRisk = speaking() && heard.isNotEmpty() && " $output ".contains(" $heard ")
+                            val echoRisk = speaking() && VoiceCommands.matchesEcho(text, echoText())
                             val now = SystemClock.elapsedRealtime()
                             val accepted = filter.accept(text, result.confidence, now, protection,
                                 echoSafe = routed != null && (!speaking() || aec?.enabled == true) && !echoRisk, name, options)

@@ -266,7 +266,10 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         foreground = false; app.activityVisible = false; app.stopVisibleWake = null; wake.stop(); localAudio.stop()
         if (ContinuousWakeService.running && !ListeningSettings(this).load().background) ContinuousWakeService.stop(this)
-        if (!ContinuousWakeService.running) { voice.stop(); app.hosted.clear(); app.connection = null }
+        if (!ContinuousWakeService.running) {
+            voice.suspendForBackground(); app.hosted.suspendConversation()
+            if (!voice.state.value.active && !app.hosted.state.value.active) app.connection = null
+        }
         glasses.stopCapture(); glasses.disconnect(); super.onStop()
     }
 }
