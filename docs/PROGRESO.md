@@ -1,5 +1,13 @@
 # Seguimiento de PbtMetaGPT
 
+## Documentación de producto solicitada · 30/10/2026
+
+**72 % acreditado · 23:55 UTC · 1 h 46 min desde el inicio; aceptación física sin estimación fiable.** README reescrito como documentación de uso: instalación, conversación y órdenes, escucha bloqueada, selección/prueba de micrófono, ChatGPT oficial y Davefx/Sharvard. Se retiran el diario, el aviso de portada de candidata y las instrucciones antiguas que negaban toda escucha en segundo plano; no se presenta una APK debug como Release firmada ni se certifica hardware. Los límites/evidencias se conservan en Validación y la guía técnica. Los 20 enlaces locales del README existen; diff, 39 Python y escáner de fuentes correctos.
+
+`3db686ddc43915934038634651b483d5fecfef36` supera JVM **187 (186 correctas y una remota optativa omitida)**, Lint, compilación, seguridad de fuentes/APK y backend en [CI 40975478719](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40975478719); los emuladores siguen en curso. Se amplía la regresión acústica Piper→VAD→Vosk con «Atento Jarvis, dime la hora», negativo y repetición, conservando Luna y todos los controles existentes. Jarvis está en el vocabulario real; el ensayo de escritorio reconoce la frase, pendiente todavía su ejecución Android en este conjunto. No acredita voz desde gafas.
+
+La entrega documental responde a «README como proyecto terminado». La publicación estable sigue condicionada a los ensayos obligatorios del Nothing/Ray-Ban y a las condiciones de distribución; el formato del README no sustituye esas evidencias. Se mantienen seis cambios ajenos intactos. Pesos acreditados: auditoría 10/10, DAT/micrófono 17/25, ChatGPT 12/15, bloqueo 13/25, voces 12/15, pruebas/documentación 8/10. Próximo paso: CI completa y APK del SHA que contiene este README y la regresión Jarvis.
+
 ## Candidata final: DAT, micrófono, bloqueo, ChatGPT y español · 29/10/2026
 
 **Estado actual: 70 % acreditado · 23:44 UTC · 1 h 35 min desde el inicio.** El código `0b4e9d21f1b96c929caca9b8521d156866c0a028` supera [CI 40973347229](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40973347229): **185 JVM (184 correctas, una remota optativa omitida), 52/52 instrumentadas API35 y 52/52 API36, Lint, compilación, 39 Python, 19 Node/backend/contenedores y escáner de fuentes/APK correctos**. La publicación de APK de ese SHA sigue en curso al redactar. Las comprobaciones finales añadidas después necesitan su propia CI. La aceptación física y revisión de distribución estable siguen pendientes, sin plazo fiable.

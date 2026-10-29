@@ -19,7 +19,6 @@ class WakeInferenceInstrumentedTest {
         try {
             wake.install { instrumentation.context.assets.open("activacion-prueba.zip") }
             store.install(source = { instrumentation.context.assets.open("piper-es/${it.name}") })
-            val profile = VoiceModes.spain(AssistantProfile(name = "Luna")).validated()
             val gate = ActivationGate()
             LibVosk.setLogLevel(LogLevel.WARNINGS)
             withContext(Dispatchers.IO) {
@@ -28,7 +27,16 @@ class WakeInferenceInstrumentedTest {
                         val frame = ShortArray(441)
                         repeat(150) { assertNull(decoder.accept(frame, frame.size)) }
                         assertEquals(0L, decoder.inferenceFrames)
-                        for (phrase in listOf("Atento Luna, dime la hora.", "Dime la hora.", "Atento Luna, dime la hora.")) {
+                        val cases = listOf(
+                            "Luna" to "Atento Luna, dime la hora.",
+                            "Luna" to "Dime la hora.",
+                            "Luna" to "Atento Luna, dime la hora.",
+                            "Jarvis" to "Atento Jarvis, dime la hora.",
+                            "Jarvis" to "Dime la hora.",
+                            "Jarvis" to "Atento Jarvis, dime la hora.",
+                        )
+                        for ((name, phrase) in cases) {
+                            val profile = VoiceModes.spain(AssistantProfile(name = name)).validated()
                             val token = gate.arm(listOf(profile))
                             val results = mutableListOf<String>()
                             fun feed(count: Int) {

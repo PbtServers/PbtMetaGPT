@@ -1,317 +1,187 @@
 # PbtMetaGPT
 
-Correcciones de gafas, selección de micrófono, pantalla bloqueada y ChatGPT oficial: consulta la [guía de la candidata y pruebas físicas](docs/CANDIDATA_RAYBAN.md) y las [evidencias por SHA](docs/PROGRESO.md). «Para» interrumpe; «Termina» vuelve a la espera autorizada; «Deja de escuchar» detiene también esa espera. Natural ofrece Davefx y las dos voces Sharvard de español de España. Audio de gafas, bloqueo y consumo en el Nothing requieren validación física.
-
-<p align="center"><img src="docs/assets/icono-app.png" alt="Icono único de PbtMetaGPT, obtenido del launcher Android" width="128" height="128"></p>
+<p align="center"><img src="docs/assets/icono-app.png" alt="Icono de PbtMetaGPT" width="128" height="128"></p>
 
 <p align="center">
   <strong>Tu asistente de voz, tus reglas.</strong><br>
-  Asistente de voz Android con GroqCloud, Qwen3-TTS, modelos locales y conexión con gafas Meta Wearables.
+  Conversa desde Android o tus Ray-Ban Meta con asistentes personalizables y voces de español de España.
 </p>
 
 <p align="center">
-  <a href="https://github.com/PbtServers/PbtMetaGPT/actions/workflows/android.yml"><img src="https://github.com/PbtServers/PbtMetaGPT/actions/workflows/android.yml/badge.svg" alt="Compilación Android"></a>
-  <a href="https://github.com/PbtServers/PbtMetaGPT/blob/master/LICENSE"><img src="https://img.shields.io/github/license/PbtServers/PbtMetaGPT" alt="Licencia"></a>
+  <a href="https://github.com/PbtServers/PbtMetaGPT/actions/workflows/android.yml"><img src="https://github.com/PbtServers/PbtMetaGPT/actions/workflows/android.yml/badge.svg" alt="Pruebas y compilación Android"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/PbtServers/PbtMetaGPT" alt="Licencia"></a>
   <img src="https://img.shields.io/badge/Android-12%2B-3DDC84?logo=android&logoColor=white" alt="Android 12 o posterior">
-  <img src="https://img.shields.io/badge/versi%C3%B3n-0.5.0--rc1-blue" alt="Versión candidata 0.5.0-rc1">
 </p>
 
 <p align="center">
-  <a href="https://github.com/PbtServers/PbtMetaGPT/actions/workflows/android.yml">APK candidata en GitHub Actions</a> ·
-  <a href="#instalación">Instalación</a> ·
+  <a href="#instalación">Descargar e instalar</a> ·
   <a href="#primeros-pasos">Primeros pasos</a> ·
-  <a href="docs/PROGRESO.md">Progreso</a> ·
-  <a href="https://github.com/PbtServers/PbtMetaGPT/issues">Reportar un problema</a>
+  <a href="#ray-ban-meta-y-micrófono">Ray-Ban Meta</a> ·
+  <a href="#voces-de-españa">Voces de España</a> ·
+  <a href="https://github.com/PbtServers/PbtMetaGPT/issues">Ayuda e incidencias</a>
 </p>
 
-> [!IMPORTANT]
-> **Versión candidata 0.5.0-rc1.** PbtMetaGPT es independiente de Meta, OpenAI y Marvel. La base de conversación y audio ha sido utilizada con teléfono y gafas, pero las nuevas correcciones Bluetooth, visión Groq y funciones de importación RVC necesitan validación de esta compilación. Una APK debug no es una Release estable firmada.
+PbtMetaGPT es una aplicación Android de código abierto para hablar con asistentes que tú configuras: nombre, personalidad, instrucciones, idioma y voz. Ofrece conversación continua, contexto entre preguntas, activación por voz, interrupción y conexión con gafas Meta. También funciona con el micrófono y altavoz del teléfono.
 
-## Índice
+Puedes utilizar **GroqCloud con clave propia y sin montar un servidor**, o configurar OpenAI Realtime y un backend opcional. Las voces **Piper Davefx y Sharvard** se ejecutan localmente después de descargarlas. GroqCloud tiene cuotas y condiciones propias; **ChatGPT Plus y la API de OpenAI se facturan por separado**.
 
-- [Qué es PbtMetaGPT](#qué-es-pbtmetagpt)
-- [Funciones y estado de validación](#funciones-y-estado-de-validación)
-- [Capturas de pantalla](#capturas-de-pantalla)
-- [Instalación](#instalación)
-- [Primeros pasos](#primeros-pasos)
-- [Asistentes y frases de activación](#asistentes-y-frases-de-activación)
-- [Voces y modelos locales](#voces-y-modelos-locales)
-- [Ray-Ban Meta](#ray-ban-meta)
-- [Arquitectura](#arquitectura)
-- [Seguridad y privacidad](#seguridad-y-privacidad)
-- [Requisitos y compilación](#requisitos-y-compilación)
-- [Pruebas y desarrollo](#pruebas-y-desarrollo)
-- [Preguntas frecuentes](#preguntas-frecuentes)
-- [Contribuir y créditos](#contribuir-y-créditos)
+## Funciones
 
-## Qué es PbtMetaGPT
+- Conversación continua con contexto y una sola cola de respuesta cancelable.
+- Frases de activación configurables, como «Atento Jarvis», con reconocimiento local en español.
+- Escucha autorizada en segundo plano mediante servicio de micrófono, notificación y controles de pausa y parada.
+- Selección de entrada: automática, auricular Bluetooth de las gafas o micrófono del teléfono, con diagnóstico de la captura real.
+- Voces neuronales locales de España: Davefx, Sharvard masculina y Sharvard femenina, con muestras y selección persistente.
+- GroqCloud, dictado local, Groq Whisper opcional y envío de fotos a Groq Vision con confirmación.
+- Apertura de la aplicación oficial ChatGPT, aprovechando «Iniciar con Voz» cuando su configuración lo permite.
+- Perfiles de asistentes, importación y exportación sin credenciales, claves cifradas con Android Keystore.
+- Opciones avanzadas: OpenAI Realtime/WebRTC, Kokoro, Qwen3-TTS remoto, RVC ONNX y paquetes de voces compatibles.
 
-**PbtMetaGPT** permite crear perfiles de asistentes con nombre, instrucciones, personalidad, idioma, estilo de conversación y voz. Su modo sin self-hosting utiliza GroqCloud (con cuota gratuita según el proveedor) y Qwen3-TTS remoto o voces TTS locales; mantiene OpenAI Realtime/WebRTC como opción adicional.
-
-En **modo gratuito** puedes introducir una clave personal de GroqCloud sin instalar infraestructura propia. OpenAI BYOK se configura de forma separada y puede facturar. **No necesitas montar un servidor, VPS ni dominio** para utilizar el modo Groq. Existe un backend HTTPS de OpenAI opcional.
-
-La aplicación es de código abierto y también funciona sin gafas. La latencia y la calidad de audio se deben verificar en el teléfono y las gafas de destino. **ChatGPT Plus no incluye consumo de OpenAI API:** sus facturaciones son independientes.
-
-## Funciones y estado de validación
-
-**Leyenda:** Implementado = código presente y pruebas indicadas; Por validar = requiere pruebas con proveedor o dispositivo reales; No disponible = no existe adaptador de inferencia operativo. Consulta [la matriz de evidencias](docs/VALIDACION.md).
-
-| Área | Estado | Alcance comprobado o limitación |
-| --- | --- | --- |
-| GroqCloud Free | **Implementado** | Conversación con cuota gratuita, requiere clave propia y conexión; límites según cuenta |
-| Groq Vision | **Candidata** | Foto enviada con confirmación a modelo multimodal oficial; requiere prueba real con clave |
-| Qwen3-TTS remoto | **Implementado, con límites** | Space público, posibles colas y fallos por cuota; prueba de generación remota |
-| Reconocimiento libre offline | **Candidata** | Dictado on-device Android con fallback Vosk si no está disponible |
-| Groq Whisper para dictado | **Opcional y con consentimiento independiente** | Transcripción más precisa en servidor con `whisper-large-v3-turbo`; envía únicamente el audio de la petición, puede consumir cuota o generar costes según plan |
-| Voz neuronal local de España | **PCM verificado en emulador API 35/36** | Davefx y Sharvard masculina/femenina es_ES; descarga voluntaria, SHA-256 y muestra |
-| Kokoro local | **PCM verificado en emulador API 35/36** | Dora, Alex y Santa; español sin variante peninsular acreditada; motor separado de Android TTS |
-| RVC ONNX local e importación | **Experimental** | Tubería ONNX comprobada técnicamente; voz real/calidad pendientes. Los .pth no se ejecutan y FAISS .index no interviene en inferencia |
-| BYOK y conexión directa a OpenAI | **Experimental** | Claves protegidas y flujo de credencial temporal; conversación real con clave personal pendiente |
-| Android Keystore y AES-256-GCM | **Implementado** | Pruebas JVM e instrumentadas; no garantiza seguridad frente a un dispositivo comprometido |
-| OpenAI Realtime por WebRTC | **Experimental** | Protocolo implementado; voz bidireccional real pendiente |
-| Asistentes y personalidades | **Implementado** | Edición, persistencia, migración e instrucciones por perfil |
-| Importación y exportación de perfiles | **Implementado** | Sin claves; las referencias de modelos se reasocian |
-| Varias frases por asistente | **Implementado** | Comparación, activación individual y rechazo de ambigüedad |
-| Reconocimiento de activación local | **Experimental** | Usa SpeechRecognizer on-device; precisión acústica pendiente |
-| Voces oficiales OpenAI | **Experimental** | Selección y contrato integrados; escucha real pendiente |
-| Android TTS / API TTS externa | **Experimental** | Adaptadores y pruebas controladas; proveedores y salida real pendientes |
-| Biblioteca de voces y paquetes Piper/VITS | **Experimental** | Importación, validación y eliminación; compatibilidad limitada |
-| Sherpa ONNX y aislamiento | **Experimental** | Inferencia real de fixture en emulador, sin validación auditiva |
-| Cancelación, interrupción y reproducción | **Implementado** | Contratos y flujo probados automáticamente; audición física pendiente |
-| Meta Wearables DAT | **Validación física pendiente** | Registro y sesión implementados; gafas reales sin verificar |
-| Cámara con vista previa y confirmación | **Validación física pendiente** | Flujo de consentimiento implementado; captura real sin acreditar |
-| Diagnóstico de conexión y audio | **Implementado** | Indicadores y pruebas guiadas; no sustituyen confirmación humana |
-| Backend HTTPS opcional | **Experimental** | Pruebas y contenedores CI; despliegue público no verificado |
-| Escucha permanente, pantalla bloqueada, control de «Hey Meta» | **No disponible** | No se ofrece ni se promete |
-
-## Capturas de pantalla
-
-Todavía no se han incorporado capturas verificadas de la aplicación. **No se muestran maquetas como si fueran pantallas reales.**
-
-Las nueve vistas previstas son: inicio, bienvenida, OpenAI, asistentes, personalidad, activación, biblioteca de voces, dispositivos y diagnóstico. Consulta [cómo preparar capturas reales](docs/assets/screenshots/README.md). Antes de subir una imagen, oculta claves, tokens, direcciones, identificadores y conversaciones personales.
+La disponibilidad de audio Bluetooth, cámara y ejecución con pantalla bloqueada depende de Android, el firmware y los permisos. Consulta la [compatibilidad y validación](docs/VALIDACION.md) y la [guía de dispositivos y escucha](docs/CANDIDATA_RAYBAN.md) para conocer el alcance comprobado y los ensayos que requieren hardware real.
 
 ## Instalación
 
-**Requisitos:** Android 12 o posterior (API 31). Para voz local se requiere un reconocedor on-device compatible y, según el modelo, memoria y arquitectura de 64 bits.
+Necesitas **Android 12 o posterior**. Los modelos de voz requieren espacio libre; la activación local necesita descargar Vosk español. Para utilizar gafas, empareja primero las Ray-Ban Meta con Meta AI y Android.
 
-1. Abre las [ejecuciones de Android en GitHub Actions](https://github.com/PbtServers/PbtMetaGPT/actions/workflows/android.yml) e inicia sesión en GitHub.
-2. Abre una ejecución **correcta** correspondiente al commit que quieres probar; verifica que los trabajos hayan terminado en verde.
-3. En **Artifacts**, descarga el ZIP de la APK debug de esa ejecución, si aún está disponible. Los artifacts caducan; no confundas una ejecución anterior con la versión de `master`.
-4. Extrae el ZIP, copia `app-debug.apk` al teléfono y ábrelo para instalarlo.
-5. Si Android lo solicita, autoriza temporalmente **Instalar aplicaciones desconocidas** para la app desde la que abras el APK. Desactiva ese permiso después si no lo necesitas.
+1. Abre [GitHub Actions](https://github.com/PbtServers/PbtMetaGPT/actions/workflows/android.yml) e inicia sesión en GitHub.
+2. Elige una ejecución correcta de `master`, comprueba su SHA y descarga el artifact de la APK.
+3. Extrae el ZIP e instala `app-debug.apk` en el teléfono. Autoriza la instalación desde esa aplicación si Android lo solicita.
+4. Sigue la bienvenida y concede los permisos de las funciones que vayas a usar.
 
-> [!WARNING]
-> **Es una APK de depuración**, no una publicación estable firmada para distribución. Los certificados debug pueden variar entre ejecutores de CI: Android podría impedir actualizar sobre una APK instalada con otra firma. Antes de desinstalar, exporta los perfiles que quieras conservar; **las claves API no se exportan** y tendrás que configurarlas de nuevo.
-
-No existe una Release estable garantizada por esta documentación. El enlace a Actions muestra las ejecuciones existentes, no promete que haya un artifact disponible permanentemente.
+El canal de Actions distribuye **APK de prueba con firma debug**, después de superar sus controles. Los artifacts caducan y la firma puede variar entre ejecutores. Si Android impide una actualización por firma distinta, exporta antes tus perfiles; las claves no se exportan. La versión y el SHA de cada compilación se consultan en sus informes de CI.
 
 ## Primeros pasos
 
-1. Instala PbtMetaGPT y sigue la pantalla de bienvenida.
-2. Lee los avisos de privacidad, concede solo los permisos que necesites (micrófono; Bluetooth/cámara para funciones opcionales).
-3. En [GroqCloud Console](https://console.groq.com/keys), genera una clave gratuita personal. El plan gratuito tiene límites; no requiere self-hosting. Si prefieres OpenAI, su API se configura aparte y puede generar cargos.
-4. En **Servicios de IA**, elige GroqCloud, autoriza su uso y guarda la clave en el dispositivo. No pegues claves en mensajes ni incidencias.
-5. Crea un asistente o elige una plantilla, revisa sus instrucciones y selecciona una voz compatible.
-6. Configura, si quieres, las frases de activación y prueba el reconocimiento local con la app visible.
-7. Autoriza el micrófono e inicia una conversación manualmente. Espera a **Escuchando** y utiliza **Pausar**, **Interrumpir** o **Finalizar** cuando corresponda.
+1. En **Servicios de IA**, configura GroqCloud u OpenAI y acepta el tratamiento correspondiente. Guarda tu clave en la aplicación; no la compartas en incidencias.
+2. Crea un asistente o elige una plantilla y ajusta sus instrucciones.
+3. En **Voces → Natural**, selecciona una voz de España, descarga sus recursos y pulsa **Escuchar muestra**.
+4. En **Ajustes → Dispositivos → Micrófono**, elige la entrada y compruébala.
+5. Pulsa **Hablar** para iniciar una conversación manual o prepara la activación por voz como se explica a continuación.
 
-El asistente inicial permite elegir servicio, voz y realizar una prueba. Los ajustes de gafas, frases y voces avanzadas están disponibles más adelante.
+No necesitas gafas, servidor, VPS ni dominio para usar GroqCloud desde el teléfono. El backend HTTPS de OpenAI es una alternativa opcional al uso directo de una clave personal.
 
-El plan gratuito GroqCloud tiene límites por proveedor y modelo. OpenAI API requiere presupuesto independiente y solo se usa si lo eliges expresamente.
+## Activación, conversación y pantalla bloqueada
 
-## Asistentes y frases de activación
+Configura las frases de tu asistente en **Activación por voz** y descarga el **modelo español Vosk**. Habilita **Escuchar frase de activación en segundo plano** si quieres continuar al minimizar o bloquear.
 
-Cada perfil admite nombre, avatar textual, idioma, personalidad, instrucciones, estilo, humor, vocabulario, extensión, voz y duración. Puedes importar y exportar configuraciones, pero nunca credenciales ni pesos de modelos.
+Pulsa **Activar escucha** con la aplicación visible, concede micrófono y notificaciones y confirma **Autorizar y activar**. Comprueba el estado de espera y la entrada activa antes de guardar el teléfono.
 
-**«Jarvis»** es solo un ejemplo de personalidad inspirada en la ficción: no es oficial de Marvel ni incluye una voz licenciada. Puedes crear las frases **«Atento Jarvis»**, **«Escucha Jarvis»** y **«Atención Jarvis»**, u otras propias. Se pueden activar varias por perfil y designar una principal.
+| Qué dices o haces | Resultado |
+| --- | --- |
+| «Atento Jarvis» u otra frase guardada | Inicia una conversación con el asistente configurado |
+| Una pregunta y después otra | Mantiene el contexto durante la sesión |
+| «Para» mientras responde | Interrumpe y cancela el audio pendiente |
+| «Termina» | Finaliza la conversación y vuelve a la espera autorizada |
+| «Deja de escuchar» | Detiene también la espera de activación |
+| Pausar o detener en la notificación | Suspende o termina la escucha y libera sus recursos |
 
-La activación emplea `SpeechRecognizer.createOnDeviceSpeechRecognizer`. Requiere autorización, aplicación visible y motor local compatible. Tiene ventanas limitadas, no aprende nombres inventados y puede reconocer incorrectamente algunas frases. **No escucha permanentemente**, no funciona con la pantalla bloqueada ni sustituye «Hey Meta». Consulta los [detalles y límites técnicos](docs/GUIA_TECNICA.md).
+La espera es local: no envía audio de fondo al proveedor. Los nombres y frases deben ser reconocibles por el vocabulario del modelo; no se garantiza cualquier nombre inventado. La modalidad de activación visible utiliza el reconocedor on-device de Android; el servicio continuo utiliza Vosk y detección de actividad de voz. No controla «Hey Meta».
 
-El dictado de la pregunta ofrece dos rutas: **local** (por defecto, reconocimiento de Android offline o Vosk) y **Groq Whisper**, que requiere marcar expresamente «Dictado preciso con Groq Whisper» en **Activación por voz**. La frase de activación se detecta localmente en ambos casos. Con Whisper activado, la pregunta grabada se envía como WAV temporal en memoria a GroqCloud para transcribirla; el audio no se guarda en la galería ni en el historial de la aplicación. Esta opción necesita red, consume límites del proveedor y puede implicar coste dependiendo de la cuenta; se puede desactivar en cualquier momento.
+Una llamada, un cambio de ruta, permisos retirados o una interrupción de audio pueden suspender la escucha. Comprueba la causa y reactívala expresamente. No se reinicia sola tras un cierre forzado ni por reconectar las gafas. Si deshabilitas segundo plano, salir de la aplicación detiene la espera y pausa la conversación.
 
-## Voces y modelos locales
+En el Nothing Phone revisa permisos, notificaciones y restricciones de batería desde Ajustes de Android. La aplicación no cambia esas opciones por ti. Los [procedimientos de validación física](docs/CANDIDATA_RAYBAN.md) incluyen bloqueo prolongado, Doze, llamadas, reconexión, consumo y latencia.
 
-| Motor | Función | Limitación |
+## Ray-Ban Meta y micrófono
+
+1. Empareja las gafas en Meta AI y Bluetooth de Android. Completa los requisitos de desarrollador y autorización de Meta DAT que correspondan a tu instalación.
+2. En **Ajustes → Dispositivos**, concede Bluetooth, registra PbtMetaGPT y pulsa **Conectar gafas Meta**.
+3. En **Micrófono**, elige **Automático**, identifica tus gafas entre las rutas Bluetooth disponibles o selecciona **Teléfono**.
+4. Pulsa **Probar micrófono de las gafas** y pronuncia una frase. Comprueba el indicador de nivel, la transcripción local y el nombre/tipo de la entrada realmente utilizada. Comprueba la salida aparte con **Probar sonido**.
+5. Activa la escucha antes de pulsar Inicio o bloquear.
+
+**Bluetooth conectado, sesión DAT activa y micrófono en uso son estados diferentes.** La captura utiliza una ruta de comunicación HFP/LE compatible publicada por Android; A2DP no proporciona entrada de micrófono. Si la ruta externa no se confirma, la captura se pausa sin cambiar ocultamente al teléfono. La prueba local no guarda grabaciones ni envía audio a Internet.
+
+El controlador DAT pertenece a la aplicación, no a una pantalla. Con el servicio autorizado activo, pulsar Inicio o recrear la interfaz conserva su sesión; la cámara se cierra al ocultarla. La recuperación temporal está limitada y no vuelve a activar sensores. Algunos firmwares presentan conflictos entre HFP y DAT/cámara; puede ser necesario pausar audio y reconectar DAT para una foto. Consulta los [estados, diagnóstico y límites del SDK](docs/CANDIDATA_RAYBAN.md#conectar-y-conservar-la-sesión).
+
+La cámara requiere captura explícita, permiso y vista previa. Enviar una foto a Groq Vision u OpenAI necesita una segunda confirmación. No se captura ni se transmite vídeo permanentemente.
+
+## Abrir ChatGPT en voz
+
+Puedes decir **«Abre GPT Live»**, **«Abre ChatGPT»**, **«Inicia ChatGPT en voz»** o **«Quiero hablar con ChatGPT»**. PbtMetaGPT cancela su respuesta, detiene la escucha y libera micrófono y foco antes de abrir la aplicación oficial.
+
+En ChatGPT, activa **Ajustes → Voz → Iniciar con Voz**, si aparece en tu versión. La [función oficial](https://help.openai.com/en/articles/20001274-chatgpt-voice) inicia Voz en una conversación nueva o vacía; una conversación existente puede necesitar una acción manual.
+
+No hay una interfaz pública documentada localizada que garantice iniciar Live desde otra aplicación. Se utiliza la entrada pública de ChatGPT, sin pulsaciones simuladas ni componentes privados. Si Android impide abrirla desde segundo plano o con el móvil bloqueado, utiliza la acción de la notificación. Abrir ChatGPT no acredita que Voz se haya iniciado. Al volver, pulsa **Hablar** o **Activar escucha** para recuperar el micrófono.
+
+## Voces de España
+
+En **Voces → Natural** tienes tres voces Piper de español de España (`es_ES`, calidad medium):
+
+| Voz | Recursos | Uso |
 | --- | --- | --- |
-| OpenAI Realtime | Voces nativas en sesión WebRTC | Requiere API de pago y conectividad |
-| Android TTS | Voces instaladas en Android | Idiomas y tratamiento dependen del proveedor |
-| Piper de España local | Davefx y dos voces Sharvard, es_ES, calidad medium | Inferencia y muestra en emulador; calidad audible/latencia física pendientes |
-| Kokoro-82M local | Tres voces en español, conservadas en Avanzada | PCM verificado en emulador; sin variante de España acreditada |
-| Qwen3-TTS | Voz neuronal online a través de un Space público autorizado | Las colas de GPU pueden retrasar la respuesta |
-| RVC ONNX | Conversión local optativa con sintetizador, HuBERT/ContentVec y RMVPE | Pesos autorizados y calidad física pendientes; importar .pth no equivale a ejecutar ONNX |
-| OpenAI Speech | Síntesis de texto separada | Adaptador transitorio; verificar disponibilidad |
-| API TTS externa | Servicio HTTPS y token independiente | Envía el texto de respuesta solo con autorización |
-| Sherpa ONNX | Piper/VITS local en proceso aislado | Solo formato compatible y diccionario completo |
+| Davefx | 63,2 MB; reserva de instalación de 256 MiB | Una voz y su modelo |
+| Sharvard masculina | 76,7 MB compartidos; reserva de 300 MiB | Hablante masculino |
+| Sharvard femenina | El mismo modelo Sharvard | Hablante femenino; sin duplicar descarga |
 
-Se admiten paquetes ZIP `sherpa-piper-phonemes-v1` con `voz.json`, `model.onnx`, `tokens.txt` y `lexicon.tsv`. No acepta ONNX arbitrarios; una importación válida **no demuestra** síntesis inteligible. Consulta [Biblioteca de voces](docs/BIBLIOTECA_DE_VOCES.md).
+Selecciona una voz con un toque: la elección se guarda. La descarga y la reproducción de muestras requieren tu acción. **Cambiar entre las dos Sharvard reutiliza el mismo modelo ONNX**. Puedes comprobar o eliminar los recursos desde sus controles; cada descarga verifica SHA-256.
 
-**Natural** ofrece **Piper Davefx, Sharvard masculina y Sharvard femenina**, publicadas como español de España (`es_ES`, calidad medium). Las dos Sharvard comparten modelo. **Rápida** contiene las voces Android TTS; con `es-ES` no se sustituye silenciosamente por una variante americana. **Avanzada** conserva Kokoro, Qwen remoto, RVC e importaciones. Seleccionar una voz guarda la preferencia; la descarga y reproducción requieren acciones expresas.
+**Rápida** ofrece Android TTS. **Avanzada** conserva Kokoro, Qwen3-TTS remoto, RVC ONNX e importaciones, con su motor identificado. Los perfiles Kokoro anteriores se conservan. Las voces Android no se presentan como Piper ni Kokoro.
 
-En **Voces → Natural**, selecciona Davefx y pulsa **Descargar voz de España** (63,2 MB; reserva de instalación 256 MiB), o elige Sharvard y pulsa **Descargar Sharvard · dos voces** (76,7 MB compartidos; reserva 300 MiB). Después pulsa **Escuchar muestra**. Kokoro permanece en **Avanzada → Kokoro local · catálogo anterior** (354 MB; reserva 750 MiB). Los modelos se verifican con SHA-256 y permiten comprobar/eliminar recursos. Inferencia real, selección y muestras se prueban en emuladores API35/API36; el resultado y la APK de cada SHA se registran en [PROGRESO.md](docs/PROGRESO.md). Calidad audible y latencia del teléfono siguen pendientes. [Voces, procedencia y licencias](docs/CANDIDATA_RAYBAN.md#voces-de-españa-solicitadas).
+La [documentación de voces y licencias](docs/CANDIDATA_RAYBAN.md#voces-de-españa-solicitadas) detalla procedencia, hablantes, hashes y atribución. Los modelos no se incluyen en la APK. Los paquetes importados deben cumplir el [formato de la biblioteca](docs/BIBLIOTECA_DE_VOCES.md).
 
-**RVC local ONNX (experimental):** cadena optativa Piper/Kokoro → PCM → HuBERT/ContentVec → RMVPE → RVC ONNX → salida. Se conservan los tres modelos y las importaciones; desactivar RVC no los elimina. Añade procesamiento y puede producir artefactos: no se recomienda por defecto ni se declara validado con pesos RVC auténticos o gafas.
+RVC es una conversión opcional que añade procesamiento. Los `.pth` y `.index` se pueden almacenar, pero no se ejecutan: el motor necesita los componentes ONNX compatibles. El índice FAISS no interviene en la inferencia actual. Consulta [RVC local en Android](docs/RVC_LOCAL_ANDROID.md).
 
-Los `.pth` y `.index` originales permanecen importables para almacenamiento, **pero no son ejecutables en este motor**. Debes exportar el sintetizador RVC a ONNX con una herramienta confiable desde un ordenador; no basta con renombrar el archivo. El índice FAISS `.index` no se utiliza en la conversión ONNX actual. Consulta [RVC local en Android](docs/RVC_LOCAL_ANDROID.md) para los formatos compatibles y las pruebas pendientes.
+## Internet y funcionamiento local
 
-## Ray-Ban Meta
+| Función | Conexión |
+| --- | --- |
+| Activación Vosk, dictado Vosk y prueba de micrófono | Local después de descargar el modelo |
+| Piper, Kokoro y RVC compatibles | Local después de instalar sus recursos |
+| Perfiles, selección de voces y ajustes | Local |
+| GroqCloud, Groq Vision, OpenAI y ChatGPT oficial | Internet |
+| Groq Whisper | Internet y consentimiento adicional para enviar el audio de la petición |
+| Qwen3-TTS remoto y API TTS externa | Internet; reciben el texto autorizado |
+| Descarga inicial de modelos | Internet, con acción expresa |
 
-La app integra componentes de **Meta Wearables Device Access Toolkit (DAT)**. Para probarlos necesitas gafas compatibles emparejadas, Meta AI, permisos y autorización del registro de desarrollador de Meta.
-
-El código contempla distintas familias DAT, incluido `DeviceType.META_GLASSES` para Meta Glasses como Adventurer, Ray-Ban Meta Gen 1/2, Oakley Meta HSTN/Vanguard y Meta Ray-Ban Display según las capacidades que informe el SDK. «Meta Glasses 00R6» se muestra como nombre del dispositivo, sin deducir un modelo estable. Ninguna de estas familias se declara validada físicamente; véanse los [detalles y limitaciones](docs/CORRECCIONES_INTERFAZ.md).
-
-Comprueba por separado: sesión DAT, micrófono real, altavoces reales, captura puntual, vista previa y segunda confirmación antes de enviar una imagen a Groq Vision u OpenAI. En **Ajustes → Dispositivos → Micrófono** elige Automático, tus gafas identificadas por su nombre Android o Teléfono. **Probar micrófono de las gafas** muestra nivel, entrada real y transcripción local efímera. La selección externa se pausa si no se confirma, sin cambiar ocultamente al móvil. **Conectado no equivale a audio o cámara certificados.**
-
-No se garantiza funcionamiento con ninguna combinación de modelo, firmware y teléfono; tampoco captura continua, escucha en segundo plano o control de «Hey Meta». Consulta [pruebas reales](docs/PRUEBAS_REALES.md).
-
-## Arquitectura
-
-```mermaid
-flowchart TD
-    U[Consentimiento] --> A[App Android]
-    A --> P[Perfiles y asistentes]
-    A --> W[Reconocimiento local]
-    A --> D[Meta DAT]
-    G[Gafas Ray-Ban Meta] -.-> D
-    P --> K[Keystore BYOK]
-    K --> GQ[GroqCloud Free]
-    GQ --> GV[Groq Vision]
-    GQ --> Q[Cola TTS cancelable]
-    K --> R[OpenAI Realtime WebRTC]
-    P --> B[Backend HTTPS opcional]
-    B --> R
-    R --> V[Voz OpenAI]
-    R --> Q
-    Q --> T[Android TTS]
-    Q --> S[Sherpa ONNX aislado]
-    Q --> X[OpenAI Speech / TTS externo]
-    V --> O[Audio Android]
-    T --> O
-    S --> O
-    X --> O
-```
-
-El diagrama describe el software, **no rutas físicas comprobadas de las gafas**. Ver [arquitectura detallada](docs/ARQUITECTURA.md).
+La activación y la voz local no convierten a Groq u OpenAI en un modelo de conversación offline. Android TTS y el reconocimiento on-device dependen de los componentes e idiomas instalados.
 
 ## Seguridad y privacidad
 
-- BYOK cifra la clave en reposo con AES-256-GCM y Android Keystore; proveedores externos usan otro almacén. Una clave puede quedar expuesta en memoria durante su uso si el dispositivo está comprometido.
-- No se incluyen claves en el repositorio, APK ni perfiles exportados. Los textos personales exportados **no se cifran**: revísalos antes de compartirlos.
-- El reconocimiento de la frase de activación es local. Por defecto, el dictado también es local; **solo si activas Groq Whisper** se envía el audio posterior de cada petición a GroqCloud, sujeto a cuota y condiciones de la cuenta. Conversaciones, fotos y voces que autorices pueden enviarse al proveedor elegido (GroqCloud, Qwen u OpenAI). Los proveedores TTS externos autorizados reciben texto de respuesta.
-- La cámara precisa acción explícita, vista previa y segunda confirmación. Los modelos de usuario se verifican y se ejecutan aislados, sin garantizar seguridad absoluta.
-- No se almacena un historial permanente de conversación según la implementación documentada. Borrar una clave local **no** la revoca en el proveedor.
+Las claves personales se cifran en reposo con **AES-GCM y Android Keystore**, con almacenes separados para los proveedores. No se incluyen en el código, la APK, los perfiles exportados ni los registros. Un dispositivo comprometido puede exponer credenciales durante su uso: utiliza presupuestos limitados y revoca las claves desde el proveedor si pierdes el teléfono.
 
-Utiliza una clave de proyecto con presupuesto limitado y revócala ante pérdida del teléfono. Revisa los términos del motor TTS Android. Puedes usar el [backend opcional](backend/README.md) en lugar de BYOK.
+La espera no almacena grabaciones permanentes. El audio de dictado solo se envía a Groq Whisper si activas esa opción. Las conversaciones, fotos y textos de síntesis autorizados se envían al servicio elegido. Revisa sus condiciones antes de activarlos.
 
+La exportación de perfiles no contiene claves; su texto personal no se cifra. Revisa cualquier archivo o captura antes de compartirlo. El [backend opcional](backend/README.md) permite evitar el uso directo de BYOK desde el cliente.
 
-## Requisitos y compilación
+## Compilar y probar
 
-Versiones verificadas en Gradle y el wrapper:
+Usa **JDK 17, Android SDK 36, NDK 28.2.13676358 y CMake 3.22.1**. La versión mínima es API31; el objetivo y compilación son API36. El proyecto utiliza Kotlin, Jetpack Compose, DAT, WebRTC, ONNX Runtime y Sherpa. Las versiones exactas están en [Gradle](app/build.gradle.kts).
 
-| Componente | Versión |
-| --- | --- |
-| Android mínimo / objetivo / compile SDK | API **31 / 36 / 36** |
-| App | **0.5.0-rc1**, código **6** |
-| JDK / Java | **17** |
-| Gradle / Android Gradle Plugin | **8.14.1 / 8.11.1** |
-| Kotlin | **2.2.21** |
-| Jetpack Compose BOM | **2026.05.01** |
-| Meta DAT core/camera | **1.0.1** |
-| WebRTC comunitario | **150.7871.01** |
-| Sherpa ONNX | **2.0.1** |
-| SDK y herramientas Android | SDK 36 y paquetes exigidos por AGP |
-
-Instala Android Studio, JDK 17, Android SDK 36, NDK 28.2.13676358 y CMake 3.22.1. La preparación del fonemizador necesita también CMake y un compilador C del host; eSpeak NG añade obligaciones GPL-3.0-or-later a su componente, detalladas en la guía de voz local. Configura el SDK en `local.properties` mediante `sdk.dir` o la variable `ANDROID_HOME`. Los parámetros públicos de registro Meta DAT (`mwdat_application_id` y `mwdat_client_token`) no sustituyen la clave personal de OpenAI. **No introduzcas claves privadas en el código.**
+Configura `ANDROID_HOME` o `sdk.dir` en `local.properties`. La preparación nativa requiere las herramientas del host indicadas por sus scripts, incluido `patchelf` para Sherpa. No añadas claves privadas a los recursos de Android.
 
 ```bash
 git clone https://github.com/PbtServers/PbtMetaGPT.git
 cd PbtMetaGPT
 python tools/preparar_fonemizador.py
 python tools/preparar_sherpa.py
-./gradlew testDebugUnitTest
-./gradlew lintDebug
-./gradlew assembleDebug
-```
-
-En Windows utiliza `gradlew.bat`. La APK debug se genera en `app/build/outputs/apk/debug/app-debug.apk`. Para pruebas adicionales:
-
-```bash
+./gradlew testDebugUnitTest lintDebug assembleDebug
 node --test backend/*.test.mjs
 python -m unittest discover -s tools -p 'test_*.py'
 python tools/comprobar_secretos.py app/build/outputs/apk/debug/app-debug.apk
-# Solo con emulador configurado y fixture preparada:
+```
+
+En Windows utiliza `gradlew.bat` y prepara las herramientas nativas correspondientes. La APK se genera en `app/build/outputs/apk/debug/app-debug.apk`. Para pruebas instrumentadas con emulador:
+
+```bash
 python tools/preparar_modelo_prueba.py
 python tools/preparar_kokoro_prueba.py
 ./gradlew connectedDebugAndroidTest
 ```
 
-**Los comandos están contrastados con los scripts y la configuración del repositorio**, pero necesitan un entorno Android correctamente instalado; esta documentación no afirma una nueva compilación local.
+La CI comprueba JVM, Lint, compilación, Python, backend, seguridad e instrumentación en Android 15/API35 y Android 16/API36 antes de publicar la APK. **Un emulador no acredita el micrófono de las gafas, Bluetooth, calidad audible ni consumo del teléfono.** Los resultados por compilación están en [Validación](docs/VALIDACION.md) y [Seguimiento técnico](docs/PROGRESO.md).
 
-## Pruebas y desarrollo
+## Documentación y ayuda
 
-La compilación anterior `cc489d5` superó 28/28 pruebas instrumentadas tanto en Android 15 como en Android 16: [ejecución de referencia](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40606942378). **Esta evidencia no valida automáticamente los cambios v0.5.0**; consulta la ejecución correspondiente al SHA de la candidata. Las pruebas no acreditan sonido real en las gafas.
-
-| Documentación | Contenido |
+| Documento | Contenido |
 | --- | --- |
-| [Progreso](docs/PROGRESO.md) | Fases, porcentajes y pendientes |
-| [Validación](docs/VALIDACION.md) | Matriz de evidencias |
-| [Pruebas reales](docs/PRUEBAS_REALES.md) | Teléfono, OpenAI y gafas |
+| [Dispositivos, escucha y voces](docs/CANDIDATA_RAYBAN.md) | Configuración, diagnóstico y pruebas en Nothing/Ray-Ban |
+| [Conversación continua](docs/CONVERSACION_CONTINUA.md) | Estados, órdenes e interrupción |
+| [Validación](docs/VALIDACION.md) | Evidencias automáticas, emulador y hardware |
 | [Arquitectura](docs/ARQUITECTURA.md) | Componentes y contratos |
-| [Biblioteca de voces](docs/BIBLIOTECA_DE_VOCES.md) | Paquetes, licencias y limitaciones |
-| [Guía técnica](docs/GUIA_TECNICA.md) | Detalles del README anterior |
-| [Desarrollo](docs/DESARROLLO.md) | Estructura, pruebas y contribuciones |
+| [Biblioteca de voces](docs/BIBLIOTECA_DE_VOCES.md) | Paquetes y compatibilidad |
+| [Pruebas reales](docs/PRUEBAS_REALES.md) | Reproducción y aceptación con dispositivos |
+| [Desarrollo](docs/DESARROLLO.md) | Contribución y herramientas |
 
-No confundas tests JVM, emulador, integración simulada y **aceptación con hardware real**. La versión 0.5.0 es candidata hasta validar las regresiones conocidas de audio, dictado, cámara y proveedor.
+Para informar de un fallo, abre una [incidencia](https://github.com/PbtServers/PbtMetaGPT/issues) con versión/SHA, Android, pasos y diagnóstico sanitizado. No adjuntes claves, conversaciones ni imágenes personales. Consulta [CONTRIBUTING.md](CONTRIBUTING.md) para contribuir.
 
-## Preguntas frecuentes
-
-<details>
-<summary><strong>¿Necesito ChatGPT Plus o un servidor propio?</strong></summary>
-
-No. BYOK permite utilizar la API sin servidor propio. **La API de OpenAI se factura independientemente de ChatGPT Plus.** El backend es opcional.
-</details>
-
-<details>
-<summary><strong>¿La aplicación es gratuita? ¿La API tiene coste?</strong></summary>
-
-El código se publica con la licencia del repositorio. Las APIs externas pueden generar costes: consulta tarifas y presupuestos del proveedor antes de iniciar conversaciones.
-</details>
-
-<details>
-<summary><strong>¿Puedo usarla sin gafas y crear mi propio Jarvis?</strong></summary>
-
-La interfaz Android permite configurar asistentes sin gafas. Jarvis es solo una inspiración de estilo, no un producto Marvel. La conversación con proveedor real todavía requiere validación.
-</details>
-
-<details>
-<summary><strong>¿Puedo importar cualquier voz o modelo?</strong></summary>
-
-Se pueden importar paquetes Piper/VITS en el formato documentado y, desde 0.5.0-rc1, archivos RVC ZIP, `.pth` y `.index` autorizados. **Los RVC se almacenan sin ejecutarlos**: importar una voz no la convierte en una voz funcional.
-</details>
-
-<details>
-<summary><strong>¿Funciona con la pantalla bloqueada o sustituye «Hey Meta»?</strong></summary>
-
-No. La detección local requiere aplicación visible y consentimiento; no controla el activador reservado de Meta.
-</details>
-
-<details>
-<summary><strong>¿Por qué no reconoce mi frase de activación?</strong></summary>
-
-Comprueba permisos, motor de reconocimiento instalado, idioma, batería y coincidencia de la frase. Usa la prueba local; una comparación textual no mide reconocimiento acústico.
-</details>
-
-<details>
-<summary><strong>¿Dónde está la API key y qué hago si falla la conexión?</strong></summary>
-
-Se guarda cifrada localmente con Android Keystore. Comprueba credenciales, límites de API, red y diagnóstico. Si pierdes el teléfono, revoca la clave desde OpenAI Platform.
-</details>
-
-## Contribuir y créditos
-
-Consulta [CONTRIBUTING.md](CONTRIBUTING.md) antes de abrir un [Issue](https://github.com/PbtServers/PbtMetaGPT/issues) o [Pull Request](https://github.com/PbtServers/PbtMetaGPT/pulls). Ejecuta pruebas, documenta cambios y no subas secretos, capturas privadas ni material protegido de terceros.
-
-Proyecto de **PbtServers**. Tecnologías principales: Kotlin, Android, Jetpack Compose, Meta DAT, OpenAI Realtime, WebRTC y Sherpa ONNX. Respeta las licencias de cada dependencia y modelo. **Licencia del repositorio:** [LICENSE](LICENSE); no concede derechos sobre marcas o voces ajenas.
-
----
-
-<sub>PbtMetaGPT es independiente de Meta, OpenAI, GroqCloud y Marvel. Versión candidata 0.5.0-rc1; compatibilidad física y funcionalidades nuevas pendientes de aceptación.</sub>
+Proyecto de **PbtServers**, independiente de Meta, OpenAI, GroqCloud y Marvel. «Jarvis» es una referencia de personalidad, no una voz licenciada ni una integración oficial de Marvel. La [licencia del repositorio](LICENSE) no concede derechos sobre marcas, voces o modelos de terceros.
