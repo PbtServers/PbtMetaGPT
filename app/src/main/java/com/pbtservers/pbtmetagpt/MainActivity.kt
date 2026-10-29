@@ -69,8 +69,8 @@ class MainActivity : ComponentActivity() {
         cacheDir.listFiles().orEmpty().filter { it.name.startsWith("voz-") && it.name.endsWith(".wav") }.forEach { it.delete() }
         enableEdgeToEdge()
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        photoMemory = androidx.lifecycle.ViewModelProvider(this)[PhotoMemory::class.java]
-        glasses = MetaGlasses(this, lifecycleScope, { message = it }, diagnostics, photoMemory)
+        photoMemory = app.photoMemory
+        glasses = app.glasses
         voice = app.voice
         lifecycleScope.launch { app.message.collect { text ->
             if (text != null) { message = text; if (photoMemory.bitmap != null) photoMemory.error = text; app.clearMessage() }
@@ -78,8 +78,7 @@ class MainActivity : ComponentActivity() {
         localAudio = LocalAudioDiagnostics(this, lifecycleScope, diagnostics)
         vault = KeyVault(this)
         wake = LocalWakeListener(this, lifecycleScope) { profile, question -> if (foreground) wakeStart(profile, question) }
-        // DAT controla cámara/dispositivo. Las interrupciones de audio se observan en AudioRoute;
-        // cerrar una sesión DAT al ocultar la pantalla no implica perder la ruta Bluetooth.
+        // DAT pertenece al proceso autorizado; ocultar la UI solo cancela la cámara.
         microphoneReady = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         bluetoothReady = checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
         if (bluetoothReady) glasses.initialize()
@@ -139,12 +138,12 @@ class MainActivity : ComponentActivity() {
                                 } }
                             }
                             if (!bluetoothReady) Button(onClick = { bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT) }) { Text("Permitir Bluetooth") }
-                            else if (!gs.registered) Button(onClick = glasses::register, enabled = gs.initialized && !gs.registering) { Text(if (gs.registering) "Esperando a Meta AI…" else "Registrar con Meta AI") }
+                            else if (!gs.registered) Button(onClick = { glasses.register(this@MainActivity) }, enabled = gs.initialized && !gs.registering) { Text(if (gs.registering) "Esperando a Meta AI…" else "Registrar con Meta AI") }
                             else {
                                 Button(onClick = { if (gs.connected || gs.connecting) { voice.stop(); glasses.disconnect() } else glasses.connect() }) {
                                     Text(if (gs.connected || gs.connecting) "Desconectar gafas" else "Conectar gafas Meta")
                                 }
-                                if (deviceAdvanced) TextButton(onClick = { voice.stop(); glasses.unregister() }) { Text("Retirar registro de Meta AI") }
+                                if (deviceAdvanced) TextButton(onClick = { voice.stop(); glasses.unregister(this@MainActivity) }) { Text("Retirar registro de Meta AI") }
                             }
                             if (deviceAdvanced) Text("Necesitas Meta AI, gafas emparejadas y modo de desarrollador o una aplicación autorizada por Meta.", style = MaterialTheme.typography.bodySmall)
                             if (deviceAdvanced) Text("Este paso es opcional. Si Meta AI no abre el enlace, activa de nuevo el modo de desarrollador con las gafas conectadas y comprueba que DAT esté instalado en ellas. Actualiza y reinicia Meta AI antes de reintentar. El registro no borra el Setup.", style = MaterialTheme.typography.bodySmall)
@@ -270,7 +269,9 @@ class MainActivity : ComponentActivity() {
             voice.suspendForBackground(); app.hosted.suspendConversation()
             if (!voice.state.value.active && !app.hosted.state.value.active) app.connection = null
         }
-        glasses.stopCapture(); glasses.disconnect(); super.onStop()
+        glasses.stopCapture()
+        if (!DatConnectionPolicy.retain(app.activityVisible, ContinuousWakeService.running, isChangingConfigurations)) glasses.disconnect()
+        super.onStop()
     }
 }
 

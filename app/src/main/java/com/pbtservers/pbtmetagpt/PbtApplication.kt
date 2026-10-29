@@ -15,6 +15,8 @@ class PbtApplication : Application() {
     lateinit var journal: ErrorJournal; private set
     val diagnostics by lazy { Diagnostics(journal = journal) }
     val microphone = MicrophoneGate()
+    val photoMemory = PhotoMemory()
+    val glasses by lazy { MetaGlasses(this, scope, { mutableMessage.value = it }, diagnostics, photoMemory) }
     var activityVisible = false
     var stopVisibleWake: (() -> Unit)? = null
     private var handoff: Job? = null

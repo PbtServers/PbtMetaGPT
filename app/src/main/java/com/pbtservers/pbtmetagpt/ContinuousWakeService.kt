@@ -152,6 +152,7 @@ class ContinuousWakeService : Service() {
         if (mutable.value != ListeningPhase.SUSPENDED) mutable.value = ListeningPhase.OFF
         stopForeground(STOP_FOREGROUND_REMOVE)
         foregroundStarted = false
+        if (!app.activityVisible) app.glasses.disconnect()
         super.onDestroy()
     }
     companion object {

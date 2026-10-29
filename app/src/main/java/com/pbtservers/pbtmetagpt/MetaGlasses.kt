@@ -1,6 +1,9 @@
 package com.pbtservers.pbtmetagpt
 
 import android.app.Activity
+import android.content.Context
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import com.meta.wearable.dat.camera.addCamera
@@ -33,7 +36,11 @@ data class GlassesState(
 )
 
 /** Ciclo DAT 1.0.1. La conexión solo se confirma al recibir STARTED del SDK. */
-class MetaGlasses(private val activity: Activity, private val scope: CoroutineScope, private val error: (String) -> Unit, private val diagnostics: Diagnostics = Diagnostics(), private val photoMemory: PhotoMemory = PhotoMemory()) {
+class MetaGlasses(context: Context, private val scope: CoroutineScope, private val error: (String) -> Unit, private val diagnostics: Diagnostics = Diagnostics(), private val photoMemory: PhotoMemory = PhotoMemory()) {
+    private val context = context.applicationContext
+    private val recovery = DatConnectionPolicy()
+    private var recoveryJob: Job? = null
+    private var requestedDevice: DeviceIdentifier? = null
     private val mutable = MutableStateFlow(GlassesState(photo = photoMemory.bitmap))
     val state = mutable.asStateFlow()
     private var session: DeviceSession? = null
@@ -48,7 +55,7 @@ class MetaGlasses(private val activity: Activity, private val scope: CoroutineSc
         if (state.value.initialized) return
         try {
             var ready = false
-            Wearables.initialize(activity).onSuccess { ready = true }.onFailure { cause, _ ->
+            Wearables.initialize(context).onSuccess { ready = true }.onFailure { cause, _ ->
                 ready = cause == com.meta.wearable.dat.core.types.WearablesError.ALREADY_INITIALIZED
                 if (!ready) {
                     diagnostics.record(Check.DAT_INIT, CheckStatus.ERROR, "DAT rechazó la inicialización.", Diagnostics.sdkCode(cause))
@@ -90,6 +97,7 @@ class MetaGlasses(private val activity: Activity, private val scope: CoroutineSc
                                 deviceDescriptions[id] = GlassesDevice(id, name, metadata.deviceType,
                                     metadata.compatibility, metadata.linkState, metadata.isDisplayCapable())
                                 mutable.update { it.copy(devices = deviceDescriptions.values.toList()) }
+                                if (session == null) scheduleRecovery()
                             }
                         }
                     }
@@ -102,7 +110,7 @@ class MetaGlasses(private val activity: Activity, private val scope: CoroutineSc
         }
     }
 
-    fun register() {
+    fun register(activity: Activity) {
         if (!state.value.initialized) { error("Concede Bluetooth para preparar Meta DAT antes de registrar."); return }
         try {
             val info = activity.packageManager.getPackageInfo("com.facebook.stella", 0)
@@ -140,9 +148,15 @@ class MetaGlasses(private val activity: Activity, private val scope: CoroutineSc
         diagnostics.record(Check.DAT_REGISTRATION, if (state.value.registered) CheckStatus.OK else CheckStatus.WARNING,
             "Retorno a la aplicación. El enlace por sí solo no concede registro ni inicia sensores.", "RETURN_TO_APP")
     }
-    fun unregister() { disconnect(); safely { Wearables.startUnregistration(activity) } }
+    fun unregister(activity: Activity) { disconnect(); safely { Wearables.startUnregistration(activity) } }
 
     fun connect(deviceId: DeviceIdentifier? = null) {
+        recoveryJob?.cancel(); recoveryJob = null
+        recovery.authorize(); requestedDevice = deviceId
+        connectAuthorized(deviceId)
+    }
+
+    private fun connectAuthorized(deviceId: DeviceIdentifier?) {
         if (!state.value.registered || state.value.connecting || session != null) return
         if (deviceId != null && state.value.devices.none { it.id == deviceId && it.canConnect }) {
             error("DAT no confirma que estas gafas estén disponibles y sean compatibles. Revisa el estado indicado y vuelve a intentarlo.")
@@ -173,30 +187,41 @@ class MetaGlasses(private val activity: Activity, private val scope: CoroutineSc
                     ) }
                     if (value == DeviceSessionState.STARTED) connectTimeout?.cancel()
                     if (value != DeviceSessionState.STARTED) captureJob?.cancel()
-                    if (value == DeviceSessionState.STOPPED) clearSession()
+                    if (value == DeviceSessionState.STOPPED) {
+                        clearSession()
+                        mutable.update { it.copy(connected = false, connecting = false, capturing = false, cameraAvailable = null) }
+                        scheduleRecovery()
+                    }
                 }
             }
             sessionJobs += scope.launch { created.errors.collect { cause ->
                 diagnostics.record(Check.DAT_SESSION, CheckStatus.ERROR, "DAT ha comunicado un error de sesión. Comprueba registro, firmware y disponibilidad.", Diagnostics.sdkCode(cause))
                 error("Error de las gafas. Comprueba conexión, firmware y permisos en Meta AI.")
-                disconnect()
+                session?.stop(); clearSession()
+                mutable.update { it.copy(connected = false, connecting = false, capturing = false, cameraAvailable = null) }
+                scheduleRecovery()
             } }
             created.start()
             connectTimeout = scope.launch {
                 delay(25_000)
                 if (!state.value.connected) {
                     diagnostics.record(Check.DAT_SESSION, CheckStatus.ERROR, "DAT no confirmó la conexión antes del límite.", "DAT_TIMEOUT")
-                    error("No se han podido conectar las gafas a tiempo."); disconnect()
+                    error("No se han podido conectar las gafas a tiempo.")
+                    session?.stop(); clearSession()
+                    mutable.update { it.copy(connected = false, connecting = false, capturing = false, cameraAvailable = null) }
+                    scheduleRecovery()
                 }
             }
         }.onFailure { cause, _ ->
             diagnostics.record(Check.DAT_SESSION, CheckStatus.ERROR, "DAT no pudo crear una sesión.", Diagnostics.sdkCode(cause))
             mutable.update { it.copy(connecting = false, status = "No se pudo crear la conexión") }
             error("Meta no pudo crear una sesión. Revisa el registro y la disponibilidad de las gafas.")
+            scheduleRecovery()
         }
     }
 
     private fun clearSession() {
+        captureJob?.cancel()
         session = null
         connectTimeout?.cancel()
         sessionJobs.forEach { it.cancel() }
@@ -204,10 +229,34 @@ class MetaGlasses(private val activity: Activity, private val scope: CoroutineSc
     }
 
     fun disconnect() {
+        recovery.revoke(); recoveryJob?.cancel(); recoveryJob = null
         captureJob?.cancel()
         session?.stop()
         clearSession()
         mutable.update { it.copy(connected = false, connecting = false, capturing = false, cameraAvailable = null, selectedDevice = null, status = "Sin conexión con las gafas") }
+    }
+
+    private fun scheduleRecovery() {
+        if (recoveryJob?.isActive == true || session != null || !state.value.registered) return
+        val owner = context as? PbtApplication ?: return
+        val audio = context.getSystemService(AudioManager::class.java)
+        val hfp = audio.mode == AudioManager.MODE_IN_COMMUNICATION && audio.communicationDevice?.type in
+            listOf(AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLE_HEADSET)
+        val available = state.value.devices.any { it.canConnect && (requestedDevice == null || it.id == requestedDevice) }
+        val wait = recovery.nextDelay(available, owner.activityVisible || ContinuousWakeService.running, hfp)
+        if (wait == null) {
+            if (recovery.authorized) mutable.update { it.copy(status = if (hfp)
+                "Sesión DAT detenida mientras HFP sigue activo. Posible límite de firmware; el audio Bluetooth se comprueba aparte. Reconecta DAT expresamente sin audio."
+                else "Sesión DAT detenida. Sin reintentos disponibles; comprueba las gafas y pulsa Conectar.") }
+            return
+        }
+        mutable.update { it.copy(status = "Sesión DAT perdida · recuperación ${recovery.attempts}/3 en ${wait / 1000} s. No se reanuda la cámara.") }
+        recoveryJob = scope.launch {
+            delay(wait)
+            recoveryJob = null
+            if (recovery.authorized && (owner.activityVisible || ContinuousWakeService.running) && session == null && state.value.registered)
+                connectAuthorized(requestedDevice)
+        }
     }
 
     /** Solo tras consentimiento explícito y permiso CAMERA de Meta. */
