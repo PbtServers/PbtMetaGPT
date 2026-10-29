@@ -98,6 +98,7 @@ class CommunicationAudioSession(private val context: Context) {
         return valid
     }
     @Synchronized fun captureConfirmed() = owners.isNotEmpty() && !interrupted && inputValid
+    @Synchronized fun hasOwners() = owners.isNotEmpty()
     @Synchronized fun actualRoute() = "Comunicación: ${manager.communicationDevice?.productName ?: "sin confirmar"}. Captura: ${input.value.description}"
     @Synchronized fun release(owner: Any) {
         owners.remove(owner)

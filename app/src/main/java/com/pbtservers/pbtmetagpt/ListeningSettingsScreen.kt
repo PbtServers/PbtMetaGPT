@@ -57,6 +57,8 @@ import androidx.compose.ui.platform.LocalContext
     Text("ChatGPT oficial", style = MaterialTheme.typography.titleLarge)
     Text(if (installed) "Aplicación de OpenAI instalada" else "Aplicación de OpenAI no instalada")
     Button(onClick = app::openChatGpt) { Text("Abrir ChatGPT") }
-    Text("Se libera el micrófono antes de abrir ChatGPT. Activa su modo de voz desde la propia aplicación si es necesario; no se garantiza iniciar GPT Live automáticamente. Algunas versiones ofrecen Ajustes → Voz → Iniciar con voz.")
+    Text("Puedes decir «Abre GPT Live», «Abre ChatGPT», «Inicia ChatGPT en voz» o «Quiero hablar con ChatGPT». Se cancela la respuesta y se liberan captura, ruta y foco antes de abrir la aplicación oficial.")
+    Text(ChatGptLaunchPolicy.voiceInstructions)
+    Text("No se ha encontrado un intent, deep link ni acción pública documentada que garantice iniciar Live desde otra app. Los accesos directos de un launcher no conceden a PbtMetaGPT acceso a componentes privados. Con la pantalla bloqueada o en segundo plano se muestra una notificación de apertura.")
     Text("Al regresar, pulsa Hablar o Activar escucha. La captura permanece detenida para evitar interferencias.")
 }

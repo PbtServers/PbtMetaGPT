@@ -60,7 +60,7 @@ class CommandInferenceInstrumentedTest {
                 model.install(source = { instrumentation.context.assets.open("piper-es/${it.name}") })
             }
             val voice = VoiceModes.spain(AssistantProfile(name = "Jarvis")).validated()
-            val positive = listOf("Abre GPT Live.", "Inicia GPT Live.", "Abre ChatGPT en voz.", "Quiero hablar con ChatGPT.")
+            val positive = listOf("Abre GPT Live.", "Inicia GPT Live.", "Abre ChatGPT.", "Inicia ChatGPT en voz.", "Abre ChatGPT en voz.", "Quiero hablar con ChatGPT.")
             val negative = listOf("No quiero hablar con ChatGPT.", "Explícame cómo abre GPT Live.", "Esto es para mañana.", "Quiero hablar contigo.")
             for (phrase in positive + negative) {
                 val pcm = engine.synthesize(voice, phrase)

@@ -40,8 +40,12 @@ class PbtApplication : Application() {
             ContinuousWakeService.releaseForExternal()
             ContinuousWakeService.stop(this@PbtApplication)
             hosted.awaitReleased()
-            if (microphone.owner() != null) {
-                mutableMessage.value = "Micrófono todavía ocupado. Espera y pulsa Abrir ChatGPT de nuevo."
+            val released = withTimeoutOrNull(5000) {
+                while (microphone.owner() != null || audioSession.hasOwners()) delay(20)
+                true
+            } == true
+            if (!released) {
+                mutableMessage.value = "Micrófono o foco todavía ocupado. Detén la prueba de audio, espera y pulsa Abrir ChatGPT de nuevo."
             } else mutableMessage.value = OfficialChatGpt(this@PbtApplication).open(activityVisible)
         }
     }

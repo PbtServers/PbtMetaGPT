@@ -27,16 +27,6 @@ class AudioInputSettings(context: Context) {
     fun prefer(recorder: android.media.AudioRecord) {
         preferredInput()?.let { check(recorder.setPreferredDevice(it)) { "Android rechazó la entrada preferida." } }
     }
-    fun preferredInput(): AudioDeviceInfo? {
-        val external = useBluetooth()
-        return manager.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { device ->
-            if (external) bluetooth(device.type) && (choice != MicrophoneChoice.GLASSES || externalName.isBlank() || device.productName.toString() == externalName)
-            else device.type == AudioDeviceInfo.TYPE_BUILTIN_MIC
-        }
-    }
-    fun prefer(recorder: android.media.AudioRecord) {
-        preferredInput()?.let { check(recorder.setPreferredDevice(it)) { "Android rechazó la entrada preferida." } }
-    }
     fun useBluetooth(legacy: Boolean = prefs.getBoolean("audio-bluetooth", false)): Boolean = when (choice) {
         MicrophoneChoice.PHONE -> false
         MicrophoneChoice.GLASSES -> true

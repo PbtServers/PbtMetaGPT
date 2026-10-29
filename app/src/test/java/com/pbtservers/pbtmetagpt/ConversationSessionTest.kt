@@ -90,7 +90,7 @@ class ConversationSessionTest {
         assertEquals(LocalVoiceCommand.END, VoiceCommands.parse("Hasta luego", "Jarvis", options.copy(goodbye = true)))
     }
     @Test fun aperturaChatGptSoloPorOrdenCompleta() {
-        listOf("Abre GPT Live", "Inicia GPT Live", "Abre ChatGPT en voz", "Quiero hablar con ChatGPT", "Jarvis, abre GPT Live").forEach {
+        listOf("Abre GPT Live", "Inicia GPT Live", "Abre ChatGPT", "Inicia ChatGPT en voz", "Abre ChatGPT en voz", "Quiero hablar con ChatGPT", "Jarvis, abre GPT Live", "abre chat ge pe te", "inicia chat ge pe te en voz").forEach {
             assertEquals(LocalVoiceCommand.CHATGPT, VoiceCommands.parse(it, "Jarvis", options))
         }
         assertNull(VoiceCommands.parse("Explica cómo abre GPT Live", "Jarvis", options))

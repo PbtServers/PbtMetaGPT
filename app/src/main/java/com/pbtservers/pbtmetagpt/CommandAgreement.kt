@@ -7,7 +7,7 @@ data class SpeechBounds(val onsetSeconds: Double, val endSeconds: Double)
 
 /** El léxico es-0.42 contiene ge/pe/te, pero no GPT. «Para» exige además coincidencia libre exacta y VAD. */
 object ChatGptCommandGrammar {
-    val phrases = listOf("abre ge pe te live", "inicia ge pe te live", "abre chat ge pe te en voz", "quiero hablar con chat ge pe te")
+    val phrases = listOf("abre ge pe te live", "inicia ge pe te live", "abre chat ge pe te", "inicia chat ge pe te en voz", "abre chat ge pe te en voz", "quiero hablar con chat ge pe te")
     val vocabulary = phrases + phrases.map { "jarvis $it" } + listOf("para", "[unk]")
     fun accepts(open: CommandHypothesis, restricted: CommandHypothesis,
         speech: SpeechBounds = SpeechBounds(open.onsetSeconds, open.endSeconds)): Boolean {

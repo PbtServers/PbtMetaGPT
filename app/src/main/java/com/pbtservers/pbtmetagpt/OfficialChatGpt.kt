@@ -14,13 +14,14 @@ class OfficialChatGpt(private val context: Context) {
     fun open(visible: Boolean): String {
         val intent = launchIntent() ?: return "ChatGPT oficial no está instalado. Instálalo desde Google Play; editor OpenAI. La escucha queda pausada."
         return try {
-            if (visible) {
+            val manager = context.getSystemService(NotificationManager::class.java)
+            val notifications = (Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) && manager.areNotificationsEnabled()
+            val destination = ChatGptLaunchPolicy.destination(true, visible, context.getSystemService(KeyguardManager::class.java).isKeyguardLocked, notifications)
+            if (destination == ChatGptDestination.APPLICATION) {
                 context.startActivity(intent)
-                "ChatGPT abierto. Inicia el modo de voz desde su aplicación si es necesario."
+                "ChatGPT abierto mediante su entrada pública; Live no está confirmado. «Iniciar con Voz» funciona al abrir una conversación nueva o vacía. Al regresar, pulsa Activar escucha."
             } else {
-                val manager = context.getSystemService(NotificationManager::class.java)
-                if ((Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
-                    || !manager.areNotificationsEnabled()) return "Escucha pausada. Vuelve a PbtMetaGPT y pulsa Abrir ChatGPT; Android no permite mostrar la notificación."
+                if (destination == ChatGptDestination.NOTIFICATION_SETTINGS) return "Escucha pausada. Vuelve a PbtMetaGPT y pulsa Abrir ChatGPT; Android no permite mostrar la notificación."
                 manager.createNotificationChannel(NotificationChannel(CHANNEL, "ChatGPT oficial", NotificationManager.IMPORTANCE_DEFAULT))
                 if (manager.getNotificationChannel(CHANNEL)?.importance == NotificationManager.IMPORTANCE_NONE)
                     return "Escucha pausada. Activa el canal ChatGPT oficial o vuelve a Inicio para abrir la aplicación."
