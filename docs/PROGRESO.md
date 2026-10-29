@@ -2,6 +2,24 @@
 
 ## Candidata final: DAT, micrófono, bloqueo, ChatGPT y español · 29/10/2026
 
+**Estado actual: 70 % acreditado · 23:44 UTC · 1 h 35 min desde el inicio.** El código `0b4e9d21f1b96c929caca9b8521d156866c0a028` supera [CI 40973347229](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40973347229): **185 JVM (184 correctas, una remota optativa omitida), 52/52 instrumentadas API35 y 52/52 API36, Lint, compilación, 39 Python, 19 Node/backend/contenedores y escáner de fuentes/APK correctos**. La publicación de APK de ese SHA sigue en curso al redactar. Las comprobaciones finales añadidas después necesitan su propia CI. La aceptación física y revisión de distribución estable siguen pendientes, sin plazo fiable.
+
+| Fase de esta intervención | Acreditado / peso | Pendiente |
+| --- | ---: | --- |
+| Auditoría y diagnóstico | 10/10 | Sin atribuir causas físicas no observadas |
+| DAT y micrófono | 17/25 | Fuente HFP/LE y reconexión real Nothing/Ray-Ban |
+| ChatGPT oficial | 12/15 | Aplicación real, opciones de cuenta y transición bloqueada |
+| Servicio y bloqueo | 13/25 | Última prueba de foco/ciclos; Doze, consumo y llamadas físicos |
+| Voces Piper de España | 12/15 | Audición/latencia física y aceptación del timbre |
+| Pruebas y documentación | 6/10 | CI/APK del último conjunto y aceptación física |
+| **Total** | **70/100** | **Experimental; no Release estable** |
+
+Los siguientes párrafos conservan el diagnóstico y resultados anteriores en orden de intervención; sus porcentajes iniciales no sustituyen el estado actual.
+
+Último conjunto preparado a las **23:46 UTC**, 1 h 37 min: se afinan las etiquetas de sesión/enlace/audio, comprobación del par HFP por la API pública y dirección en RAM cuando existe (sin igualar nombres de puertos), consultas periódicas a un segundo y publicación de estado solo cuando cambia. La documentación incorpora la guía de uso/aceptación física y las voces solicitadas. Se añaden tres ciclos pantalla/aplicación y otra petición real de foco en emulador, con recuperación explícita; pendiente su CI. Las dos nuevas JVM de par de audio pasan en 0,008 s; **47 JVM locales en total como subconjunto**, 39 Python, 19 Node y escáner de fuentes correctos. Las seis huellas preexistentes siguen idénticas. Master remoto coincide antes de publicar.
+
+Medida puntual de **0b4e9d2**, API35 emulador bloqueado: ventana 30.023 ms, CPU 1.435 ms y PSS 214.094 KiB. No es batería, no es un máximo ni un ensayo controlado del Nothing; no se promete un porcentaje de ahorro a partir de dos runners distintos. El último ajuste de consultas de sistema todavía no está incluido en esa cifra.
+
 Inicio **22:08:40 UTC (23:08:40 Madrid)**. Base local y remota `446ffcbc917f1089e5b77602432a4185629c41a2`; exclusivamente master. Se conservan seis archivos ajenos con huellas SHA-256 en `app/build/huellas-previas-final.json`, fuera de Git. Los pesos de esta intervención son los solicitados: **10/25/15/25/15/10**; no se suman los porcentajes históricos. **15 % provisional**, pendiente de compilación/CI y hardware; sin estimación fiable de aceptación física.
 
 Diagnóstico confirmado: `MainActivity.onStop()` cerraba siempre DAT. El controlador y sus observadores pasan al proceso (`PbtApplication`), sin retener Activity; registro/desregistro reciben Activity solo durante la acción pública. Ocultar/recrear la interfaz cancela cámara, conserva DAT si el servicio autorizado sigue activo y nunca reabre cámara. Sin servicio se liberan recursos al salir. Detener el servicio fuera de la UI cierra DAT. Recuperación de sesión limitada a tres intentos (2/5/15 s por autorización), con enlace compatible y propietario activo; no se reintenta durante HFP para evitar el conflicto de firmware documentado por Meta. El enlace DAT, la sesión y la entrada de audio son estados distintos.

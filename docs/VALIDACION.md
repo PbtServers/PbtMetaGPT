@@ -1,5 +1,9 @@
 # Validación de PbtMetaGPT
 
+## Candidata Ray-Ban, micrófono, bloqueo y español · 30/10/2026
+
+El protocolo vigente de aceptación Nothing Phone 3a Lite/Ray-Ban Meta está en [CANDIDATA_RAYBAN.md](CANDIDATA_RAYBAN.md#aceptación-física-pendiente). Incluye entrada/salida separadas, tres estados de conexión, bloqueo 5/15/30 minutos, veinte activaciones/interrupciones, llamadas, permisos, notificaciones, retorno de ChatGPT, tres voces Piper de España y consumo. Todas esas comprobaciones físicas siguen pendientes. Mock Device Kit no ejecutado. Los resultados automáticos y la APK de cada SHA se registran en [PROGRESO.md](PROGRESO.md); los apartados inferiores conservan el historial y no acreditan cambios posteriores.
+
 ## Ampliación experimental de v0.4.0 · 0.4.1-dev
 
 Actualización: 27 de octubre de 2026. Base anterior `34ef4f5`. Implementación publicada y validada: **`fb19b89`**, [CI 40497932982](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40497932982), tres trabajos correctos y APK de prueba publicada. El bloque documental posterior retira el diagnóstico temporal; sus resultados deben consultarse en la CI de su propio SHA. No es una Release estable.

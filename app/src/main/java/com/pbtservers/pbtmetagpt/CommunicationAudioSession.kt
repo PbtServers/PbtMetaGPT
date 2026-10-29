@@ -23,6 +23,8 @@ class CommunicationAudioSession(private val context: Context) {
     private var configured = false
     private var requestedAt = 0L
     private var inputValid = false
+    private var reportedDeviceId: Int? = null
+    private var expectedAddress = ""
     private val mutableInput = MutableStateFlow(ActiveMicrophone())
     val input = mutableInput.asStateFlow()
     private val verify = Runnable {
@@ -78,6 +80,7 @@ class CommunicationAudioSession(private val context: Context) {
                 ?: throw DiagnosticFailure("AUDIO_ROUTE_UNAVAILABLE", "No hay ruta de comunicación compatible con la selección. Comprueba las gafas o elige el teléfono.")
             check(manager.setCommunicationDevice(target)) { "Android rechazó la ruta de comunicación." }
             bluetooth = useBluetooth; selected = target; confirmed = manager.communicationDevice?.id == target.id; interrupted = false
+            expectedAddress = target.address
             requestedAt = android.os.SystemClock.elapsedRealtime()
             owners[owner] = lost
             manager.registerAudioDeviceCallback(devices, handler)
@@ -90,9 +93,14 @@ class CommunicationAudioSession(private val context: Context) {
     private fun label() = "${if (bluetooth) "Bluetooth" else "Teléfono"} solicitado: ${selected?.productName ?: "sin ruta"}. Entrada PCM aún por comprobar."
     @Synchronized fun report(device: AudioDeviceInfo?, rate: Int): Boolean {
         if (owners.isEmpty() || interrupted) return false
-        val valid = settings.accepts(device, bluetooth)
+        if (!confirmed) confirmed = manager.communicationDevice?.id == selected?.id
+        val valid = device != null && (if (bluetooth) AudioInputSettings.bluetooth(device.type) && CommunicationSourcePolicy.bluetoothMatches(confirmed, expectedAddress, device.address)
+            else device.type == AudioDeviceInfo.TYPE_BUILTIN_MIC)
         inputValid = valid
-        mutableInput.value = ActiveMicrophone(device != null, AudioInputSettings.describe(device), device?.type ?: 0, rate)
+        if (reportedDeviceId != device?.id || input.value.sampleRate != rate || input.value.active != (device != null)) {
+            reportedDeviceId = device?.id
+            mutableInput.value = ActiveMicrophone(device != null, AudioInputSettings.describe(device), device?.type ?: 0, rate)
+        }
         if (!valid && android.os.SystemClock.elapsedRealtime() - requestedAt > 3_000)
             interrupt("La entrada PCM no coincide con el micrófono seleccionado. Escucha pausada; comprueba la ruta en Dispositivos.")
         return valid
@@ -104,6 +112,7 @@ class CommunicationAudioSession(private val context: Context) {
         owners.remove(owner)
         if (owners.isNotEmpty() || !configured) return
         configured = false; selected = null; confirmed = false; interrupted = false; inputValid = false
+        reportedDeviceId = null; expectedAddress = ""
         handler.removeCallbacks(verify)
         closePart { manager.unregisterAudioDeviceCallback(devices) }
         closePart { manager.removeOnCommunicationDeviceChangedListener(communication) }

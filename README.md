@@ -1,6 +1,6 @@
 # PbtMetaGPT
 
-Conversación continua y apertura de ChatGPT oficial: ampliación experimental en desarrollo. Consulta [uso, comandos, segundo plano y límites reales](docs/CONVERSACION_CONTINUA.md) y [evidencias por SHA](docs/PROGRESO.md). «Para» interrumpe; «Termina» cierra la conversación; «Deja de escuchar» detiene también la espera. La interrupción simultánea con TTS y Ray-Ban requiere validación física.
+Correcciones de gafas, selección de micrófono, pantalla bloqueada y ChatGPT oficial: consulta la [guía de la candidata y pruebas físicas](docs/CANDIDATA_RAYBAN.md) y las [evidencias por SHA](docs/PROGRESO.md). «Para» interrumpe; «Termina» vuelve a la espera autorizada; «Deja de escuchar» detiene también esa espera. Natural ofrece Davefx y las dos voces Sharvard de español de España. Audio de gafas, bloqueo y consumo en el Nothing requieren validación física.
 
 <p align="center"><img src="docs/assets/icono-app.png" alt="Icono único de PbtMetaGPT, obtenido del launcher Android" width="128" height="128"></p>
 
@@ -63,7 +63,7 @@ La aplicación es de código abierto y también funciona sin gafas. La latencia 
 | Qwen3-TTS remoto | **Implementado, con límites** | Space público, posibles colas y fallos por cuota; prueba de generación remota |
 | Reconocimiento libre offline | **Candidata** | Dictado on-device Android con fallback Vosk si no está disponible |
 | Groq Whisper para dictado | **Opcional y con consentimiento independiente** | Transcripción más precisa en servidor con `whisper-large-v3-turbo`; envía únicamente el audio de la petición, puede consumir cuota o generar costes según plan |
-| Voz neuronal local de España | **PCM verificado en emulador API 35/36** | Piper Davefx es_ES integrado; descarga voluntaria, SHA-256 y prueba audible |
+| Voz neuronal local de España | **PCM verificado en emulador API 35/36** | Davefx y Sharvard masculina/femenina es_ES; descarga voluntaria, SHA-256 y muestra |
 | Kokoro local | **PCM verificado en emulador API 35/36** | Dora, Alex y Santa; español sin variante peninsular acreditada; motor separado de Android TTS |
 | RVC ONNX local e importación | **Experimental** | Tubería ONNX comprobada técnicamente; voz real/calidad pendientes. Los .pth no se ejecutan y FAISS .index no interviene en inferencia |
 | BYOK y conexión directa a OpenAI | **Experimental** | Claves protegidas y flujo de credencial temporal; conversación real con clave personal pendiente |
@@ -135,19 +135,19 @@ El dictado de la pregunta ofrece dos rutas: **local** (por defecto, reconocimien
 | --- | --- | --- |
 | OpenAI Realtime | Voces nativas en sesión WebRTC | Requiere API de pago y conectividad |
 | Android TTS | Voces instaladas en Android | Idiomas y tratamiento dependen del proveedor |
-| Piper Davefx local | Modelo neuronal identificado como español de España | Nueva integración pendiente de compilación, inferencia y escucha física |
-| Kokoro-82M local | Motor neuronal ONNX integrado, tres voces en español | No se acredita acento de España; nueva inferencia pendiente de ejecutar |
+| Piper de España local | Davefx y dos voces Sharvard, es_ES, calidad medium | Inferencia y muestra en emulador; calidad audible/latencia física pendientes |
+| Kokoro-82M local | Tres voces en español, conservadas en Avanzada | PCM verificado en emulador; sin variante de España acreditada |
 | Qwen3-TTS | Voz neuronal online a través de un Space público autorizado | Las colas de GPU pueden retrasar la respuesta |
-| RVC | Importación de archivos `.pth`, `.index` y ZIP | Solo biblioteca, sin inferencia activada; no confundir importado con reproducible |
+| RVC ONNX | Conversión local optativa con sintetizador, HuBERT/ContentVec y RMVPE | Pesos autorizados y calidad física pendientes; importar .pth no equivale a ejecutar ONNX |
 | OpenAI Speech | Síntesis de texto separada | Adaptador transitorio; verificar disponibilidad |
 | API TTS externa | Servicio HTTPS y token independiente | Envía el texto de respuesta solo con autorización |
 | Sherpa ONNX | Piper/VITS local en proceso aislado | Solo formato compatible y diccionario completo |
 
 Se admiten paquetes ZIP `sherpa-piper-phonemes-v1` con `voz.json`, `model.onnx`, `tokens.txt` y `lexicon.tsv`. No acepta ONNX arbitrarios; una importación válida **no demuestra** síntesis inteligible. Consulta [Biblioteca de voces](docs/BIBLIOTECA_DE_VOCES.md).
 
-**Natural** prioriza **Piper Davefx es-ES** por el requisito de acento de España. Kokoro local queda como alternativa diferenciada: sus voces españolas no se presentan como peninsulares. **Rápida** contiene exclusivamente las voces Android TTS; con `es-ES` no se sustituye silenciosamente por una variante americana. **Avanzada** conserva Qwen remoto, RVC e importaciones. Seleccionar una voz no la descarga ni reproduce automáticamente.
+**Natural** ofrece **Piper Davefx, Sharvard masculina y Sharvard femenina**, publicadas como español de España (`es_ES`, calidad medium). Las dos Sharvard comparten modelo. **Rápida** contiene las voces Android TTS; con `es-ES` no se sustituye silenciosamente por una variante americana. **Avanzada** conserva Kokoro, Qwen remoto, RVC e importaciones. Seleccionar una voz guarda la preferencia; la descarga y reproducción requieren acciones expresas.
 
-En **Voces → Natural**, selecciona Davefx y pulsa **Descargar voz de España** (63,2 MB; reserva de instalación 256 MiB). Para Kokoro, pulsa **Otras voces locales · Kokoro** (354 MB; reserva 750 MiB). Ambos comprueban SHA-256, guardan pesos privados y permiten probar, comprobar y eliminar. El código `b74fab9` pasa compilación, Lint y 37/37 instrumentadas en cada API 35/36, incluida una muestra Kokoro reproducida desde Voces: [CI verificada](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40691905261). **No se afirma todavía calidad, acento audible ni latencia en el teléfono verificados**. Consulta [motores, licencias, hashes y protocolo](docs/VOZ_LOCAL_0.5.0.md).
+En **Voces → Natural**, selecciona Davefx y pulsa **Descargar voz de España** (63,2 MB; reserva de instalación 256 MiB), o elige Sharvard y pulsa **Descargar Sharvard · dos voces** (76,7 MB compartidos; reserva 300 MiB). Después pulsa **Escuchar muestra**. Kokoro permanece en **Avanzada → Kokoro local · catálogo anterior** (354 MB; reserva 750 MiB). Los modelos se verifican con SHA-256 y permiten comprobar/eliminar recursos. Inferencia real, selección y muestras se prueban en emuladores API35/API36; el resultado y la APK de cada SHA se registran en [PROGRESO.md](docs/PROGRESO.md). Calidad audible y latencia del teléfono siguen pendientes. [Voces, procedencia y licencias](docs/CANDIDATA_RAYBAN.md#voces-de-españa-solicitadas).
 
 **RVC local ONNX (experimental):** cadena optativa Piper/Kokoro → PCM → HuBERT/ContentVec → RMVPE → RVC ONNX → salida. Se conservan los tres modelos y las importaciones; desactivar RVC no los elimina. Añade procesamiento y puede producir artefactos: no se recomienda por defecto ni se declara validado con pesos RVC auténticos o gafas.
 
@@ -159,7 +159,7 @@ La app integra componentes de **Meta Wearables Device Access Toolkit (DAT)**. Pa
 
 El código contempla distintas familias DAT, incluido `DeviceType.META_GLASSES` para Meta Glasses como Adventurer, Ray-Ban Meta Gen 1/2, Oakley Meta HSTN/Vanguard y Meta Ray-Ban Display según las capacidades que informe el SDK. «Meta Glasses 00R6» se muestra como nombre del dispositivo, sin deducir un modelo estable. Ninguna de estas familias se declara validada físicamente; véanse los [detalles y limitaciones](docs/CORRECCIONES_INTERFAZ.md).
 
-Comprueba por separado: sesión DAT, micrófono real, altavoces reales, captura puntual, vista previa y segunda confirmación antes de enviar una imagen a Groq Vision u OpenAI, según el proveedor que hayas elegido. **Conectado no equivale a audio o cámara certificados.** La ruta Bluetooth puede depender de Android o recaer en el móvil.
+Comprueba por separado: sesión DAT, micrófono real, altavoces reales, captura puntual, vista previa y segunda confirmación antes de enviar una imagen a Groq Vision u OpenAI. En **Ajustes → Dispositivos → Micrófono** elige Automático, tus gafas identificadas por su nombre Android o Teléfono. **Probar micrófono de las gafas** muestra nivel, entrada real y transcripción local efímera. La selección externa se pausa si no se confirma, sin cambiar ocultamente al móvil. **Conectado no equivale a audio o cámara certificados.**
 
 No se garantiza funcionamiento con ninguna combinación de modelo, firmware y teléfono; tampoco captura continua, escucha en segundo plano o control de «Hey Meta». Consulta [pruebas reales](docs/PRUEBAS_REALES.md).
 

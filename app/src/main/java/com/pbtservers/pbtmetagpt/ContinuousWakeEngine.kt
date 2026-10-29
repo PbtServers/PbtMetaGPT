@@ -8,7 +8,6 @@ import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import kotlinx.coroutines.*
-import org.json.JSONObject
 import org.vosk.LibVosk
 import org.vosk.LogLevel
 import org.vosk.Model
@@ -56,12 +55,16 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
                             val buffer = ShortArray(320)
                             var announcedReady = false
                             var actualInput: Int? = null
+                            var nextSystemCheck = 0L
                             while (isActive) {
-                                if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) throw SecurityException()
-                                if (!context.getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled()) throw SecurityException()
-                                val mode = context.getSystemService(AudioManager::class.java).mode
-                                check(mode != AudioManager.MODE_IN_CALL) { "Audio interrumpido" }
-                                check(recorder.activeRecordingConfiguration?.isClientSilenced != true) { "Android ha silenciado la captura" }
+                                val now = android.os.SystemClock.elapsedRealtime()
+                                if (now >= nextSystemCheck) {
+                                    nextSystemCheck = now + 1000
+                                    if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) throw SecurityException()
+                                    if (!context.getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled()) throw SecurityException()
+                                    check(context.getSystemService(AudioManager::class.java).mode != AudioManager.MODE_IN_CALL) { "Audio interrumpido" }
+                                    check(recorder.activeRecordingConfiguration?.isClientSilenced != true) { "Android ha silenciado la captura" }
+                                }
                                 recorder.routedDevice?.let { device ->
                                     if (actualInput != null && actualInput != device.id) throw IllegalStateException("La entrada ha cambiado")
                                     if (actualInput == null) {

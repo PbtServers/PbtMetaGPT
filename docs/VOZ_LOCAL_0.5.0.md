@@ -1,5 +1,7 @@
 # Voz local y escucha · candidata 0.5.0-rc1
 
+**Actualización 30/10/2026:** por aclaración del usuario, Natural ofrece Davefx y **Sharvard masculina/femenina**, las tres Piper `es_ES`. Kokoro pasa a Avanzada conservando perfiles. Sharvard comparte 76,7 MB y una sesión ONNX entre hablantes; JSON, MODEL_CARD y hashes quedan fijados. La [guía actual de voces y recursos](CANDIDATA_RAYBAN.md#voces-de-españa-solicitadas) sustituye las rutas de instalación descritas en el historial inferior. CI `9939b34` acredita PCM distintos con el mismo texto, persistencia, reutilización y muestra reproducida en API35/API36; sus dos fallos en otras pruebas siguen impidiendo publicar APK. No acredita naturalidad/latencia física; véase el resultado del SHA final en [PROGRESO.md](PROGRESO.md).
+
 Esta intervención parte de `e263ec42bda840c5cfb6427c945f562d57a086d9`, exclusivamente en `master`. El código `b74fab9` **compila y supera JVM/Lint/escáner y 37/37 instrumentadas en cada API 35/36**: [ejecución verificada](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40691905261). Kokoro y Davefx con pesos auténticos generan PCM; la biblioteca reproduce una muestra Kokoro sin claves ni micrófono. Hay medidas de emulador en [PROGRESO.md](PROGRESO.md), no de hardware. La aceptación con el Nothing/Ray-Ban y la revisión de distribución siguen pendientes. Se conserva la versión candidata.
 
 ## Idioma y acento

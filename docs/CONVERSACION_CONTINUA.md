@@ -1,6 +1,6 @@
 # Conversación continua y ChatGPT oficial · experimental
 
-Intervención del 28/10/2026 sobre `master`. No es una Release estable. Las pruebas de lógica, emulador y acústica se registran por separado en PROGRESO.md.
+Intervención sobre `master`. No es una Release estable. La [guía de la candidata de 30/10/2026](CANDIDATA_RAYBAN.md) actualiza DAT, micrófono, bloqueo, voces Piper y ChatGPT. Las pruebas de lógica, emulador y acústica se registran por separado en PROGRESO.md.
 
 ## Auditoría y alcance
 
@@ -22,7 +22,7 @@ En Ajustes → Voz y escucha → Conversación y escucha se elige continuidad, i
 - **Termina**, **Termina la conversación**, nombre del asistente + **termina**, o la frase personalizada: finaliza y recupera la espera de activación si aún estaba autorizada.
 - **Hasta luego:** cierre opcional, desactivado inicialmente; solo como enunciado completo.
 - **Deja de escuchar:** cierra conversación, detiene escucha y desactiva la preferencia de segundo plano.
-- **Abre GPT Live**, **Inicia GPT Live**, **Abre ChatGPT en voz**, **Quiero hablar con ChatGPT**: transferencia a ChatGPT oficial. Se admite el nombre configurado delante de la orden.
+- **Abre GPT Live**, **Inicia GPT Live**, **Abre ChatGPT**, **Inicia ChatGPT en voz**, **Abre ChatGPT en voz**, **Quiero hablar con ChatGPT**: transferencia a ChatGPT oficial. Se admite el nombre configurado delante de la orden.
 
 Las órdenes no se detectan mediante subcadenas: «esto es para mañana» y «para mañana» no son «Para». No se guardan grabaciones pasivas, ni se añaden órdenes al contexto del proveedor. El audio de una conversación Groq continua se reconoce localmente antes de enviar texto autorizado. Se mantienen los consentimientos separados para proveedores, cámara y síntesis.
 
@@ -44,9 +44,9 @@ Cancelar Realtime conserva los IDs suprimidos para ignorar eventos tardíos. El 
 
 ## Segundo plano Android 15 y 16
 
-El servicio ya existente usa Vosk/AudioRecord, no un bucle infinito de SpeechRecognizer. Sigue siendo un ASR de 39 MB, **no un KWS dedicado con consumo certificado**. Falta medir CPU, PSS, temperatura y batería. No ejecuta Groq, TTS ni RVC durante la espera pasiva y no necesita red después de instalar el modelo.
+El servicio usa VAD ligero y un pre-roll circular de 300 ms antes de Vosk/AudioRecord. Vosk recibe intervenciones de voz, sin inferencia continua de silencio; no se reinicia SpeechRecognizer en bucle. El modelo ASR ocupa 39 MB y permanece cargado: **no es un KWS dedicado con consumo certificado**. Falta medir batería y temperatura físicas; CPU/PSS del emulador se registran por SHA. No ejecuta Groq, TTS ni RVC en espera y no necesita red después de instalar el modelo.
 
-Se exige acción explícita con actividad visible, RECORD_AUDIO, FOREGROUND_SERVICE_MICROPHONE y notificaciones visibles. El manifiesto declara el servicio privado `microphone`, sin BOOT_COMPLETED ni START_STICKY. La notificación permite pausar y detener. Recordar la preferencia no inicia servicios al crear el proceso o volver a la aplicación. No se garantiza continuidad tras retirada de recientes, muerte de proceso, cierre forzado, pérdida de permiso o políticas del fabricante. Retirar la interfaz de recientes y forzar detención son acciones distintas; el servicio tiene `stopWithTask=false`, sujeto al sistema.
+Se exige acción explícita con actividad visible, RECORD_AUDIO, FOREGROUND_SERVICE_MICROPHONE y notificaciones visibles. El servicio privado declara `microphone|connectedDevice`; el segundo tipo se activa solo con permiso Bluetooth. No hay BOOT_COMPLETED ni START_STICKY. La notificación permite pausar y detener. Recordar la preferencia no inicia servicios al crear el proceso o volver a la aplicación. No se garantiza continuidad tras retirada de recientes, muerte de proceso, cierre forzado, pérdida de permiso o políticas del fabricante. Retirar la interfaz de recientes y forzar detención son acciones distintas; el servicio tiene `stopWithTask=false`, sujeto al sistema.
 
 Las restricciones while-in-use impiden arrancar arbitrariamente un servicio microphone desde segundo plano y desde BOOT_COMPLETED. Se gestionan rechazos sin reinicios en bucle. Si se desactiva la preferencia, salir de la actividad revoca la escucha. Una pérdida de foco o micrófono requiere intervención explícita; no se reactiva al regresar.
 
@@ -56,15 +56,15 @@ Referencia: [restricciones de inicio de servicios Android](https://developer.and
 
 ## Ray-Ban Meta
 
-No se modifica el ciclo DAT de registro/cámara ni se atribuye a DAT captura indefinida de audio. La conexión Bluetooth no demuestra origen del micrófono. El detector consulta `AudioRecord.routedDevice`; la interfaz diferencia micrófono integrado de otros tipos de entrada Android. Si no hay ruta Bluetooth de comunicación, debe elegirse explícitamente el teléfono. Falta comprobar entrada y salida por separado, eco, llamadas, desconexiones y primeras palabras en Nothing Phone 3a Lite/Ray-Ban. El SDK y las [muestras oficiales Meta](https://github.com/facebook/meta-wearables-dat-android) no acreditan esos resultados físicos.
+El controlador DAT pertenece al proceso y conserva la sesión con servicio autorizado al ocultar la interfaz; la cámara siempre se cancela al salir y no se rearma. Registro y permisos públicos siguen explícitos. El micrófono usa rutas Android, no audio DAT experimental. `AudioRecord.routedDevice` y las configuraciones WebRTC acreditan la entrada de captura; la interfaz muestra nombre/tipo/id y frecuencia PCM, separados de DAT. Se conserva la ruta entre turnos y se pausa ante cambios/pérdida. Faltan entrada y salida físicas, eco, llamadas, reconexiones y primeras palabras en Nothing/Ray-Ban. [Detalles y límite de firmware HFP](CANDIDATA_RAYBAN.md).
 
 ## ChatGPT oficial
 
-El léxico Vosk es-0.42 no incluye literalmente GPT/ChatGPT. Se añade una gramática local con las pronunciaciones españolas `ge pe te` y `chat ge pe te`, compartiendo el modelo y los mismos PCM con el dictado libre. Solo se acepta una de las cuatro órdenes completas, con confianza media mínima 0,90 y coincidencia del inicio/final con la voz detectada por el VAD. El dictado libre también bloquea negaciones y explicaciones anteriores: usar solo sus tiempos fallaba cuando omitía palabras desconocidas del principio. La comparación de eco considera equivalentes GPT y «ge pe te». La gramática no se ejecuta durante la espera pasiva. Se prueban PCM auténticos de Piper para las cuatro órdenes y frases negativas. La pronunciación inglesa y el reconocimiento acústico del usuario/gafas siguen pendientes; no se acreditan por sintetizar una fixture.
+El léxico Vosk es-0.42 no incluye literalmente GPT/ChatGPT. Una gramática con pronunciación española `ge pe te`/`chat ge pe te` comparte modelo y PCM con el dictado libre. Se mantienen seis órdenes completas, confianza media mínima 0,90 y coincidencia del inicio/final con el VAD. El dictado libre bloquea negaciones y explicaciones anteriores. La comparación de eco considera equivalentes GPT y «ge pe te». La gramática no se ejecuta durante espera pasiva. Piper deletrea esas siglas antes del fonemizador de producción, manteniendo el texto original y las negaciones; se prueban PCM positivos y negativos. Pronunciación inglesa y acústica del usuario/gafas siguen pendientes.
 
 Se usa exclusivamente el launcher público de `com.openai.chatgpt`, identificador del [enlace oficial a Google Play](https://play.google.com/store/apps/details?id=com.openai.chatgpt). Antes se detienen conversación, escucha, foco y micrófono. La ausencia de la aplicación y los errores de lanzamiento se muestran en español. En segundo plano se publica una notificación con PendingIntent directo para que el usuario abra ChatGPT; no se intenta eludir restricciones de actividades.
 
-No se ha encontrado una acción pública estable documentada para iniciar Live mediante Intent. No hay deep links inventados, intents privados, accesibilidad, API facturable ni acceso a conversaciones o credenciales. La [documentación oficial de voz](https://help.openai.com/en/articles/20001274-chatgpt-voice) explica el botón de voz y la opción **Start with Voice** de versiones compatibles: su disponibilidad depende de la aplicación/cuenta. Abrir ChatGPT no equivale a iniciar Live. Al volver se exige pulsar Hablar/Activar escucha; no se inspecciona si ChatGPT está usando su micrófono.
+No se ha encontrado una acción pública estable documentada para iniciar Live mediante Intent. No hay deep links inventados, intents privados, accesibilidad, API facturable ni acceso a conversaciones o credenciales. La [documentación oficial de voz](https://help.openai.com/en/articles/20001274-chatgpt-voice) explica **Ajustes → Voz → Iniciar con Voz**: al abrir una conversación nueva o vacía inicia Voz automáticamente si está disponible/habilitado. Un chat con mensajes puede requerir acción dentro de ChatGPT. Abrir la aplicación no confirma Live. Con teléfono bloqueado se usa notificación. Al volver se exige pulsar Hablar/Activar escucha.
 
 ## Validación y métricas pendientes
 

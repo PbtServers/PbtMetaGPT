@@ -23,7 +23,7 @@ data class GlassesDevice(
     val status: String get() = when {
         compatibility == DeviceCompatibility.DEVICE_UPDATE_REQUIRED -> "Actualiza el firmware desde Meta AI"
         compatibility != DeviceCompatibility.COMPATIBLE -> "Compatibilidad no confirmada por DAT"
-        linkState == LinkState.CONNECTED -> "Enlace DAT disponible; sesión aún no confirmada"
+        linkState == LinkState.CONNECTED -> "Enlace DAT disponible; consulta el estado de sesión por separado"
         else -> "Enlace DAT pendiente; comprueba Meta AI y las gafas"
     }
 }

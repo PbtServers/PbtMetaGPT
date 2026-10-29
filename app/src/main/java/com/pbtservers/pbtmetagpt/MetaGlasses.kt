@@ -179,9 +179,9 @@ class MetaGlasses(context: Context, private val scope: CoroutineScope, private v
                         connecting = value == DeviceSessionState.STARTING || value == DeviceSessionState.IDLE,
                         status = when (value) {
                             DeviceSessionState.STARTED -> "Sesión DAT conectada · ${deviceDescriptions[selector.activeDevice()]?.name ?: "gafas Meta"}"
-                            DeviceSessionState.PAUSED -> "Conexión en pausa; comprueba las gafas"
+                            DeviceSessionState.PAUSED -> "Sesión DAT pausada; comprueba las gafas"
                             DeviceSessionState.STOPPING -> "Desconectando…"
-                            DeviceSessionState.STOPPED -> "Gafas desconectadas"
+                            DeviceSessionState.STOPPED -> "Sesión DAT detenida"
                             else -> "Conectando con las gafas…"
                         }
                     ) }
@@ -233,7 +233,7 @@ class MetaGlasses(context: Context, private val scope: CoroutineScope, private v
         captureJob?.cancel()
         session?.stop()
         clearSession()
-        mutable.update { it.copy(connected = false, connecting = false, capturing = false, cameraAvailable = null, selectedDevice = null, status = "Sin conexión con las gafas") }
+        mutable.update { it.copy(connected = false, connecting = false, capturing = false, cameraAvailable = null, selectedDevice = null, status = "Sin sesión DAT activa") }
     }
 
     private fun scheduleRecovery() {

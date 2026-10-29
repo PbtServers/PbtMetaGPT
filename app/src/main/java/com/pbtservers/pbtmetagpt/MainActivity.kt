@@ -106,7 +106,7 @@ class MainActivity : ComponentActivity() {
                     requestMic = { microphonePermission.launch(Manifest.permission.RECORD_AUDIO) },
                     stopAll = { ContinuousWakeService.stop(this); wake.stop(); voice.stop(); app.hosted.stop(); localAudio.stop() }, report = { message = it }, bindWakeStart = { wakeStart = it },
                     themeMode = themeMode, setTheme = { themeMode = it; themePreferences.edit().putString("tema", it).apply() },
-                    deviceSummary = if (gs.connected) "Gafas conectadas" else "Gafas desconectadas") { page, configured, backend, token, bluetooth, setBluetooth, start, analyzePhoto ->
+                    deviceSummary = if (gs.connected) "Sesión DAT activa" else "Sesión DAT sin conectar") { page, configured, backend, token, bluetooth, setBluetooth, start, analyzePhoto ->
                 if (page == "Diagnóstico") DiagnosticScreen(diagnostics, voice, localAudio,
                     configured = configured, backend = backend, token = token, bluetooth = bluetooth,
                     microphoneReady = microphoneReady, refresh = ::refreshDiagnostics,
