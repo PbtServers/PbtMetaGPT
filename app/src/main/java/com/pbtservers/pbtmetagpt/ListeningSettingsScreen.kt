@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalContext
         save(value.copy(background = it))
     }
     Text("Recordar esta opción no inicia el micrófono. Usa Activar escucha con la aplicación visible. No se reinicia tras forzar detención ni al encender el teléfono.")
+    Text("Nothing Phone: revisa la gestión de batería de PbtMetaGPT y sus notificaciones en Ajustes de Android. Si el sistema suspende la sesión bloqueada, comprueba la restricción de batería de esta app. Los nombres dependen de Nothing OS; solo tú puedes cambiar esos ajustes. El servicio muestra siempre el uso del micrófono y no evita cierres del sistema.")
     ListeningControls(configured, microphoneReady, requestMic, stop)
     Toggle("Permitir interrupción por voz", value.interruption) { stop(); save(value.copy(interruption = it)) }
     Toggle("Reconocer «Para»", value.recognizeStop) { stop(); save(value.copy(recognizeStop = it)) }

@@ -4,6 +4,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DatConnectionPolicyTest {
+    @Test fun pausarConversacionRevocaElRearmeDelServicio() {
+        val listening = WakeSessionPolicy().apply { authorize() }
+        listening.onVoice(true, false, false)
+        assertFalse(listening.onVoice(true, false, false, paused = true))
+        assertFalse(listening.authorized)
+        assertEquals(ListeningPhase.SUSPENDED, listening.phase)
+        assertFalse(listening.onVoice(false, false, false))
+    }
     @Test fun inicioBloqueoYRecreacionConservanSoloPropietariosAutorizados() {
         assertTrue(DatConnectionPolicy.retain(false, true, false))
         assertTrue(DatConnectionPolicy.retain(false, false, true))

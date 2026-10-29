@@ -489,8 +489,9 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     val echo = speaking && VoiceCommands.matchesEcho(text, echoText)
                     recording != null && !recording.isClientSilenced && (!speaking || aec) && !echo
                 }, status = { message -> dispatch(token) {
-                    val input = appContext.getSystemService(AudioManager::class.java).activeRecordingConfigurations.singleOrNull()?.audioDevice
-                    (appContext as PbtApplication).audioSession.report(input, 16000)
+                    val recording = appContext.getSystemService(AudioManager::class.java).activeRecordingConfigurations.singleOrNull()
+                    val input = recording?.audioDevice
+                    (appContext as PbtApplication).audioSession.report(input, recording?.clientFormat?.sampleRate ?: 0)
                     commandValue.value = message + when (input?.type) {
                         android.media.AudioDeviceInfo.TYPE_BUILTIN_MIC -> " · entrada real: teléfono"
                         null -> " · entrada real sin confirmar"
@@ -530,7 +531,10 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
         microphone?.setEnabled(!pause)
         peer?.setAudioRecording(!pause)
         if (pause) interrupt()
-        if (pause) { inactivity?.cancel(); module?.requestStopRecording() } else armInactivity()
+        if (pause) {
+            inactivity?.cancel(); module?.requestStopRecording()
+            route.close(); routeSuspended = true
+        } else armInactivity()
         mutable.update { it.copy(paused = pause, status = if (pause) "En pausa · micrófono apagado" else "Escuchando · micrófono encendido") }
     }
     fun resumeOnPhone() {

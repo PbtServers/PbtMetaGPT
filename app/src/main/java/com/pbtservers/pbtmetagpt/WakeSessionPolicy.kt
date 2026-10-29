@@ -28,9 +28,9 @@ class WakeSessionPolicy {
     }
     fun preparing() { epoch++; if (authorized) phase = ListeningPhase.PREPARING }
     /** true solo cuando una conversación real ha terminado y puede volver a escuchar. */
-    fun onVoice(active: Boolean, connecting: Boolean, failed: Boolean): Boolean {
+    fun onVoice(active: Boolean, connecting: Boolean, failed: Boolean, paused: Boolean = false): Boolean {
         if (!authorized) return false
-        if (failed) { suspendListening(); return false }
+        if (failed || paused) { suspendListening(); return false }
         if (active) { hadSession = true; phase = ListeningPhase.CONVERSATION }
         else if (!connecting && hadSession) { hadSession = false; phase = ListeningPhase.RETURNING; return true }
         else if (!connecting && phase == ListeningPhase.PREPARING) suspendListening()

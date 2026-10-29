@@ -12,7 +12,6 @@ import org.json.JSONObject
 import org.vosk.LibVosk
 import org.vosk.LogLevel
 import org.vosk.Model
-import org.vosk.Recognizer
 import java.io.IOException
 
 /** ASR local continuo. No usa SpeechRecognizer, no guarda PCM ni transcripciones. */
@@ -31,9 +30,7 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
                 LibVosk.setLogLevel(LogLevel.WARNINGS) // Nunca emitir texto reconocido por logs nativos.
                 Model(WakeModel(context).model.absolutePath).use { model ->
                     // Modelo español abierto: permite nombres de su vocabulario sin sesgar todo el ruido a una frase.
-                    Recognizer(model, 16000f).use { recognizer ->
-                        recognizer.setMaxAlternatives(5)
-                        recognizer.setWords(true)
+                    PassiveWakeDecoder(model).use { recognizer ->
                         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) throw SecurityException()
                         lease = gatekeeper.acquire(MicrophoneOwner.CONTINUOUS_LOCAL)
                         check(lease != null) { "El micrófono ya está en uso" }
@@ -54,8 +51,9 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
                             check(recorder.state == AudioRecord.STATE_INITIALIZED)
                             AudioInputSettings(context).prefer(recorder)
                             recorder.startRecording(); check(recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING)
-                            val capturedAt = android.os.SystemClock.elapsedRealtime()
-                            val buffer = ShortArray(3200)
+                            val recordingAt = android.os.SystemClock.elapsedRealtime()
+                            var capturedAt = recordingAt
+                            val buffer = ShortArray(320)
                             var announcedReady = false
                             var actualInput: Int? = null
                             while (isActive) {
@@ -76,11 +74,12 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
                                 val validInput = (context.applicationContext as PbtApplication).audioSession.report(recorder.routedDevice, recorder.sampleRate)
                                 if (!announcedReady && size > 0 && validInput) {
                                     announcedReady = true
+                                    capturedAt = android.os.SystemClock.elapsedRealtime() - size * 1000L / 16000
                                     withContext(Dispatchers.Main) { ready() }
                                 }
-                                check(announcedReady || android.os.SystemClock.elapsedRealtime() - capturedAt < 5000) { "Entrada no confirmada" }
-                                if (size > 0 && validInput && recognizer.acceptWaveForm(buffer, size)) {
-                                    val result = JSONObject(recognizer.result)
+                                check(announcedReady || android.os.SystemClock.elapsedRealtime() - recordingAt < 5000) { "Entrada no confirmada" }
+                                val result = if (size > 0 && validInput) recognizer.accept(buffer, size) else null
+                                if (result != null) {
                                     val alternatives = result.optJSONArray("alternatives")
                                     val texts = if (alternatives == null) listOf(result.optString("text"))
                                         else (0 until alternatives.length()).map { alternatives.getJSONObject(it).optString("text") }
@@ -88,7 +87,7 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
                                     if (match != null) {
                                         alternatives?.optJSONObject(0)?.optJSONArray("result")?.optJSONObject(0)?.let { word ->
                                             if (word.has("start")) {
-                                                val latency = (android.os.SystemClock.elapsedRealtime() - capturedAt - (word.optDouble("start") * 1000).toLong()).coerceAtLeast(0)
+                                                val latency = (android.os.SystemClock.elapsedRealtime() - capturedAt - recognizer.startFrame * 1000 / 16000 - (word.optDouble("start") * 1000).toLong()).coerceAtLeast(0)
                                                 withContext(Dispatchers.Main) { LatencyStore(context).record(mapOf(VoiceStage.WAKE_DETECTION to latency)) }
                                             }
                                         }

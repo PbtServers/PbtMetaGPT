@@ -50,7 +50,7 @@ class SpainVoiceEngine(private val context: Context, private val reproducibleFix
             }
             val loaded = requireNotNull(session)
             require(loaded.inputNames == if (voice.speakerId == null) setOf("input", "input_lengths", "scales") else setOf("input", "input_lengths", "scales", "sid")) { "Contrato Piper no compatible." }
-            val phones = KokoroText.raw(text) { LocalPhonemes.convert(store.directory.path, it) }
+            val phones = KokoroText.raw(SpanishSpeechText.pronunciation(text)) { LocalPhonemes.convert(store.directory.path, it) }
             val ids = SpainVoiceCatalog.ids(phones, vocabulary)
             val inputs = mutableMapOf<String, OnnxTensor>()
             try {

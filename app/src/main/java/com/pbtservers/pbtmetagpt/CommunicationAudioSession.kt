@@ -50,7 +50,7 @@ class CommunicationAudioSession(private val context: Context) {
     private val recording = object : AudioManager.AudioRecordingCallback() {
         override fun onRecordingConfigChanged(configs: MutableList<AudioRecordingConfiguration>) {
             val active = configs.singleOrNull()
-            if (active == null) { mutableInput.value = ActiveMicrophone(); return }
+            if (active == null) { synchronized(this@CommunicationAudioSession) { inputValid = false; mutableInput.value = ActiveMicrophone() }; return }
             if (active.isClientSilenced) { interrupt("Android ha silenciado el micrófono. Comprueba llamadas y permisos antes de reanudar."); return }
             report(active.audioDevice, active.clientFormat.sampleRate)
         }
@@ -97,7 +97,7 @@ class CommunicationAudioSession(private val context: Context) {
             interrupt("La entrada PCM no coincide con el micrófono seleccionado. Escucha pausada; comprueba la ruta en Dispositivos.")
         return valid
     }
-    @Synchronized fun captureConfirmed() = owners.isNotEmpty() && !interrupted && inputValid
+    @Synchronized fun captureConfirmed() = owners.isNotEmpty() && !interrupted && inputValid && input.value.active
     @Synchronized fun hasOwners() = owners.isNotEmpty()
     @Synchronized fun actualRoute() = "Comunicación: ${manager.communicationDevice?.productName ?: "sin confirmar"}. Captura: ${input.value.description}"
     @Synchronized fun release(owner: Any) {

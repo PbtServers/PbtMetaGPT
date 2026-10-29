@@ -34,10 +34,11 @@ class AudioRuntimeInstrumentedTest {
     @Test fun servicioPrivadoDeclaraTipoMicrofonoYPermisosSinArrancarPorDefecto() {
         val service = context.packageManager.getServiceInfo(ComponentName(context, ContinuousWakeService::class.java), 0)
         assertFalse(service.exported)
-        assertEquals(ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE, service.foregroundServiceType)
+        assertEquals(ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE, service.foregroundServiceType)
         val requested = context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS).requestedPermissions.orEmpty()
         assertTrue(Manifest.permission.FOREGROUND_SERVICE in requested)
         assertTrue(Manifest.permission.FOREGROUND_SERVICE_MICROPHONE in requested)
+        assertTrue(Manifest.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE in requested)
         assertFalse(ContinuousWakeService.running)
     }
 }

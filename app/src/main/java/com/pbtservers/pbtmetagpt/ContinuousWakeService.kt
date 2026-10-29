@@ -22,6 +22,7 @@ class ContinuousWakeService : Service() {
     private var candidates = emptyList<AssistantProfile>()
     private var activation: Job? = null
     private var retainedRoute: AudioRoute? = null
+    private var audioRelease: Job? = null
     private var cpu: android.os.PowerManager.WakeLock? = null
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onCreate() {
@@ -34,9 +35,9 @@ class ContinuousWakeService : Service() {
         scope.launch {
             app.conversationState.collect { voice ->
                 val wasAuthorized = session.authorized
-                val rearm = session.onVoice(voice.active && voice.sessionConfirmed, voice.connecting, voice.failed)
+                val rearm = session.onVoice(voice.active && voice.sessionConfirmed, voice.connecting, voice.failed, voice.active && voice.paused)
                 update(session.phase)
-                if (wasAuthorized && !session.authorized) { engine.stop(); releaseSessionAudio() }
+                if (wasAuthorized && !session.authorized) releaseListeningAudio()
                 if (rearm) listen()
             }
         }
@@ -56,10 +57,6 @@ class ContinuousWakeService : Service() {
             candidates = ProfileStore(this@ContinuousWakeService).load().filter { it.language.startsWith("es") && it.activationPhrases.any { p -> p.enabled } }
             check(candidates.isNotEmpty() && WakeModel(this).installed())
             session.authorize()
-            // Vosk necesita CPU también durante espera bloqueada. Solo durante consentimiento vigente.
-            @android.annotation.SuppressLint("WakelockTimeout")
-            val wakeLock = getSystemService(android.os.PowerManager::class.java).newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "PbtMetaGPT:sesion-autorizada")
-            wakeLock.acquire(); cpu = wakeLock
             getSharedPreferences("escucha", MODE_PRIVATE).edit().putBoolean("proceso-activo", true).apply()
             scope.launch { listen() }
         } catch (problem: SecurityException) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); update(ListeningPhase.SUSPENDED); stopSelf() }
@@ -71,10 +68,17 @@ class ContinuousWakeService : Service() {
     private suspend fun listen() {
         // «Termina» publica el cierre inmediatamente; el AudioRecord anterior
         // todavía puede estar liberándose. No competir con él al volver a espera.
+        audioRelease?.join()
         app.hosted.awaitReleased()
         val current = session.beginListening() ?: return
         update(ListeningPhase.LOADING)
         try {
+            if (cpu == null) {
+                // VAD/Vosk necesitan CPU con pantalla bloqueada, solo durante autorización.
+                @android.annotation.SuppressLint("WakelockTimeout")
+                val wakeLock = getSystemService(android.os.PowerManager::class.java).newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "PbtMetaGPT:sesion-autorizada")
+                wakeLock.acquire(); cpu = wakeLock
+            }
             if (retainedRoute == null) {
                 val route = AudioRoute(this) { pause() }
                 route.start(getSharedPreferences("configuracion", MODE_PRIVATE).getBoolean("audio-bluetooth", false), speaker = true)
@@ -127,7 +131,11 @@ class ContinuousWakeService : Service() {
         activation?.cancel(); activation = null
         session.suspendListening()
         update(session.phase)
-        scope.launch { engine.stop(); releaseSessionAudio() }
+        releaseListeningAudio()
+    }
+    private fun releaseListeningAudio() {
+        if (audioRelease?.isActive == true) return
+        audioRelease = scope.launch { engine.stop(); releaseSessionAudio() }
     }
     private fun releaseSessionAudio() {
         retainedRoute?.close(); retainedRoute = null
