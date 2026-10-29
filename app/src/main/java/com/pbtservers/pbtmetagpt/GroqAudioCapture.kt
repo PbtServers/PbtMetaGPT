@@ -24,8 +24,8 @@ class GroqAudioCapture(private val context: Context) {
             ?: throw HostedFailure("Micrófono ocupado. Detén la otra escucha.")
         val route = AudioRoute(context) {}
         try {
-            val bluetooth = context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false)
-            if (bluetooth) route.start(true)
+            val bluetooth = AudioInputSettings(context).useBluetooth()
+            route.start(bluetooth, speaker = true)
             val rate = 16000
             val minBuffer = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
             check(minBuffer > 0)
@@ -35,6 +35,7 @@ class GroqAudioCapture(private val context: Context) {
             val preRoll = PcmPreRoll()
             try {
                 check(recorder.state == AudioRecord.STATE_INITIALIZED)
+                AudioInputSettings(context).prefer(recorder)
                 recorder.startRecording()
                 check(recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING)
                 val vad = AdaptiveVad(rate)
@@ -46,6 +47,9 @@ class GroqAudioCapture(private val context: Context) {
                     check(recorder.activeRecordingConfiguration?.isClientSilenced != true)
                     val read = recorder.read(samples, 0, samples.size, AudioRecord.READ_BLOCKING)
                     if (read <= 0) throw HostedFailure("No se pudo leer audio del micrófono.")
+                    if (!(context.applicationContext as PbtApplication).audioSession.report(recorder.routedDevice, recorder.sampleRate)) {
+                        samples.fill(0); totalFrames += read; continue
+                    }
                     val previouslyStarted = vad.started
                     if (!previouslyStarted) preRoll.append(samples, read)
                     val event = vad.accept(samples, read)

@@ -68,9 +68,9 @@ class LocalWakeListener(private val context: Context, private val scope: Corouti
                 microphoneLease = microphoneGate.acquire(MicrophoneOwner.ANDROID_LOCAL)
                 check(microphoneLease != null) { "Micrófono ocupado" }
             }
-            if (route == null && context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false)) {
+            if (route == null) {
                 val requested = AudioRoute(context) { stop() }
-                try { requested.start(true); route = requested }
+                try { requested.start(AudioInputSettings(context).useBluetooth(), speaker = true); route = requested }
                 catch (problem: Exception) { requested.close(); throw problem }
             }
             recognizer?.destroy()

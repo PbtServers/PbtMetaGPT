@@ -141,6 +141,36 @@ class MicrophoneServiceInstrumentedTest {
         assertNull(gate.owner())
     }
     private suspend fun await(condition: () -> Boolean) { withTimeout(20000) { while (!condition()) delay(50) } }
+    @Test fun seleccionPersistenteYRutaCompartidaHastaLiberarElUltimoPropietario() = runBlocking<Unit> {
+        val settings = AudioInputSettings(context)
+        val manager = context.getSystemService(AudioManager::class.java)
+        settings.save(MicrophoneChoice.PHONE)
+        assertEquals(MicrophoneChoice.PHONE, AudioInputSettings(context).choice)
+        assertFalse(settings.useBluetooth(true))
+        val pin = AudioRoute(context) { fail("Ruta del emulador interrumpida") }
+        val turn = AudioRoute(context) { fail("Ruta del turno interrumpida") }
+        ActivityScenario.launch(MainActivity::class.java).use {
+            val previous = manager.mode
+            try {
+                pin.start(false, true)
+                await { manager.communicationDevice != null }
+                val device = manager.communicationDevice!!.id
+                turn.start(false, true)
+                turn.close()
+                assertEquals(AudioManager.MODE_IN_COMMUNICATION, manager.mode)
+                assertEquals(device, manager.communicationDevice!!.id)
+                // La ausencia externa nunca se presenta como captura de gafas.
+                if (settings.externalDevices().isEmpty()) {
+                    pin.close()
+                    settings.save(MicrophoneChoice.GLASSES, "Gafas de prueba no disponibles")
+                    assertTrue(settings.useBluetooth(false))
+                    assertTrue(runCatching { turn.start(false, true) }.isFailure)
+                    assertEquals(previous, manager.mode)
+                }
+            } finally { turn.close(); pin.close(); settings.save(MicrophoneChoice.AUTOMATIC) }
+            assertEquals(previous, manager.mode)
+        }
+    }
     @Test fun moduloWebrtcPublicoEntregaPcmLocalSinEnviarAudioARed() = runBlocking<Unit> {
         val lease = requireNotNull(app.microphone.acquire(MicrophoneOwner.REALTIME))
         val input = CommandPcmQueue()

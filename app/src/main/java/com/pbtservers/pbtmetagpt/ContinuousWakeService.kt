@@ -21,6 +21,8 @@ class ContinuousWakeService : Service() {
     private var finishConversationOnDestroy = true
     private var candidates = emptyList<AssistantProfile>()
     private var activation: Job? = null
+    private var retainedRoute: AudioRoute? = null
+    private var cpu: android.os.PowerManager.WakeLock? = null
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onCreate() {
         super.onCreate()
@@ -34,7 +36,7 @@ class ContinuousWakeService : Service() {
                 val wasAuthorized = session.authorized
                 val rearm = session.onVoice(voice.active && voice.sessionConfirmed, voice.connecting, voice.failed)
                 update(session.phase)
-                if (wasAuthorized && !session.authorized) engine.stop()
+                if (wasAuthorized && !session.authorized) { engine.stop(); releaseSessionAudio() }
                 if (rearm) listen()
             }
         }
@@ -48,11 +50,16 @@ class ContinuousWakeService : Service() {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(NotificationChannel(CHANNEL, "Escucha local", NotificationManager.IMPORTANCE_LOW))
             if (!manager.areNotificationsEnabled() || manager.getNotificationChannel(CHANNEL)?.importance == NotificationManager.IMPORTANCE_NONE) throw SecurityException()
-            startForeground(41, notification(ListeningPhase.LOADING), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+            val deviceType = if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
+            startForeground(41, notification(ListeningPhase.LOADING), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or deviceType)
             foregroundStarted = true
             candidates = ProfileStore(this@ContinuousWakeService).load().filter { it.language.startsWith("es") && it.activationPhrases.any { p -> p.enabled } }
             check(candidates.isNotEmpty() && WakeModel(this).installed())
             session.authorize()
+            // Vosk necesita CPU también durante espera bloqueada. Solo durante consentimiento vigente.
+            @android.annotation.SuppressLint("WakelockTimeout")
+            val wakeLock = getSystemService(android.os.PowerManager::class.java).newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "PbtMetaGPT:sesion-autorizada")
+            wakeLock.acquire(); cpu = wakeLock
             getSharedPreferences("escucha", MODE_PRIVATE).edit().putBoolean("proceso-activo", true).apply()
             scope.launch { listen() }
         } catch (problem: SecurityException) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); update(ListeningPhase.SUSPENDED); stopSelf() }
@@ -67,6 +74,16 @@ class ContinuousWakeService : Service() {
         app.hosted.awaitReleased()
         val current = session.beginListening() ?: return
         update(ListeningPhase.LOADING)
+        try {
+            if (retainedRoute == null) {
+                val route = AudioRoute(this) { pause() }
+                route.start(getSharedPreferences("configuracion", MODE_PRIVATE).getBoolean("audio-bluetooth", false), speaker = true)
+                retainedRoute = route
+            }
+        } catch (problem: Exception) {
+            app.journal.record(Check.ROUTE, Fault.INITIALIZATION, problem)
+            suspendListening(); return
+        }
         engine.start(candidates, ready = { if (session.ready(current)) update(session.phase) }, detected = { matched, question ->
             if (session.detected(current)) {
                 update(ListeningPhase.DETECTED)
@@ -110,7 +127,11 @@ class ContinuousWakeService : Service() {
         activation?.cancel(); activation = null
         session.suspendListening()
         update(session.phase)
-        scope.launch { engine.stop() }
+        scope.launch { engine.stop(); releaseSessionAudio() }
+    }
+    private fun releaseSessionAudio() {
+        retainedRoute?.close(); retainedRoute = null
+        cpu?.let { if (it.isHeld) it.release() }; cpu = null
     }
     private fun pause() {
         suspendListening()
@@ -140,6 +161,7 @@ class ContinuousWakeService : Service() {
     override fun onDestroy() {
         activation?.cancel(); activation = null
         session.stop(); instance = null
+        releaseSessionAudio()
         inputTypeValue.value = 0
         getSharedPreferences("escucha", MODE_PRIVATE).edit().putBoolean("proceso-activo", false).apply()
         // El cierre de micrófono se completa antes de cancelar el scope del servicio.
@@ -185,6 +207,7 @@ class ContinuousWakeService : Service() {
                 service.session.suspendListening()
                 service.update(ListeningPhase.SUSPENDED)
                 service.engine.stop()
+                service.releaseSessionAudio()
             }
         }
     }

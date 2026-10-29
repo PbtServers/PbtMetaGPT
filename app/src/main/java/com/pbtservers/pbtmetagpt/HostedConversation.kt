@@ -53,7 +53,7 @@ class HostedDictation(private val context: Context) {
         if (offline.available()) return withContext(Dispatchers.Main.immediate) {
             val route = AudioRoute(context) {}
             try {
-                if (context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false)) route.start(true)
+                route.start(AudioInputSettings(context).useBluetooth(), speaker = true)
                 offline.capture(language, speechEnded, ready)
             } finally { route.close() }
         }
@@ -70,7 +70,7 @@ class HostedDictation(private val context: Context) {
         val captureJob = currentCoroutineContext().job
         val route = AudioRoute(context) { captureJob.cancel() }
         try {
-            val bluetooth = context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false)
+            val bluetooth = AudioInputSettings(context).useBluetooth()
             route.start(bluetooth, speaker = !bluetooth)
             LibVosk.setLogLevel(LogLevel.WARNINGS)
             LocalCommandDecoder(WakeModel(context).model.absolutePath).use { recognizer ->
@@ -84,6 +84,7 @@ class HostedDictation(private val context: Context) {
                 val transcript = mutableListOf<String>()
                 try {
                     check(recorder.state == AudioRecord.STATE_INITIALIZED)
+                    AudioInputSettings(context).prefer(recorder)
                     recorder.startRecording()
                     check(recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING)
                     withContext(Dispatchers.Main) { ready() }
@@ -95,6 +96,9 @@ class HostedDictation(private val context: Context) {
                         check(recorder.activeRecordingConfiguration?.isClientSilenced != true)
                         val n = recorder.read(buffer, 0, buffer.size, AudioRecord.READ_NON_BLOCKING)
                         check(n >= 0)
+                        if (!(context.applicationContext as PbtApplication).audioSession.report(recorder.routedDevice, recorder.sampleRate)) {
+                            buffer.fill(0); delay(20); continue
+                        }
                         if (n > 0) {
                             val previouslyStarted = vad.started
                             if (!previouslyStarted) preRoll.append(buffer, n)

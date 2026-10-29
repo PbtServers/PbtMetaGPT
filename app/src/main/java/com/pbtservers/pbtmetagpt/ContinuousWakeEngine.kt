@@ -7,7 +7,6 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
-import android.os.PowerManager
 import kotlinx.coroutines.*
 import org.json.JSONObject
 import org.vosk.LibVosk
@@ -20,7 +19,6 @@ import java.io.IOException
 class ContinuousWakeEngine(private val context: Context, private val scope: CoroutineScope) {
     private var work: Job? = null
     suspend fun stop() { work?.cancelAndJoin(); work = null }
-    @android.annotation.SuppressLint("WakelockTimeout") // Solo durante captura autorizada del servicio visible.
     suspend fun start(profiles: List<AssistantProfile>, ready: () -> Unit, detected: (AssistantProfile, String) -> Unit, failed: (Throwable) -> Unit, input: (Int) -> Unit = {}) {
         stop()
         val gate = ActivationGate(); val epoch = gate.arm(profiles)
@@ -28,7 +26,6 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
             val gatekeeper = (context.applicationContext as PbtApplication).microphone
             var lease: MicrophoneGate.Lease? = null
             var route: AudioRoute? = null
-            val cpu = context.getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PbtMetaGPT:escucha-local")
             try {
                 check(WakeModel(context).installed())
                 LibVosk.setLogLevel(LogLevel.WARNINGS) // Nunca emitir texto reconocido por logs nativos.
@@ -40,14 +37,14 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
                         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) throw SecurityException()
                         lease = gatekeeper.acquire(MicrophoneOwner.CONTINUOUS_LOCAL)
                         check(lease != null) { "El micrófono ya está en uso" }
-                        val bluetooth = context.getSharedPreferences("configuracion", 0).getBoolean("audio-bluetooth", false)
-                        if (bluetooth) {
+                        val bluetooth = AudioInputSettings(context).useBluetooth()
+                        run {
                             val captureJob = currentCoroutineContext().job
                             val requested = AudioRoute(context) {
                                 captureJob.cancel()
                                 scope.launch(Dispatchers.Main) { failed(IllegalStateException("Ruta de audio interrumpida")) }
                             }
-                            route = requested; requested.start(true)
+                            route = requested; requested.start(bluetooth, speaker = true)
                         }
                         val minimum = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
                         check(minimum > 0)
@@ -55,11 +52,11 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
                             AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(minimum, 6400))
                         try {
                             check(recorder.state == AudioRecord.STATE_INITIALIZED)
+                            AudioInputSettings(context).prefer(recorder)
                             recorder.startRecording(); check(recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING)
                             val capturedAt = android.os.SystemClock.elapsedRealtime()
-                            cpu.acquire()
-                            withContext(Dispatchers.Main) { ready() }
                             val buffer = ShortArray(3200)
+                            var announcedReady = false
                             var actualInput: Int? = null
                             while (isActive) {
                                 if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) throw SecurityException()
@@ -76,7 +73,13 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
                                 }
                                 val size = recorder.read(buffer, 0, buffer.size, AudioRecord.READ_NON_BLOCKING)
                                 check(size >= 0) { "Captura interrumpida" }
-                                if (size > 0 && recognizer.acceptWaveForm(buffer, size)) {
+                                val validInput = (context.applicationContext as PbtApplication).audioSession.report(recorder.routedDevice, recorder.sampleRate)
+                                if (!announcedReady && size > 0 && validInput) {
+                                    announcedReady = true
+                                    withContext(Dispatchers.Main) { ready() }
+                                }
+                                check(announcedReady || android.os.SystemClock.elapsedRealtime() - capturedAt < 5000) { "Entrada no confirmada" }
+                                if (size > 0 && validInput && recognizer.acceptWaveForm(buffer, size)) {
                                     val result = JSONObject(recognizer.result)
                                     val alternatives = result.optJSONArray("alternatives")
                                     val texts = if (alternatives == null) listOf(result.optString("text"))
@@ -111,7 +114,7 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
             catch (problem: SecurityException) { withContext(Dispatchers.Main) { failed(problem) } }
             catch (problem: org.json.JSONException) { withContext(Dispatchers.Main) { failed(problem) } }
             catch (problem: LinkageError) { withContext(Dispatchers.Main) { failed(problem) } }
-            finally { if (cpu.isHeld) cpu.release(); route?.close(); gatekeeper.release(lease) }
+            finally { route?.close(); gatekeeper.release(lease) }
         }
     }
 }

@@ -37,6 +37,7 @@ class LocalCommandListener(private val context: Context) {
                     val active = AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, 16000, AudioFormat.CHANNEL_IN_MONO,
                         AudioFormat.ENCODING_PCM_16BIT, maxOf(minimum, 6400)).also { record = it }
                     check(active.state == AudioRecord.STATE_INITIALIZED)
+                    AudioInputSettings(context).prefer(active)
                     if (AcousticEchoCanceler.isAvailable()) aec = AcousticEchoCanceler.create(active.audioSessionId)?.also { it.enabled = true }
                     active.startRecording()
                     check(active.recordingState == AudioRecord.RECORDSTATE_RECORDING)
@@ -62,6 +63,9 @@ class LocalCommandListener(private val context: Context) {
                         }
                         val n = active.read(buffer, 0, buffer.size, AudioRecord.READ_NON_BLOCKING)
                         check(n >= 0)
+                        if (!(context.applicationContext as PbtApplication).audioSession.report(active.routedDevice, active.sampleRate)) {
+                            buffer.fill(0); delay(10); continue
+                        }
                         val result = if (n > 0) decoder.accept(buffer, n) else null
                         if (result != null) {
                             val text = result.text

@@ -151,11 +151,10 @@ class MainActivity : ComponentActivity() {
                         if (page == "Dispositivos") {
                             Panel("Audio", "Móvil y gafas") {
                                 Text("El emparejamiento Bluetooth y una sesión DAT son conexiones distintas. La ruta de audio debe probarse por separado.")
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Preferir Bluetooth", Modifier.weight(1f))
-                                    Switch(bluetooth, onCheckedChange = { voice.stop(); app.hosted.stop(); localAudio.stop(); setBluetooth(it) })
-                                }
-                                Text(if (bluetooth) "Salida Bluetooth solicitada; sin confirmar físicamente." else "Salida del teléfono seleccionada.")
+                                MicrophonePanel(this@MainActivity, localAudio, microphoneReady,
+                                    request = { microphonePermission.launch(Manifest.permission.RECORD_AUDIO) },
+                                    stop = { ContinuousWakeService.stop(this@MainActivity); wake.stop(); voice.stop(); app.hosted.stop(); localAudio.stop() })
+                                Text("Entrada y salida comparten la ruta de comunicación Android. Automático prefiere HFP/LE disponible; la entrada activa se comprueba durante la captura.")
                                 Button(onClick = {
                                     if (bluetooth && !bluetoothReady) bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
                                     else { voice.stop(); app.hosted.stop(); localAudio.speaker(bluetooth) }
@@ -167,14 +166,14 @@ class MainActivity : ComponentActivity() {
                         if (page == "Inicio" || page == "Conversación") Panel("02 · Conversación", "OpenAI API · integración opcional") {
                             Text(vs.status, color = MaterialTheme.colorScheme.primary)
                             Text(vs.route, style = MaterialTheme.typography.bodySmall)
-                            if (vs.phoneFallbackAvailable) OutlinedButton(onClick = { setBluetooth(false); if (vs.active && vs.paused) voice.resumeOnPhone() else start() }) { Text("Usar micrófono y altavoz del móvil") }
+                            if (vs.phoneFallbackAvailable) OutlinedButton(onClick = { ContinuousWakeService.stop(this, finishConversation = false); AudioInputSettings(this).save(MicrophoneChoice.PHONE); setBluetooth(false); if (vs.active && vs.paused) voice.resumeOnPhone() else start() }) { Text("Usar micrófono y altavoz del móvil") }
                             if (!vs.active && !vs.connecting) {
                                 Text("Selecciona tu asistente y configura la conexión en OpenAI. El modo directo no necesita backend.")
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text("Preferir audio Bluetooth", modifier = Modifier.weight(1f).padding(top = 12.dp))
                                     Switch(checked = bluetooth, onCheckedChange = setBluetooth)
                                 }
-                                Text("Sin ruta Bluetooth de comunicación se utilizará el teléfono. Comprueba la ruta indicada; el audio de las gafas depende del firmware y de Android.", style = MaterialTheme.typography.bodySmall)
+                                Text("La selección de Dispositivos → Micrófono tiene prioridad. Si solicitas gafas y no hay ruta compatible se pausa; selecciona Teléfono expresamente para cambiar.", style = MaterialTheme.typography.bodySmall)
                                 if (!microphoneReady) Button(onClick = { microphonePermission.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Permitir micrófono") }
                                 else Button(onClick = {
                                     if (bluetooth && !bluetoothReady) bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)

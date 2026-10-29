@@ -13,12 +13,13 @@ class ListeningContractsTest(unittest.TestCase):
         manifest = ET.parse(ROOT / "app/src/main/AndroidManifest.xml").getroot()
         permissions = {item.attrib[A + "name"] for item in manifest.findall("uses-permission")}
         self.assertTrue({"android.permission.RECORD_AUDIO", "android.permission.FOREGROUND_SERVICE",
-                         "android.permission.FOREGROUND_SERVICE_MICROPHONE", "android.permission.POST_NOTIFICATIONS"} <= permissions)
+                         "android.permission.FOREGROUND_SERVICE_MICROPHONE", "android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE",
+                         "android.permission.POST_NOTIFICATIONS"} <= permissions)
         self.assertNotIn("android.permission.RECEIVE_BOOT_COMPLETED", permissions)
         service = next(item for item in manifest.find("application").findall("service")
                        if item.attrib[A + "name"] == ".ContinuousWakeService")
         self.assertEqual("false", service.attrib[A + "exported"])
-        self.assertEqual("microphone", service.attrib[A + "foregroundServiceType"])
+        self.assertEqual({"microphone", "connectedDevice"}, set(service.attrib[A + "foregroundServiceType"].split("|")))
         self.assertEqual("false", service.attrib[A + "stopWithTask"])
         packages = [item.attrib[A + "name"] for item in manifest.find("queries").findall("package")]
         self.assertEqual(1, packages.count("com.openai.chatgpt"))

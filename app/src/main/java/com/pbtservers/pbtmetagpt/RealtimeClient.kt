@@ -153,7 +153,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     (appContext as? PbtApplication)?.journal?.record(Check.MICROPHONE, Fault.AUDIO_MODULE_CREATE)
                     val audioModule = JavaAudioDeviceModule.builder(appContext)
                         .setAudioBufferCallback { buffer, format, channels, rate, bytes, captureTime ->
-                            if (current == generation && state.value.active && !state.value.paused)
+                            if (current == generation && state.value.active && !state.value.paused && (appContext as PbtApplication).audioSession.captureConfirmed())
                                 localCommands?.input?.submit(buffer, format, channels, rate, bytes, SystemClock.elapsedRealtime())
                             captureTime // No modificar muestras, posición ni marca de captura del proveedor.
                         }
@@ -178,6 +178,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                             override fun onWebRtcAudioTrackStop() = dispatch(current) { diagnostics.record(Check.PLAYBACK, CheckStatus.WARNING, "El reproductor nativo se ha detenido.", "NATIVE_PLAYBACK_STOPPED") }
                         }).createAudioDeviceModule()
                     module = audioModule
+                    AudioInputSettings(appContext).preferredInput()?.let(audioModule::setPreferredInputDevice)
                     android.util.Log.i("PbtStart", "PEER_FACTORY_CREATE")
                     (appContext as? PbtApplication)?.journal?.record(Check.REALTIME, Fault.PEER_FACTORY_CREATE)
                     val createdFactory = PeerConnectionFactory.builder().setAudioDeviceModule(audioModule).createPeerConnectionFactory()
@@ -489,6 +490,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                     recording != null && !recording.isClientSilenced && (!speaking || aec) && !echo
                 }, status = { message -> dispatch(token) {
                     val input = appContext.getSystemService(AudioManager::class.java).activeRecordingConfigurations.singleOrNull()?.audioDevice
+                    (appContext as PbtApplication).audioSession.report(input, 16000)
                     commandValue.value = message + when (input?.type) {
                         android.media.AudioDeviceInfo.TYPE_BUILTIN_MIC -> " · entrada real: teléfono"
                         null -> " · entrada real sin confirmar"
