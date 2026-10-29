@@ -1,6 +1,8 @@
 package com.pbtservers.pbtmetagpt
 
-/** Modelo publicado como es_ES (España), dataset CC0; no se infiere el acento de una etiqueta genérica es. */
+data class SpainVoice(val id: String, val name: String, val packageId: String, val speakerId: Long? = null)
+
+/** Voces publicadas como es_ES. Sharvard comparte pesos entre sus dos hablantes originales. */
 object SpainVoiceCatalog {
     const val packageId = "piper-es_ES-davefx-medium"
     val resource = KokoroResource("es_ES-davefx-medium.onnx", 63201294,
@@ -15,10 +17,25 @@ object SpainVoiceCatalog {
     val spec get() = NeuralVoiceSpec(packageId, "https://huggingface.co/rhasspy/piper-voices/resolve/",
         "v1.0.0/es/es_ES/davefx/medium", listOf(resource),
         phonemes.entries.joinToString("\n") { "${it.key.toChar()} ${it.value}" }, 256)
-    fun ids(ipa: String): LongArray {
+    const val sharvardPackage = "piper-es_ES-sharvard-medium"
+    const val sharvardRevision = "5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/es/es_ES/sharvard/medium"
+    val sharvardResource = KokoroResource("es_ES-sharvard-medium.onnx", 76733615,
+        "40febfb1679c69a4505ff311dc136e121e3419a13a290ef264fdf43ddedd0fb1")
+    val sharvardConfig = KokoroResource("es_ES-sharvard-medium.onnx.json", 4903,
+        "7438c9b699c72b0c3388dae1b68d3f364dc66a2150fe554a1c11f03372957b2c")
+    val voices = listOf(SpainVoice("davefx", "Davefx", packageId),
+        SpainVoice("sharvard_m", "Sharvard · masculina", sharvardPackage, 0),
+        SpainVoice("sharvard_f", "Sharvard · femenina", sharvardPackage, 1))
+    fun voice(id: String) = requireNotNull(voices.singleOrNull { it.id == id }) { "Voz de España no compatible." }
+    fun spec(id: String): NeuralVoiceSpec = if (voice(id).packageId == packageId) spec else NeuralVoiceSpec(
+        sharvardPackage, "https://huggingface.co/rhasspy/piper-voices/resolve/", sharvardRevision,
+        listOf(sharvardResource, sharvardConfig, KokoroResource("MODEL_CARD", 392,
+            "37655314d08fe8a0900abc628d3bcbee48ffbdd8fad9306b89525a0ada20fefc")),
+        phonemes.entries.joinToString("\n") { "${it.key.toChar()} ${it.value}" }, 300)
+    fun ids(ipa: String, vocabulary: Map<Int, Long> = phonemes): LongArray {
         val ids = mutableListOf(1L)
         ipa.codePoints().forEach { code ->
-            ids += requireNotNull(phonemes[code]) { "Fonema no compatible con Davefx." }
+            ids += requireNotNull(vocabulary[code]) { "Fonema no compatible con el modelo Piper seleccionado." }
             ids += 0L
         }
         ids += 2L

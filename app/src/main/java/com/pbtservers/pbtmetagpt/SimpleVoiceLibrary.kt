@@ -28,9 +28,17 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
         TextButton(onClick = stop) { Text("Detener muestra") }
     }
     when (profile.voiceMode) {
-        "natural" -> KokoroVoicePanel(context, profile, change, save, preview, stop)
+        "natural" -> SpainVoicesPanel(context, profile, change, save, preview, stop)
         "rapida" -> AndroidVoicePanel(context, profile, save, preview, stop, change)
-        else -> AdvancedVoiceLibraryScreen(context, profile, change, save, preview, stop, report, compact)
+        else -> {
+            if (profile.ttsEngine == "kokoro") {
+                KokoroVoicePanel(context, profile, change, save, preview, stop)
+                TextButton(onClick = { stop(); change(VoiceSelection.engine(profile, "qwen_space")) }) { Text("Otros motores avanzados") }
+            } else {
+                TextButton(onClick = { stop(); change(VoiceModes.kokoro(profile)) }) { Text("Kokoro local · catálogo anterior") }
+                AdvancedVoiceLibraryScreen(context, profile, change, save, preview, stop, report, compact)
+            }
+        }
     }
 }
 
@@ -81,10 +89,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
     }
     Text(if (peninsular) "Español de España · Piper local" else "Kokoro local", style = MaterialTheme.typography.titleLarge)
     Text("Voz neuronal · sin Internet después de instalar")
-    Text("Natural · recomendada", style = MaterialTheme.typography.labelLarge)
-    VoiceChoice("Davefx", "Español de España · es-ES", "Piper neuronal local", peninsular,
-        { stop(); change(VoiceModes.spain(profile)) }, { stop(); preview(VoiceModes.spain(profile)) }, peninsular && installed && !busy)
-    TextButton(onClick = { stop(); change(VoiceModes.kokoro(profile)) }) { Text("Otras voces locales · Kokoro") }
+    Text("Catálogo avanzado conservado para perfiles anteriores", style = MaterialTheme.typography.labelLarge)
     if (!peninsular) {
     Text("Kokoro: español sin variante es-ES acreditada. No se ofrece como voz peninsular.", style = MaterialTheme.typography.bodySmall)
     KokoroCatalog.voices.keys.forEach { id ->
@@ -117,7 +122,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
     if (status.isNotEmpty()) Text(status)
 }
 
-@Composable private fun VoiceChoice(name: String, language: String, engine: String, selected: Boolean,
+@Composable internal fun VoiceChoice(name: String, language: String, engine: String, selected: Boolean,
     select: () -> Unit, preview: () -> Unit, available: Boolean,
 ) {
     ListItem(modifier = Modifier.selectable(selected, role = Role.RadioButton, onClick = select),

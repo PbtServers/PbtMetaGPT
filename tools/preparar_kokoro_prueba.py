@@ -39,6 +39,39 @@ def prepare_spain():
         temporary.unlink(missing_ok=True)
 
 
+def prepare_sharvard():
+    root = Path(__file__).resolve().parents[1] / 'app/src/androidTest/assets/piper-es'
+    root.mkdir(parents=True, exist_ok=True)
+    revision = '5041a7a49ae5b3a0f30e6837769eb03fdbb231bd'
+    resources = {
+        'es_ES-sharvard-medium.onnx': (76733615, '40febfb1679c69a4505ff311dc136e121e3419a13a290ef264fdf43ddedd0fb1'),
+        'es_ES-sharvard-medium.onnx.json': (4903, '7438c9b699c72b0c3388dae1b68d3f364dc66a2150fe554a1c11f03372957b2c'),
+        'MODEL_CARD': (392, '37655314d08fe8a0900abc628d3bcbee48ffbdd8fad9306b89525a0ada20fefc'),
+    }
+    for name, (size, expected) in resources.items():
+        target = root / name
+        if target.exists():
+            with target.open('rb') as source:
+                if target.stat().st_size == size and hashlib.file_digest(source, 'sha256').hexdigest() == expected:
+                    continue
+        temporary = target.with_suffix('.descarga')
+        try:
+            url = f'https://huggingface.co/rhasspy/piper-voices/resolve/{revision}/es/es_ES/sharvard/medium/{name}'
+            count = 0
+            with urllib.request.urlopen(url, timeout=120) as source, temporary.open('wb') as output:
+                while block := source.read(65536):
+                    count += len(block)
+                    if count > size:
+                        raise ValueError('Sharvard excede el limite')
+                    output.write(block)
+            with temporary.open('rb') as source:
+                if count != size or hashlib.file_digest(source, 'sha256').hexdigest() != expected:
+                    raise ValueError('SHA-256 Sharvard incorrecto')
+            temporary.replace(target)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+
 def main():
     root = Path(__file__).resolve().parents[1] / 'app/src/androidTest/assets/kokoro'
     root.mkdir(parents=True, exist_ok=True)
@@ -64,6 +97,7 @@ def main():
         finally:
             temporary.unlink(missing_ok=True)
     prepare_spain()
+    prepare_sharvard()
     print('Kokoro v1.0 real, revisión fija y SHA-256 comprobados (solo tests).')
 
 

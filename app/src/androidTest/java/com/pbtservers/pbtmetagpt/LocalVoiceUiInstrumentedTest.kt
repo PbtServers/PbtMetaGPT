@@ -29,7 +29,8 @@ class LocalVoiceUiInstrumentedTest {
             ProfileStore(context).save(listOf(profile), profile.id)
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
                 compose.onNode(hasText("Voces") and hasClickAction()).performClick()
-                compose.onNodeWithText("Otras voces locales · Kokoro").performScrollTo().performClick()
+                compose.onNodeWithText("Avanzada").performScrollTo().performClick()
+                compose.onNodeWithText("Kokoro local · catálogo anterior").performScrollTo().performClick()
                 compose.onNodeWithContentDescription("Escuchar muestra de Dora").performScrollTo().assertIsEnabled().performClick()
                 compose.waitUntil(60_000) {
                     application.voice.state.value.failed ||
@@ -46,7 +47,7 @@ class LocalVoiceUiInstrumentedTest {
                 assertEquals("kokoro", saved.ttsEngine)
                 assertEquals("ef_dora", saved.ttsVoice)
                 scenario.recreate()
-                compose.onNodeWithText("Natural").assertIsSelected()
+                compose.onNodeWithText("Avanzada").assertIsSelected()
                 compose.onNodeWithContentDescription("Escuchar muestra de Dora").performScrollTo().assertIsEnabled()
                 compose.onAllNodesWithText("Android TTS", substring = true).assertCountEquals(0)
             }
@@ -59,6 +60,41 @@ class LocalVoiceUiInstrumentedTest {
         }
     }
 
+    @Test fun seleccionaLasDosVocesSharvardConUnToqueYReproduceMuestraSinInternet() = runBlocking<Unit> {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val app = context.applicationContext as PbtApplication
+        val model = SpainVoiceModel(context, "sharvard_m")
+        try {
+            instrumentation.runOnMainSync { app.voice.stop(); app.hosted.stop(); app.clearMessage() }
+            context.getSharedPreferences("configuracion", 0).edit().clear().putBoolean("bienvenida", true).commit()
+            model.install(source = { instrumentation.context.assets.open("piper-es/${it.name}") })
+            val profile = VoiceModes.spain(AssistantProfile(name = "Luna"))
+            ProfileStore(context).save(listOf(profile), profile.id)
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                compose.onNode(hasText("Voces") and hasClickAction()).performClick()
+                for (id in listOf("sharvard_m", "sharvard_f")) {
+                    val voice = SpainVoiceCatalog.voice(id)
+                    compose.onNodeWithText(voice.name).performScrollTo().performClick()
+                    compose.waitUntil(5000) { ProfileStore(context).load().single().ttsVoice == id }
+                }
+                compose.onNodeWithContentDescription("Escuchar muestra de Sharvard · femenina").performScrollTo().assertIsEnabled().performClick()
+                compose.waitUntil(60_000) { app.voice.state.value.failed || app.voice.state.value.status.startsWith("Reproduciendo voz alternativa") }
+                assertFalse(app.voice.state.value.failed)
+                assertTrue(app.voice.state.value.paused)
+                compose.waitUntil(60_000) { !app.voice.state.value.active }
+                assertFalse(app.voice.state.value.failed)
+                scenario.recreate()
+                compose.onNodeWithText("Natural").assertIsSelected()
+                compose.onNodeWithText("Sharvard · femenina").performScrollTo().assertIsSelected()
+                assertEquals("sharvard_f", ProfileStore(context).load().single().ttsVoice)
+            }
+        } finally {
+            instrumentation.runOnMainSync { app.voice.stop(); app.hosted.stop(); app.clearMessage() }
+            model.delete(); ProfileStore(context).save(emptyList(), null)
+            context.getSharedPreferences("configuracion", 0).edit().clear().commit()
+        }
+    }
     @Test fun muestraSinModeloTerminaConErrorYLiberacion() = runBlocking<Unit> {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext

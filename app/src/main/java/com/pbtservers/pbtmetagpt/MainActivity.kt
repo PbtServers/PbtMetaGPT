@@ -166,7 +166,7 @@ class MainActivity : ComponentActivity() {
                         if (page == "Inicio" || page == "Conversación") Panel("02 · Conversación", "OpenAI API · integración opcional") {
                             Text(vs.status, color = MaterialTheme.colorScheme.primary)
                             Text(vs.route, style = MaterialTheme.typography.bodySmall)
-                            if (vs.phoneFallbackAvailable) OutlinedButton(onClick = { ContinuousWakeService.stop(this, finishConversation = false); AudioInputSettings(this).save(MicrophoneChoice.PHONE); setBluetooth(false); if (vs.active && vs.paused) voice.resumeOnPhone() else start() }) { Text("Usar micrófono y altavoz del móvil") }
+                            if (vs.phoneFallbackAvailable) OutlinedButton(onClick = { ContinuousWakeService.stop(this@MainActivity, finishConversation = false); AudioInputSettings(this@MainActivity).save(MicrophoneChoice.PHONE); setBluetooth(false); if (vs.active && vs.paused) voice.resumeOnPhone() else start() }) { Text("Usar micrófono y altavoz del móvil") }
                             if (!vs.active && !vs.connecting) {
                                 Text("Selecciona tu asistente y configura la conexión en OpenAI. El modo directo no necesita backend.")
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

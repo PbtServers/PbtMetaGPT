@@ -84,4 +84,4 @@ open class NeuralVoiceModel(private val context: Context, private val spec: Neur
 }
 
 class KokoroModel(context: Context) : NeuralVoiceModel(context, KokoroCatalog.spec)
-class SpainVoiceModel(context: Context) : NeuralVoiceModel(context, SpainVoiceCatalog.spec)
+class SpainVoiceModel(context: Context, voice: String = "davefx") : NeuralVoiceModel(context, SpainVoiceCatalog.spec(voice))

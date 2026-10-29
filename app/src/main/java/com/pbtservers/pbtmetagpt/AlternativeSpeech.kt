@@ -23,7 +23,7 @@ class AlternativeSpeech(private val context: Context, private val scope: Corouti
         profile.validated()
         when (profile.ttsEngine) {
             "kokoro" -> check(KokoroModel(context).verify()) { "Instala Kokoro en Voces → Natural." }
-            "piper_es" -> check(SpainVoiceModel(context).verify()) { "Instala la voz de España en Voces → Natural." }
+            "piper_es" -> check(SpainVoiceModel(context, profile.ttsVoice).verify()) { "Instala la voz de España seleccionada en Voces → Natural." }
             "qwen_space" -> {
                 check(HostedSettings(context).qwenAuthorized) { "Autoriza el envío de texto a Qwen3-TTS en la biblioteca de voces." }
                 HostedHttp.qwenApi.probe()

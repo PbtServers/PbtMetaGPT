@@ -50,7 +50,7 @@ data class AssistantProfile(
         require(sessionMinutes in 1..60) { "La sesión admite entre 1 y 60 minutos para limitar consumo y recursos." }
         require(ttsEngine in VoiceSelection.engines) { "Motor de voz no compatible." }
         if (ttsEngine == "kokoro") require(ttsVoice in setOf("ef_dora", "em_alex", "em_santa") && ttsPackage == "kokoro-v1.0" && language.startsWith("es")) { "Selecciona una voz Kokoro española compatible." }
-        if (ttsEngine == "piper_es") require(ttsVoice == "davefx" && ttsPackage == "piper-es_ES-davefx-medium" && language == "es-ES") { "La voz Davefx usa español de España (es-ES)." }
+        if (ttsEngine == "piper_es") require(SpainVoiceCatalog.voices.any { it.id == ttsVoice && it.packageId == ttsPackage } && language == "es-ES") { "Selecciona una voz Piper de España (es-ES) y su modelo correspondiente." }
         if (ttsEngine == "qwen_space") {
             require(ttsVoice in QwenSpaceContract.speakers && ttsPackage in QwenSpaceContract.sizes) { "Selecciona una voz y un modelo Qwen3-TTS compatibles." }
             QwenSpaceContract.language(language)
@@ -94,7 +94,7 @@ data class AssistantProfile(
                 ttsVoice = j.optString("ttsVoice"), ttsPackage = j.optString("ttsPackage"), pitch = j.optDouble("pitch", 1.0),
                 voiceMode = j.optString("voiceMode", VoiceModes.forEngine(j.optString("ttsEngine", "realtime"))),
                 wakeSensitivity = j.optString("wakeSensitivity", if (j.optBoolean("tolerantActivation")) "alta" else "normal"))
-                .let { p -> if (p.voiceMode == "natural" && p.ttsEngine !in setOf("kokoro", "piper_es")) p.copy(voiceMode = VoiceModes.forEngine(p.ttsEngine)) else p }
+                .let { p -> if (p.voiceMode == "natural" && p.ttsEngine != "piper_es") p.copy(voiceMode = VoiceModes.forEngine(p.ttsEngine)) else p }
                 .let { if (validate) it.validated() else it }
         }
         fun export(profiles: List<AssistantProfile>): String {
