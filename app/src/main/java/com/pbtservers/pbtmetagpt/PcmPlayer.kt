@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.flowOf
 
 /** Punto de sustitución interno para instrumentación; sin Intent ni entrada externa. */
 internal interface PcmOutput {
+    fun prepare(startFrames: Int) = Unit
     fun play()
     fun head(): Long
     fun write(bytes: ByteArray, offset: Int, count: Int): Int
@@ -22,8 +23,13 @@ class PcmPlayer internal constructor(private val outputFactory: ((Int) -> PcmOut
     private var track: PcmOutput? = null
 
     /** Una escritura no bloqueante y la liberación nunca acceden a la vez al puntero JNI. */
-    private class Output(private val native: AudioTrack) : PcmOutput {
+    internal class Output(private val native: AudioTrack) : PcmOutput {
         private var closed = false
+        @Synchronized override fun prepare(startFrames: Int) {
+            checkOpen()
+            // API 31+, también para avisos inferiores a la capacidad del búfer.
+            native.setStartThresholdInFrames(startFrames)
+        }
         @Synchronized override fun play() { checkOpen(); native.play() }
         @Synchronized override fun head(): Long { checkOpen(); return native.playbackHeadPosition.toLong() and 0xffffffffL }
         @Synchronized override fun write(bytes: ByteArray, offset: Int, count: Int): Int {
@@ -67,6 +73,7 @@ class PcmPlayer internal constructor(private val outputFactory: ((Int) -> PcmOut
                 require(rate == audio.sampleRate)
                 val current = requireNotNull(output)
                 if (totalFrames == 0L) {
+                    current.prepare(minOf(audio.bytes.size / 2, rate / 50).coerceAtLeast(1))
                     current.play()
                     // En Bluetooth la ruta puede estar despertando tras el aviso de Meta:
                     // alimentar silencio antes de la primera sílaba evita perder audio útil.

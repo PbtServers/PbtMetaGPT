@@ -2,6 +2,12 @@
 
 ## Reparación de regresiones comunicadas en teléfono · 30/10/2026
 
+**Corte 21:10 UTC · 06:56 · 70 %.** `0d29a07` supera el trabajo completo de compilación/Lint/JVM/seguridad y backend en [CI 41127709611](https://github.com/PbtServers/PbtMetaGPT/actions/runs/41127709611); los emuladores están preparando recursos. No se acredita aún la aceptación Android.
+
+La auditoría contrasta otra causa del aviso con [AudioTrack oficial](https://developer.android.com/reference/android/media/AudioTrack#getStartThresholdInFrames()): el umbral inicial es la capacidad del búfer. Un aviso de 190 ms puede no llenarlo y dejar el contador en cero, aunque las escrituras se acepten. La salida solicita un umbral inicial de hasta 20 ms, nunca mayor que el primer fragmento. Se añade prueba con AudioTrack auténtico, búfer mayor que el aviso y umbral explícito: reproduce primero la condición anterior y exige después avance y liberación con PcmPlayer. Falta su ejecución; no se atribuye todavía esa causa al hardware de la usuaria.
+
+También se conserva el error TTS durante el siguiente turno de escucha, en lugar de borrarlo inmediatamente y ocultar un fallo de reproducción; otra síntesis o nueva sesión lo sustituye. El recorrido de conversación exige ausencia de ese error. **76 JVM locales correctas (0,442 s)**. El nuevo bloque debe superar de nuevo API35/36; es una reparación de la reproducción corta, no una función añadida. Pesos: 15/15 diagnóstico, 22/25 aviso, 13/20 comandos, 7/15 reconocimiento, 8/10 TTS, 3/5 ChatGPT y 2/10 cierre = **70/100**. CI/APK 20–40 min condicionados; hardware sin estimación.
+
 **Corte 21:01 UTC · 06:47 · 68 %.** `bd0fe19` supera compilación/Lint/seguridad/39 Python/19 backend y **221 JVM, cero fallos, una prueba remota optativa ya omitida anteriormente**, en [CI 41126703492](https://github.com/PbtServers/PbtMetaGPT/actions/runs/41126703492). Sus emuladores están en preparación; no se acredita su resultado ni APK.
 
 La revisión reproduce una frontera nueva: transmitir `2*3` carácter a carácter producía «23». Se añade la prueba, se comprueba el fallo y se conserva el carácter previo entre tokens; **76 JVM locales correctas (0,562 s)** después de corregir. Se añade pausa PCM de 1,2 s a «No, espera…» y se exige que el dictado de producción conserve todos los segmentos obtenidos por el reconocedor libre de referencia sobre el mismo audio. La fuente debug vuelve a leer AudioRecord real antes de la inyección y evita girar con silencio artificial. Referencias de sustitución y contador falso de salida usan visibilidad entre hilos.

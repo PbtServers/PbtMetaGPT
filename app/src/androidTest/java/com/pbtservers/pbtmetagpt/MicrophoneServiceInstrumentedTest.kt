@@ -44,6 +44,32 @@ class MicrophoneServiceInstrumentedTest {
         MusicSettings(context).enable(false)
         context.getSystemService(NotificationManager::class.java).cancel(73)
     }
+    @Test fun avisoMenorQueElBufferArrancaConUmbralExplicitoYLiberacionReal() = runBlocking<Unit> {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            val route = AudioRoute(context) {}
+            route.start(false, speaker = true)
+            val tone = WakeConfirmation.pcm()
+            val track = AudioTrack.Builder()
+                .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+                .setAudioFormat(AudioFormat.Builder().setSampleRate(16000).setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
+                .setTransferMode(AudioTrack.MODE_STREAM).setBufferSizeInBytes(32000).build()
+            try {
+                val threshold = track.setStartThresholdInFrames(track.bufferCapacityInFrames)
+                assertTrue(threshold > tone.bytes.size / 2)
+                track.play()
+                assertEquals(tone.bytes.size, track.write(tone.bytes, 0, tone.bytes.size, AudioTrack.WRITE_NON_BLOCKING))
+                // Reproducción del defecto: el aviso completo no llena el umbral.
+                assertNull(withTimeoutOrNull(250) { while (track.playbackHeadPosition == 0) delay(5); true })
+                track.pause(); track.flush(); track.stop()
+                val started = android.os.SystemClock.elapsedRealtime()
+                var frame = false
+                withTimeout(3000) { PcmPlayer { PcmPlayer.Output(track) }.playStream(flowOf(tone), firstFrame = { frame = true }) }
+                assertTrue("La señal corta debe llegar al contador de reproducción", frame)
+                assertEquals(AudioTrack.STATE_UNINITIALIZED, track.state)
+                android.util.Log.i("PbtAsrTest", "{\"aviso_pcm_ms\":190,\"umbral_anterior_frames\":" + threshold + ",\"reproduccion_emulador_ms\":" + (android.os.SystemClock.elapsedRealtime() - started) + ",\"audio_fisico_verificado\":false}")
+            } finally { runCatching { track.release() }; tone.bytes.fill(0); route.close() }
+        }
+    }
     @Test fun activarMusicaDespuesDelServicioCedeFocoSinRevocarEscucha() = runBlocking<Unit> {
         WakeModel(context).install { instrumentation.context.assets.open("activacion-prueba.zip") }
         val profile = AssistantProfile(name = "Jarvis").validated()

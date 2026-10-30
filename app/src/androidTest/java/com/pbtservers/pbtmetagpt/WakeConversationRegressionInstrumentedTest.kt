@@ -121,6 +121,7 @@ class WakeConversationRegressionInstrumentedTest {
                         assertNotEquals(ListeningPhase.SUSPENDED, ContinuousWakeService.state.value)
                         questions.send(question)
                         await { requests.size == 1 && captures.get() >= 2 }
+                        assertNull("La respuesta no puede ocultar un fallo de AudioTrack", app.hosted.audioError.value)
                         assertTrue(app.hosted.messages.value.any { it.assistant && it.text.contains("**Respuesta") })
                         assertTrue(spoken.isNotEmpty())
                         assertFalse(spoken.joinToString().contains('*'))
@@ -130,6 +131,7 @@ class WakeConversationRegressionInstrumentedTest {
                         await { captures.get() >= 3 }
                         questions.send(question)
                         await { requests.size == 2 && captures.get() >= 4 }
+                        assertNull(app.hosted.audioError.value)
                         assertTrue(requests.last().getJSONArray("messages").toString().contains("assistant"))
                         withContext(Dispatchers.Main) { app.hosted.stop() }
                         await { ContinuousWakeService.state.value == ListeningPhase.LISTENING }

@@ -61,7 +61,7 @@ class HostedConversation internal constructor(private val context: Context, priv
     private fun move(phase: SessionPhase) { session.move(phase); sessionValue.value = session.phase }
 
     fun start(target: AssistantProfile, dictate: Boolean = false, initialQuestion: String = "") {
-        stop(); chat.value = emptyList(); lastAnswer = null; resolved = null
+        stop(); chat.value = emptyList(); lastAnswer = null; resolved = null; voiceFailure.value = null
         try {
             check(settings.provider == "groq" && settings.authorized && KeyVault(context, provider = "groq").exists())
             profile = target.validated(); fromWake = dictate
@@ -78,7 +78,7 @@ class HostedConversation internal constructor(private val context: Context, priv
         val token = session.epoch
         idleRelease?.cancel()
         val trace = VoiceLatency()
-        voiceFailure.value = null; timing.value = emptyMap()
+        timing.value = emptyMap()
         processing.value = true
         val next = scope.launch(start = CoroutineStart.LAZY) {
             try { awaitAudioRelease(draining); ensureActive(); action(trace) }
@@ -255,6 +255,9 @@ class HostedConversation internal constructor(private val context: Context, priv
     private suspend fun speakStream(target: AssistantProfile, trace: VoiceLatency,
         produce: suspend (suspend (String) -> Unit) -> String, text: (String) -> Unit,
     ): String {
+        // El error de reproducción anterior sigue visible durante la siguiente
+        // escucha; solo otro intento de voz (o una nueva sesión) lo sustituye.
+        voiceFailure.value = null
         val rvcStore = RvcOnnxStore(context)
         var localRvc: RvcOnDevice? = null
         try {
