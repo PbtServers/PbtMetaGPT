@@ -28,6 +28,9 @@ class PbtApplication : Application() {
     var connection: WakeConnection? = null
     private val mutableMessage = MutableStateFlow<String?>(null)
     val message = mutableMessage.asStateFlow()
+    private val lastMusicResult = MutableStateFlow<String?>(null)
+    val musicResult = lastMusicResult.asStateFlow()
+    private fun reportMusic(result: String) { lastMusicResult.value = result; mutableMessage.value = result }
     val voice by lazy { RealtimeClient(this, scope, { mutableMessage.value = it }, diagnostics) }
     val hosted by lazy { HostedConversation(this, scope) }
     val conversationState by lazy { combine(voice.state, hosted.state) { paid, free ->
@@ -39,8 +42,9 @@ class PbtApplication : Application() {
         if (getProcessName() == packageName) scope.launch(Dispatchers.IO) { voskModels.close() }
     }
     fun controlSpotify(action: MusicAction) {
+        lastMusicResult.value = null
         if (!MusicSettings(this).enabled) {
-            mutableMessage.value = "Activa Controlar Spotify en Ajustes → Dispositivos → Música."
+            reportMusic("Activa Controlar Spotify en Ajustes → Dispositivos → Música.")
             return
         }
         handoff?.cancel()
@@ -49,15 +53,15 @@ class PbtApplication : Application() {
         musicCommand?.cancel()
         musicCommand = scope.launch {
             try { hosted.awaitReleased() }
-            catch (_: TimeoutCancellationException) { mutableMessage.value = "La liberación del audio ha agotado su plazo. Detén y reactiva la escucha."; return@launch }
-            catch (_: HostedFailure) { mutableMessage.value = "El micrófono anterior sigue ocupado. Detén y reactiva la escucha."; return@launch }
+            catch (_: TimeoutCancellationException) { reportMusic("La liberación del audio ha agotado su plazo. Detén y reactiva la escucha."); return@launch }
+            catch (_: HostedFailure) { reportMusic("El micrófono anterior sigue ocupado. Detén y reactiva la escucha."); return@launch }
             ContinuousWakeService.releaseFocusForMusic()
             val released = withTimeoutOrNull(5000) {
                 while (audioSession.hasFocusOwners()) delay(20)
                 true
             } == true
-            mutableMessage.value = if (released) SpotifyControls(this@PbtApplication).execute(action)
-                else "El asistente aún está liberando el audio. Espera y repite la orden de música."
+            reportMusic(if (released) SpotifyControls(this@PbtApplication).execute(action)
+                else "El asistente aún está liberando el audio. Espera y repite la orden de música.")
         }
     }
     fun openChatGpt() = openExternalAssistant { OfficialChatGpt(this).open(activityVisible) }

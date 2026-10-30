@@ -82,8 +82,8 @@ class MicrophoneServiceInstrumentedTest {
             assertTrue(app.audioSession.hasFocusOwners())
             MusicSettings(context).enable(true)
             instrumentation.runOnMainSync { app.clearMessage(); app.controlSpotify(MusicAction.PLAY) }
-            await { app.message.value != null }
-            assertTrue(app.message.value.orEmpty(), app.message.value.orEmpty().let { it.startsWith("Autoriza") || it.startsWith("No hay una sesión") })
+            await { app.musicResult.value != null }
+            assertTrue(app.musicResult.value.orEmpty(), app.musicResult.value.orEmpty().let { it.startsWith("Autoriza") || it.startsWith("No hay una sesión") })
             assertFalse(app.audioSession.hasFocusOwners())
             assertTrue(app.audioSession.hasOwners())
             assertTrue(ContinuousWakeService.authorizedRunning)
@@ -378,7 +378,10 @@ class MicrophoneServiceInstrumentedTest {
         }
         assertNull(gate.owner())
     }
-    private suspend fun await(condition: () -> Boolean) { withTimeout(20000) { while (!condition()) delay(50) } }
+    private suspend fun await(condition: () -> Boolean) {
+        try { withTimeout(20000) { while (!condition()) delay(50) } }
+        catch (timeout: TimeoutCancellationException) { throw AssertionError("Estado=" + ContinuousWakeService.state.value + "; mic=" + app.microphone.owner() + "; error=" + ContinuousWakeService.error.value + "\\n" + app.voiceTransitions.report(), timeout) }
+    }
     @Test fun seleccionPersistenteYRutaCompartidaHastaLiberarElUltimoPropietario() = runBlocking<Unit> {
         val settings = AudioInputSettings(context)
         val manager = context.getSystemService(AudioManager::class.java)

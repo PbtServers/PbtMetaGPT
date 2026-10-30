@@ -4,6 +4,17 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SystemAssistantCommandsTest {
+    @Test fun alternativaLibreCompletaCorroboraElAsistenteSinInventarConfianza() {
+        val free = CommandHypothesis("abre el asistente su c c c f", .548778f, 1.0, 3.0)
+        val restricted = free.copy(text = "abre el asistente del teléfono", confidence = .99f)
+        val bounds = SpeechBounds(1.0, 3.0)
+        assertFalse(SystemAssistantCommandGrammar.accepts(free, restricted, bounds))
+        assertTrue(SystemAssistantCommandGrammar.acceptsAlternatives(free, listOf(free.text, restricted.text), restricted, bounds))
+        assertFalse(SystemAssistantCommandGrammar.acceptsAlternatives(free, listOf("abre el asistente del hotel"), restricted, bounds))
+        assertFalse(SystemAssistantCommandGrammar.acceptsAlternatives(free.copy(confidence = 1f), listOf(restricted.text), restricted, bounds))
+        assertFalse(SystemAssistantCommandGrammar.acceptsAlternatives(free, listOf(restricted.text), restricted.copy(confidence = .94f), bounds))
+        assertFalse(SystemAssistantCommandGrammar.acceptsAlternatives(free, listOf(restricted.text), restricted, SpeechBounds(.5, 3.0)))
+    }
     @Test fun acuerdoTextoCompletoYConfianzaAltaResuelvenLaOrdenSinRebajarElUmbral() {
         val free = CommandHypothesis("abre el asistente del teléfono", .718073f, 1.0, 2.5)
         val restricted = free.copy(confidence = .99f)

@@ -284,7 +284,7 @@ class ContinuousWakeService : Service() {
             context.stopService(Intent(context, ContinuousWakeService::class.java))
         }
         suspend fun beforeRealtime() { instance?.prepareConversation() }
-        fun releaseFocusForMusic() { instance?.retainedRoute?.releaseFocusForMusic() }
+        fun releaseFocusForMusic() { instance?.app?.audioSession?.releasePassiveFocus() }
         fun revokeConsent() { instance?.session?.suspendListening(); instance?.activation?.cancel() }
         suspend fun releaseForExternal() {
             instance?.let { service ->

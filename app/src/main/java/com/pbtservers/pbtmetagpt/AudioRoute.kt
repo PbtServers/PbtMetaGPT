@@ -8,7 +8,7 @@ class AudioRoute(context: Context, private val onInterrupted: (String) -> Unit) 
     private val session = (context.applicationContext as? PbtApplication)?.audioSession ?: CommunicationAudioSession(context.applicationContext)
     fun start(preferBluetooth: Boolean, speaker: Boolean = false, passive: Boolean = false) =
         session.acquire(this, preferBluetooth, speaker, onInterrupted,
-            requireFocus = !passive || !music.enabled)
+            requireFocus = !passive || !music.enabled, passive = passive)
     fun actualRoute() = session.actualRoute()
     fun close() = session.release(this)
     fun releaseFocusForMusic() = session.releaseFocus(this)

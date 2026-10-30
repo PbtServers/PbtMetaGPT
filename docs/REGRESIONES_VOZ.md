@@ -21,6 +21,10 @@ No se ha confirmado qué componente físico deja inmóvil AudioTrack: contador B
 
 La pérdida real del micrófono, revocación, llamada o cambio de ruta sigue pausando por seguridad. Omitir un aviso no autoriza usar otro micrófono ni ignorar una llamada.
 
+La primera ejecución ampliada detectó cuatro fallos API35 y tres API36; se mantienen documentados en PROGRESO. La cesión musical ahora distingue todas las concesiones pasivas del servicio/detector y conserva las activas. El resultado del control tiene StateFlow propio para que el consumo del aviso de interfaz no oculte su finalización.
+
+Para la apertura ambigua del asistente del teléfono puede hacerse otra lectura libre del mismo PCM, acotada a ocho segundos en RAM y borrada al finalizar. Solo se considera ante el imperativo explícito con primera hipótesis dudosa; exige una alternativa completa concordante, confianza de palabras >=0,95 y fronteras físicas. Los scores N-best no se reinterpretan como confianza. Los casos hotel/televisor/negación y las tres voces forman parte de la regresión; no se acredita recuperación hasta pasar Android.
+
 ## Español y voz
 
 Idioma solicitado es-ES. Vosk pequeño es un modelo de español genérico: no garantiza nombres propios ni una precisión suficiente para dictado natural. Automático respeta Whisper cuando existe consentimiento; sin ese consentimiento puede utilizar Android local disponible también en conversación continua. Vosk explícito sigue disponible y la activación permanece local. No hay fallback inglés ni autorización implícita de red.

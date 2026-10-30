@@ -122,7 +122,7 @@ class CommandInferenceInstrumentedTest {
                 // El enunciado corto varía con el hablante: se acredita con Sharvard M;
                 // la alternativa sin nombre extranjero se comprueba con las tres voces.
                 val positive = listOf("Abre el asistente del teléfono.") + if (id == "sharvard_m") listOf("Abre Google.") else emptyList()
-                val negative = listOf("No abre Google.", "Explícame cómo abre Google.")
+                val negative = listOf("No abre Google.", "Explícame cómo abre Google.", "Abre el asistente del hotel.", "Abre el asistente del televisor.", "No abras el asistente del teléfono.")
                 for (phrase in positive + negative) {
                     val pcm = engine.synthesize(voice, phrase)
                     try {

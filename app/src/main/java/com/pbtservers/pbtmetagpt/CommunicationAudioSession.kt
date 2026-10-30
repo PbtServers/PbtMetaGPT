@@ -15,6 +15,7 @@ class CommunicationAudioSession(private val context: Context) {
     private val handler = Handler(Looper.getMainLooper())
     private val owners = linkedMapOf<Any, (String) -> Unit>()
     private val focusOwners = mutableSetOf<Any>()
+    private val passiveOwners = mutableSetOf<Any>()
     private var focusHeld = false
     private var previousMode = AudioManager.MODE_NORMAL
     private var previousDevice: AudioDeviceInfo? = null
@@ -62,13 +63,14 @@ class CommunicationAudioSession(private val context: Context) {
             report(active.audioDevice, active.clientFormat.sampleRate)
         }
     }
-    @Synchronized fun acquire(owner: Any, legacyBluetooth: Boolean, speaker: Boolean, lost: (String) -> Unit, requireFocus: Boolean = true): String {
+    @Synchronized fun acquire(owner: Any, legacyBluetooth: Boolean, speaker: Boolean, lost: (String) -> Unit, requireFocus: Boolean = true, passive: Boolean = false): String {
         if (owner in owners) return label()
         val useBluetooth = settings.useBluetooth(legacyBluetooth)
         if (owners.isNotEmpty()) {
             check(!interrupted && bluetooth == useBluetooth) { "Detén la escucha antes de cambiar la ruta de audio." }
             if (requireFocus) acquireFocus(owner)
             owners[owner] = lost
+            if (passive) passiveOwners += owner
             return label()
         }
         previousMode = manager.mode; previousDevice = manager.communicationDevice
@@ -89,6 +91,7 @@ class CommunicationAudioSession(private val context: Context) {
             expectedAddress = target.address
             requestedAt = android.os.SystemClock.elapsedRealtime()
             owners[owner] = lost
+            if (passive) passiveOwners += owner
             manager.registerAudioDeviceCallback(devices, handler)
             manager.addOnCommunicationDeviceChangedListener(context.mainExecutor, communication)
             manager.registerAudioRecordingCallback(recording, handler)
@@ -111,6 +114,9 @@ class CommunicationAudioSession(private val context: Context) {
             closePart { manager.abandonAudioFocusRequest(focus) }
         }
     }
+    @Synchronized fun releasePassiveFocus() {
+        passiveOwners.toList().forEach(::releaseFocus)
+    }
     @Synchronized fun report(device: AudioDeviceInfo?, rate: Int): Boolean {
         if (owners.isEmpty() || interrupted) return false
         if (!confirmed) confirmed = manager.communicationDevice?.id == selected?.id
@@ -131,6 +137,7 @@ class CommunicationAudioSession(private val context: Context) {
     @Synchronized fun actualRoute() = "Comunicación: ${manager.communicationDevice?.productName ?: "sin confirmar"}. Captura: ${input.value.description}"
     @Synchronized fun release(owner: Any) {
         owners.remove(owner)
+        passiveOwners.remove(owner)
         focusOwners.remove(owner)
         if (focusOwners.isEmpty() && focusHeld) {
             focusHeld = false

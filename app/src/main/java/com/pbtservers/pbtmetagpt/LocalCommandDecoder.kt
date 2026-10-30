@@ -19,6 +19,8 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
     private var inferenceFrames = 0L
     private var timelineOffset = 0L
     private val preRoll = PcmPreRoll(sampleRate.toInt() * 300 / 1000)
+    private val replay = ShortArray(sampleRate.toInt() * 8)
+    private var replaySize = 0
     private var voiceStart: Double? = null
     private var voiceEnd = 0.0
     init {
@@ -47,6 +49,7 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
                 voiceStart = (samples / sampleRate.toDouble() - .060).coerceAtLeast(0.0)
                 voiceEnd = samples / sampleRate.toDouble()
                 recognizer.reset(); chat.reset(); music.reset()
+                replay.fill(0); replaySize = 0
                 val prefix = preRoll.snapshot()
                 timelineOffset = samples - prefix.size - inferenceFrames
                 try { feed(prefix, prefix.size) } finally { prefix.fill(0); preRoll.clear() }
@@ -62,6 +65,9 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
         return combine(recognizer.finalResult, chat.finalResult, music.finalResult)
     }
     private fun feed(buffer: ShortArray, size: Int) {
+        if (replaySize >= 0 && replaySize + size <= replay.size) {
+            buffer.copyInto(replay, replaySize, 0, size); replaySize += size
+        } else { replay.fill(0); replaySize = -1 }
         inferenceFrames += size
         recognizer.acceptWaveForm(buffer, size)
         chat.acceptWaveForm(buffer, size)
@@ -74,14 +80,30 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
         val musicCommand = decode(musical, average = true)
         val bounds = voiceStart?.let { SpeechBounds(it, voiceEnd) }
         evaluation?.invoke(full, command, bounds)
+        evaluation?.invoke(full, musicCommand, bounds)
         val result = when {
             bounds != null && ChatGptCommandGrammar.accepts(full, command, bounds) -> command
             bounds != null && SystemAssistantCommandGrammar.accepts(full, musicCommand, bounds) -> musicCommand
+            bounds != null && retrySystem(full, musicCommand, bounds) -> musicCommand
             bounds != null && MusicCommandGrammar.accepts(full, musicCommand, bounds) -> musicCommand
             else -> full
         }
+        replay.fill(0); replaySize = 0
         vad = AdaptiveVad(sampleRate.toInt()); preRoll.clear(); voiceStart = null; voiceEnd = 0.0
         return result
+    }
+    private fun retrySystem(open: CommandHypothesis, restricted: CommandHypothesis, bounds: SpeechBounds): Boolean {
+        if (replaySize <= 0 || !SystemAssistantCommandGrammar.shouldRetry(open, restricted, bounds)) return false
+        // Segunda lectura libre del mismo PCM, solo para la apertura ambigua del
+        // asistente. No añade un capturador ni toca el texto del dictado general.
+        Recognizer(model, sampleRate).use { candidate ->
+            candidate.setMaxAlternatives(5)
+            candidate.acceptWaveForm(ShortArray(sampleRate.toInt() / 2), sampleRate.toInt() / 2)
+            candidate.acceptWaveForm(replay, replaySize)
+            val alternatives = JSONObject(candidate.finalResult).optJSONArray("alternatives") ?: return false
+            val texts = (0 until alternatives.length()).map { alternatives.getJSONObject(it).optString("text") }
+            return SystemAssistantCommandGrammar.acceptsAlternatives(open, texts, restricted, bounds)
+        }
     }
     private fun decode(json: String, average: Boolean): CommandHypothesis {
         val result = JSONObject(json)
@@ -101,7 +123,8 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
         try { recognizer.close() } finally { try { chat.close() } finally { music.close() } }
         recognizer = nextOpen; chat = nextChat; music = nextMusic
         samples = 0; inferenceFrames = 0; timelineOffset = 0; preRoll.clear()
+        replay.fill(0); replaySize = 0
         vad = AdaptiveVad(sampleRate.toInt()); voiceStart = null; voiceEnd = 0.0
     }
-    override fun close() { preRoll.clear(); try { recognizer.close() } finally { try { chat.close() } finally { try { music.close() } finally { closeModel() } } } }
+    override fun close() { replay.fill(0); preRoll.clear(); try { recognizer.close() } finally { try { chat.close() } finally { try { music.close() } finally { closeModel() } } } }
 }

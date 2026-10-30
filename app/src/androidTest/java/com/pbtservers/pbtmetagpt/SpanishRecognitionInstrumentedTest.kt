@@ -52,6 +52,7 @@ class SpanishRecognitionInstrumentedTest {
                         val full = mutableListOf<String>()
                         val commands = mutableListOf<String>()
                         var dictation = CommandHypothesis("", 0f, 0.0)
+                        val nativeFinals = mutableListOf<String>()
                         val started = SystemClock.elapsedRealtime()
                         var localCommandMs: Long? = null
                         try {
@@ -68,7 +69,7 @@ class SpanishRecognitionInstrumentedTest {
                             }
                             val decodingAt = SystemClock.elapsedRealtime()
                             Recognizer(cached.model, 16000f).use { free ->
-                                VoskDictationDecoder(cached.model).use { dictationDecoder ->
+                                VoskDictationDecoder(cached.model, finalized = { json -> JSONObject(json).optString("text").trim().takeIf { it.isNotBlank() }?.let(nativeFinals::add) }).use { dictationDecoder ->
                                 LocalCommandDecoder(wake.model.absolutePath, sharedModel = cached.model).use { decoder ->
                                     fun feed(frame: ShortArray, count: Int) {
                                         dictationDecoder.accept(frame, count)
@@ -99,7 +100,8 @@ class SpanishRecognitionInstrumentedTest {
                             if (expectedIntent == recognizedIntent) correctIntents++
                             freeTotal += before; commandTotal += after
                             dictationTotal += RecognitionMetrics.words(phrase, dictation.text)
-                            assertEquals("El dictado no puede perder segmentos finales: " + phrase, VoiceCommands.normalize(full.joinToString(" ")), VoiceCommands.normalize(dictation.text))
+                            assertEquals("El dictado no puede perder segmentos finales: " + phrase, VoiceCommands.normalize(nativeFinals.joinToString(" ")), VoiceCommands.normalize(dictation.text))
+                            if (phrase.startsWith("No, espera")) assertTrue("La pausa debe producir y conservar varios segmentos nativos", nativeFinals.size >= 2)
                             val score = JSONObject().put("caso", index).put("origen", "Davefx sintético es-ES").put("hz", 16000)
                                 .put("libre_wer", before.rate).put("comandos_wer", after.rate)
                                 .put("dictado_produccion_wer", RecognitionMetrics.words(phrase, dictation.text).rate)

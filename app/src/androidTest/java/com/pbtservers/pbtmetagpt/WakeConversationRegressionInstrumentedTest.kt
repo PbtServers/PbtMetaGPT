@@ -38,7 +38,11 @@ class WakeConversationRegressionInstrumentedTest {
         fun shell(command: String) { instrumentation.uiAutomation.executeShellCommand(command).use { descriptor ->
             android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { it.readBytes() }
         } }
-        suspend fun await(condition: () -> Boolean) { withTimeout(12000) { while (!condition()) delay(20) } }
+        var stage = "Inicio"
+        suspend fun await(condition: () -> Boolean) {
+            try { withTimeout(12000) { while (!condition()) delay(20) } }
+            catch (timeout: TimeoutCancellationException) { throw AssertionError(stage + "; estado=" + ContinuousWakeService.state.value + "; mic=" + app.microphone.owner() + "; capturas=" + captures.get() + "; peticiones=" + requests.size + "; proveedor=" + app.hosted.state.value.status + "; error=" + ContinuousWakeService.error.value + "\\n" + app.voiceTransitions.report(), timeout) }
+        }
         try {
             wake.install { instrumentation.context.assets.open("activacion-prueba.zip") }
             model.install(source = { instrumentation.context.assets.open("piper-es/" + it.name) })
@@ -57,6 +61,7 @@ class WakeConversationRegressionInstrumentedTest {
                 val answer = "**Respuesta importante**. *Espera...* Todo está preparado."
                 val event = JSONObject().put("choices", org.json.JSONArray().put(JSONObject().put("delta", JSONObject().put("content", answer))))
                 Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("Prueba")
+                    .header("Content-Type", "text/event-stream")
                     .body(("data: " + event + "\n\ndata: [DONE]\n\n").toResponseBody("text/event-stream".toMediaType())).build()
             }.build())
             DevelopmentVoice.synthesis = { _, phrase ->
@@ -107,6 +112,7 @@ class WakeConversationRegressionInstrumentedTest {
                     }
                 }
                 ActivityScenario.launch(MainActivity::class.java).use { activity ->
+                    stage = "Iniciar detector, escenario " + mode
                     activity.onActivity { ContinuousWakeService.startVisible(it) }
                     await { ContinuousWakeService.state.value == ListeningPhase.LISTENING }
                     if (mode == 1) {
@@ -114,11 +120,14 @@ class WakeConversationRegressionInstrumentedTest {
                         shell("input keyevent KEYCODE_SLEEP")
                     }
                     try {
+                        stage = "Activar conversación, escenario " + mode
                         frames.set(0)
                         DevelopmentVoice.wakeFrames = input
                         await { captures.get() == 1 }
+                        DevelopmentVoice.wakeFrames = null
                         assertTrue(ContinuousWakeService.authorizedRunning)
                         assertNotEquals(ListeningPhase.SUSPENDED, ContinuousWakeService.state.value)
+                        stage = "Primera respuesta y nueva escucha, escenario " + mode
                         questions.send(question)
                         await { requests.size == 1 && captures.get() >= 2 }
                         assertNull("La respuesta no puede ocultar un fallo de AudioTrack", app.hosted.audioError.value)
@@ -127,12 +136,15 @@ class WakeConversationRegressionInstrumentedTest {
                         assertFalse(spoken.joinToString().contains('*'))
                         // Control de interrupción real del controlador; su precisión acústica
                         // se prueba aparte en CommandInferenceInstrumentedTest.
+                        stage = "Interrumpir y volver a capturar, escenario " + mode
                         withContext(Dispatchers.Main) { app.hosted.interrupt() }
                         await { captures.get() >= 3 }
+                        stage = "Segunda respuesta, escenario " + mode
                         questions.send(question)
                         await { requests.size == 2 && captures.get() >= 4 }
                         assertNull(app.hosted.audioError.value)
                         assertTrue(requests.last().getJSONArray("messages").toString().contains("assistant"))
+                        stage = "Regresar a espera, escenario " + mode
                         withContext(Dispatchers.Main) { app.hosted.stop() }
                         await { ContinuousWakeService.state.value == ListeningPhase.LISTENING }
                         assertTrue(ContinuousWakeService.authorizedRunning)

@@ -2,6 +2,18 @@
 
 ## Reparación de regresiones comunicadas en teléfono · 30/10/2026
 
+**Corte 22:03 UTC · 07:49 · 76 %.** [CI 41129751820](https://github.com/PbtServers/PbtMetaGPT/actions/runs/41129751820), `2624d94`: compilación/Lint/seguridad/222 JVM correctos (una remota optativa omitida), 39 Python, 19 backend. API35 **70/74**, API36 **71/74**; no hay APK publicable. No se atribuyen los fallos a infraestructura.
+
+La prueba de AudioTrack auténtico pasa en ambos emuladores: umbral anterior **16000 tramas**, aviso **190 ms**; API36 registra **207 ms** tras el ajuste. Reproduce el contador inmóvil con umbral mayor que la señal y verifica avance/liberación con PcmPlayer. No mide audibilidad Bluetooth. La ventana bloqueada da 30007 ms/1664 ms CPU en API36; no acredita batería del Nothing.
+
+Fallos y correcciones del siguiente bloque:
+- Foco musical: el servicio y el detector mantienen dos concesiones pasivas. Se clasifican ambas y se cede solo su foco, conservando propietarios activos y micrófono. El resultado musical permanece observable, independiente del mensaje efímero que consume MainActivity.
+- Recorrido conversacional: el interceptor de prueba omitía Content-Type; el parser estricto de Groq lo rechazó correctamente. Se corrige el servidor, se retira la fuente PCM de una sola activación y se añaden etapas/diagnóstico de timeout. No se relaja el parser real.
+- Dictado: dos instancias del reconocedor producen hipótesis distintas en Esterri. Se conserva WER/CER de ambas, pero la comprobación de pérdidas se realiza contra los resultados finales de la misma inferencia, antes de agregarlos; sigue exigiendo todos los fragmentos y el caso de pausa.
+- Asistente del teléfono: API35 no corrobora la frase con la primera hipótesis libre. Se añade segunda lectura libre del mismo PCM solo ante esa apertura explícita y ambigua, máximo ocho segundos en RAM borrable. Exige acuerdo textual completo, fronteras y confianza restringida >=0,95; no convierte los scores N-best en probabilidades ni reemplaza palabras. Se añaden negativos «hotel», «televisor» y negación, conservando las tres voces y los positivos anteriores.
+
+**77 JVM locales correctas (0,671 s), 39 Python y escáner de fuentes correctos.** La segunda lectura acústica necesita todavía su prueba Android; no se declara resuelta por las pruebas de texto. Una comparación auxiliar Windows a 22,05/16 kHz no reprodujo el fallo: no se cambia el muestreo basándose en ella. Próximo paso: CI completa de este bloque, sin eliminar casos ni publicar APK si falla. Estimación: otro ciclo de 20–40 min si no aparecen fallos; aceptación física sin estimación fiable.
+
 **Corte 21:10 UTC · 06:56 · 70 %.** `0d29a07` supera el trabajo completo de compilación/Lint/JVM/seguridad y backend en [CI 41127709611](https://github.com/PbtServers/PbtMetaGPT/actions/runs/41127709611); los emuladores están preparando recursos. No se acredita aún la aceptación Android.
 
 La auditoría contrasta otra causa del aviso con [AudioTrack oficial](https://developer.android.com/reference/android/media/AudioTrack#getStartThresholdInFrames()): el umbral inicial es la capacidad del búfer. Un aviso de 190 ms puede no llenarlo y dejar el contador en cero, aunque las escrituras se acepten. La salida solicita un umbral inicial de hasta 20 ms, nunca mayor que el primer fragmento. Se añade prueba con AudioTrack auténtico, búfer mayor que el aviso y umbral explícito: reproduce primero la condición anterior y exige después avance y liberación con PcmPlayer. Falta su ejecución; no se atribuye todavía esa causa al hardware de la usuaria.

@@ -5,13 +5,14 @@ import org.vosk.Model
 import org.vosk.Recognizer
 
 /** Dictado libre: el VAD de captura decide el final, no una gramática de órdenes. */
-class VoskDictationDecoder(model: Model) : AutoCloseable {
+class VoskDictationDecoder(model: Model, private val finalized: (String) -> Unit = {}) : AutoCloseable {
     private val recognizer = Recognizer(model, 16000f).apply { setWords(true) }
     private val results = mutableListOf<CommandHypothesis>()
     fun accept(samples: ShortArray, count: Int) {
         if (recognizer.acceptWaveForm(samples, count)) collect(recognizer.result)
     }
     private fun collect(json: String) {
+        finalized(json) // Solo observador interno de pruebas; la app no registra audio/texto.
         val value = JSONObject(json)
         val text = value.optString("text").trim()
         if (text.isBlank()) return
