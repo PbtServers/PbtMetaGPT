@@ -50,7 +50,9 @@ class PbtApplication : Application() {
                 else "El asistente aún está liberando el audio. Espera y repite la orden de música."
         }
     }
-    fun openChatGpt() {
+    fun openChatGpt() = openExternalAssistant { OfficialChatGpt(this).open(activityVisible) }
+    fun openSystemAssistant() = openExternalAssistant { SystemAssistantLauncher(this).open(activityVisible) }
+    private fun openExternalAssistant(open: () -> String) {
         if (handoff?.isActive == true) return
         musicCommand?.cancel()
         stopVisibleWake?.invoke()
@@ -66,8 +68,8 @@ class PbtApplication : Application() {
                 true
             } == true
             if (!released) {
-                mutableMessage.value = "Micrófono o foco todavía ocupado. Detén la prueba de audio, espera y pulsa Abrir ChatGPT de nuevo."
-            } else mutableMessage.value = OfficialChatGpt(this@PbtApplication).open(activityVisible)
+                mutableMessage.value = "Micrófono o foco todavía ocupado. Detén la prueba de audio, espera y solicita abrir el asistente de nuevo."
+            } else mutableMessage.value = open()
         }
     }
     fun errorReport(): String = "PbtMetaGPT ${BuildConfig.VERSION_NAME} · Android API ${android.os.Build.VERSION.SDK_INT}\n" +

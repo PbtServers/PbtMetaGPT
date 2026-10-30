@@ -52,7 +52,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
                 TextButton(onClick = { app.controlSpotify(MusicAction.PAUSE) }) { Text("Pausar música") }
                 TextButton(onClick = { app.controlSpotify(MusicAction.NEXT) }) { Text("Siguiente") }
             }
-            Text("La captura Bluetooth HFP puede reducir la calidad de la música. Se comprueban entrada, salida y comandos con tus gafas; no se garantiza audio A2DP mientras se usa su micrófono.", style = MaterialTheme.typography.bodySmall)
+            Text("La captura Bluetooth HFP puede reducir la calidad de la música. Comprueba entrada, salida y órdenes con tus gafas; no se garantiza audio A2DP mientras se usa su micrófono.", style = MaterialTheme.typography.bodySmall)
         }
         if (message.isNotBlank()) Text(message)
     }

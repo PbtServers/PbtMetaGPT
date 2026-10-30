@@ -370,6 +370,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
                 (context.applicationContext as PbtApplication).stopVisibleWake?.invoke()
             }
             LocalVoiceCommand.CHATGPT -> (context.applicationContext as PbtApplication).openChatGpt()
+            LocalVoiceCommand.SYSTEM_ASSISTANT -> (context.applicationContext as PbtApplication).openSystemAssistant()
             LocalVoiceCommand.MUSIC_PLAY, LocalVoiceCommand.MUSIC_PAUSE, LocalVoiceCommand.MUSIC_NEXT, LocalVoiceCommand.MUSIC_PREVIOUS ->
                 (context.applicationContext as PbtApplication).controlSpotify(requireNotNull(MusicCommands.action(command)))
         }

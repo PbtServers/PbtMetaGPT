@@ -94,6 +94,11 @@ class ContinuousWakeService : Service() {
                 activation?.cancel()
                 activation = scope.launch {
                 if (!session.authorized) return@launch
+                when (VoiceCommands.parse(question, matched.name, ListeningSettings(this@ContinuousWakeService).load())) {
+                    LocalVoiceCommand.SYSTEM_ASSISTANT -> { app.openSystemAssistant(); return@launch }
+                    LocalVoiceCommand.CHATGPT -> { app.openChatGpt(); return@launch }
+                    else -> Unit
+                }
                 MusicCommands.parse(question)?.let { action ->
                     app.controlSpotify(action)
                     if (session.localCommandFinished()) listen()

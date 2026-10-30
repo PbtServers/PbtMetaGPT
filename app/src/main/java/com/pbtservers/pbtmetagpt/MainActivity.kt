@@ -191,6 +191,13 @@ class MainActivity : ComponentActivity() {
                             if (vs.active || vs.connecting) OutlinedButton(onClick = voice::stop) { Text(if (vs.connecting) "Cancelar conexión" else "Finalizar conversación") }
                             if (voiceCommands.isNotBlank()) Text(voiceCommands, style = MaterialTheme.typography.bodySmall)
                             TextButton(onClick = app::openChatGpt) { Text("Abrir ChatGPT") }
+                            TextButton(onClick = app::openSystemAssistant) { Text("Abrir asistente del teléfono") }
+                            Text("«Abre Google» solicita Google/Gemini mediante Android. Elige Google en Aplicaciones predeterminadas → Asistente digital. Con el móvil bloqueado puede requerir la notificación y desbloquear.", style = MaterialTheme.typography.bodySmall)
+                            TextButton(onClick = {
+                                try { startActivity(Intent(android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)) }
+                                catch (_: android.content.ActivityNotFoundException) { message = "Abre Ajustes de Android → Aplicaciones predeterminadas → Asistente digital y selecciona Google." }
+                                catch (_: SecurityException) { message = "Android impide abrir este ajuste; revisa el asistente digital desde Ajustes del sistema." }
+                            }) { Text("Configurar asistente de Android") }
                             if (vs.transcript.isNotBlank()) Text(vs.transcript, style = MaterialTheme.typography.bodyLarge)
                             Text("La pausa conserva el contexto. Con escucha persistente autorizada, el servicio mantiene el control del audio al salir; puedes detenerlo desde su notificación.", style = MaterialTheme.typography.bodySmall)
                         }

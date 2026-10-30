@@ -101,6 +101,36 @@ class CommandInferenceInstrumentedTest {
             }
         } finally { engine.close(); model.delete(); wake.delete() }
     }
+    @Test fun googlePronunciadoGuguelYAlternativaDelTelefonoConPcmEspanol() = runBlocking<Unit> {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val wake = WakeModel(context)
+        val stores = listOf(SpainVoiceModel(context), SpainVoiceModel(context, "sharvard_m"))
+        val engine = SpainVoiceEngine(context, reproducibleFixture = true)
+        try {
+            withContext(Dispatchers.IO) {
+                wake.install { instrumentation.context.assets.open("activacion-prueba.zip") }
+                stores.forEach { store -> store.install(source = { instrumentation.context.assets.open("piper-es/${it.name}") }) }
+            }
+            for (id in listOf("davefx", "sharvard_m", "sharvard_f")) {
+                val voice = VoiceModes.spain(AssistantProfile(name = "Jarvis"), id).validated()
+                // El enunciado corto varía con el hablante: se acredita con Sharvard M;
+                // la alternativa sin nombre extranjero se comprueba con las tres voces.
+                val positive = listOf("Abre el asistente del teléfono.") + if (id == "sharvard_m") listOf("Abre Google.") else emptyList()
+                val negative = listOf("No abre Google.", "Explícame cómo abre Google.")
+                for (phrase in positive + negative) {
+                    val pcm = engine.synthesize(voice, phrase)
+                    try {
+                        val heard = decode(wake, pcm)
+                        val accepted = heard.any {
+                            InterruptionGate().accept(it.text, it.confidence, 5000, 0, true, "Jarvis", ListeningOptions()) == LocalVoiceCommand.SYSTEM_ASSISTANT
+                        }
+                        assertEquals("Fixture fija $id: $phrase → ${heard.map { it.text to it.confidence }}", phrase in positive, accepted)
+                    } finally { pcm.bytes.fill(0) }
+                }
+            }
+        } finally { engine.close(); stores.forEach { it.delete() }; wake.delete() }
+    }
     private suspend fun decode(wake: WakeModel, audio: PcmAudio): List<CommandHypothesis> = withContext(Dispatchers.IO) {
         val results = mutableListOf<CommandHypothesis>()
         LocalCommandDecoder(wake.model.absolutePath, audio.sampleRate.toFloat(), evaluation = { open, restricted, bounds ->

@@ -96,7 +96,17 @@ Español/acento se basa en la ficha `es_ES`; naturalidad, preferencia de timbre 
 
 No se ha añadido un modelo de conversación LLM offline: una voz local no convierte en local al proveedor conversacional.
 
-## Controles locales de Spotify solicitados
+## Google/Gemini y asistente digital
+
+«Abre Google», «abre el asistente de Google», «abre el asistente del teléfono» y «quiero hablar con Google» son órdenes locales completas, también con la activación delante durante espera. Se comparte la transferencia de ChatGPT: invalidación de respuesta, parada de micrófonos/foco, espera acotada de liberación y retorno con reanudación expresa. La orden incluida tras la activación se resuelve antes del tono y sin conectar con el proveedor.
+
+Se prueba primero [`Intent.ACTION_VOICE_COMMAND`](https://developer.android.com/reference/android/content/Intent#ACTION_VOICE_COMMAND) limitado al paquete público de Google y después [`Intent.ACTION_ASSIST`](https://developer.android.com/reference/android/content/Intent#ACTION_ASSIST). Solo se aceptan actividades exportadas resueltas por Android; no hay navegador, búsqueda web, componente interno ni captura de contexto de pantalla. **VOICE_ASSIST no se utiliza**: no pertenece al SDK público ordinario. El usuario configura Google desde [Aplicaciones predeterminadas](https://developer.android.com/reference/android/provider/Settings#ACTION_MANAGE_DEFAULT_APPS_SETTINGS); [Google documenta](https://support.google.com/gemini/answer/16938321) que Google puede representar Gemini o Google Assistant. No se cambia esa selección automáticamente.
+
+Pantalla bloqueada/segundo plano: no se fuerza una actividad. Una notificación con PendingIntent de actividad directa permite continuar dentro de las restricciones de Android; puede exigir toque/desbloqueo. No se afirma que «Hey Google» se haya ejecutado, que el asistente ya escuche ni que la transferencia sea manos libres bajo bloqueo. Se informa de ausencia de handler, permiso/canal de notificaciones bloqueado y error de apertura.
+
+La pronunciación Piper se adapta a **gúguel**, según lo solicitado para España, conservando negaciones y texto de pantalla. No se usa «gúgol» para conseguir resultados de ASR. Ensayo de escritorio: Sharvard M reconoce «abre google»; Davefx y Sharvard F confunden el enunciado corto. «Abre el asistente del teléfono» se reconoce con las tres. No se convierten «agregó» o «regula él» en órdenes, ni se reducen umbrales. La regresión nueva documenta exactamente este alcance, prueba los negativos y añade transferencia de recursos con pantalla apagada sin abrir Google real desde CI. La acústica del usuario necesita hardware.
+
+## Spotify: configuración y límites
 
 Activa **Dispositivos → Música → Controlar Spotify** y concede manualmente acceso a notificaciones a **PbtMetaGPT · música**. El permiso es amplio en Android; el servicio no inspecciona ni almacena texto, imágenes ni metadatos de notificaciones. No inicia sensores al conectarse. Desactivar la preferencia no revoca el permiso del sistema: usa el botón de gestión para retirarlo. Android puede exigir permitir ajustes restringidos para una APK instalada fuera de una tienda; respeta sus indicaciones, sin automatización ni evasión.
 
@@ -129,6 +139,7 @@ Registra SHA/APK, Android 15/16 y versión exacta de Nothing OS, Meta AI, firmwa
 | Davefx/Sharvard M/F offline y con RVC autorizado | Muestras distintas/comprensibles; sin volver a descargar al cambiar M/F | Pendiente |
 | Cámara y confirmaciones | Captura puntual visible; ningún envío o rearme en segundo plano | Pendiente |
 | Spotify con pantalla bloqueada, gafas y permiso activado/revocado | Play/pausa/siguiente/anterior, activación durante música, llamadas y calidad HFP/A2DP; ninguna orden a otro reproductor | Pendiente |
+| Google/Gemini visible y bloqueado | Voz «gúguel», alternativa del teléfono, liberación PCM/foco, acción pública/notificación y retorno sin captura | Pendiente |
 | Batería, temperatura y estabilidad | Comparar reposo/escucha durante al menos 30 min, repetir condiciones y registrar CPU/PSS | Pendiente |
 
 Emulador API35/API36 comprueba permisos, servicio y bloqueo simulado, captura del emulador, persistencia, JNI/ORT, inferencia real y cancelación. **Mock Device Kit no ejecutado**. Ninguno acredita las filas físicas. Las suites y barreras de publicación se mantienen; consulta [VALIDACION.md](VALIDACION.md).

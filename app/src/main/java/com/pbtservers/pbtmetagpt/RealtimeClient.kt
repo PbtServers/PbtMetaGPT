@@ -510,6 +510,7 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                                 stop()
                             }
                             LocalVoiceCommand.CHATGPT -> (appContext as PbtApplication).openChatGpt()
+                            LocalVoiceCommand.SYSTEM_ASSISTANT -> (appContext as PbtApplication).openSystemAssistant()
                             LocalVoiceCommand.MUSIC_PLAY, LocalVoiceCommand.MUSIC_PAUSE, LocalVoiceCommand.MUSIC_NEXT, LocalVoiceCommand.MUSIC_PREVIOUS ->
                                 (appContext as PbtApplication).controlSpotify(requireNotNull(MusicCommands.action(command)))
                         }

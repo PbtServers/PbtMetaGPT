@@ -34,6 +34,7 @@ Puedes utilizar **GroqCloud con clave propia y sin montar un servidor**, o confi
 - Voces neuronales locales de España: Davefx, Sharvard masculina y Sharvard femenina, con muestras y selección persistente.
 - GroqCloud, dictado local, Groq Whisper opcional y envío de fotos a Groq Vision con confirmación.
 - Apertura de la aplicación oficial ChatGPT, aprovechando «Iniciar con Voz» cuando su configuración lo permite.
+- Apertura del asistente digital del teléfono con «abre Google», mediante las acciones públicas de Android.
 - Controles de Spotify por voz: reproducir, pausar y cambiar de canción desde su sesión multimedia, también con el teléfono bloqueado.
 - Perfiles de asistentes, importación y exportación sin credenciales, claves cifradas con Android Keystore.
 - Opciones avanzadas: OpenAI Realtime/WebRTC, Kokoro, Qwen3-TTS remoto, RVC ONNX y paquetes de voces compatibles.
@@ -103,6 +104,18 @@ Puedes decir **«Abre GPT Live»**, **«Abre ChatGPT»**, **«Inicia ChatGPT en 
 En ChatGPT, activa **Ajustes → Voz → Iniciar con Voz**, si aparece en tu versión. La [función oficial](https://help.openai.com/en/articles/20001274-chatgpt-voice) inicia Voz en una conversación nueva o vacía; una conversación existente puede necesitar una acción manual.
 
 No hay una interfaz pública documentada localizada que garantice iniciar Live desde otra aplicación. Se utiliza la entrada pública de ChatGPT, sin pulsaciones simuladas ni componentes privados. Si Android impide abrirla desde segundo plano o con el móvil bloqueado, utiliza la acción de la notificación. Abrir ChatGPT no acredita que Voz se haya iniciado. Al volver, pulsa **Hablar** o **Activar escucha** para recuperar el micrófono.
+
+## Abrir Google o el asistente del teléfono
+
+Di **«abre Google»**, **«abre el asistente de Google»** o **«abre el asistente del teléfono»**. En espera, antepón la frase guardada: «Atento Jarvis, abre Google». La orden solicita el asistente, sin abrir el navegador ni simular «Hey Google».
+
+En **Aplicaciones predeterminadas → Asistente digital** de Android, selecciona **Google**. Según tu configuración, Google puede ofrecer Gemini o Google Assistant. El botón **Configurar asistente de Android** abre los ajustes públicos; PbtMetaGPT no cambia el asistente predeterminado.
+
+Antes de transferir, PbtMetaGPT cancela la respuesta y libera captura y foco. Solicita la acción pública de comandos de voz de Google si está disponible o la acción de asistencia de Android. **Abrir el asistente no garantiza que ya esté escuchando**. Si no hay una entrada pública compatible, lo indica; no utiliza componentes internos.
+
+**Con el móvil bloqueado o PbtMetaGPT en segundo plano**, la transferencia se ofrece mediante una notificación. Android o Google pueden exigir tocarla y desbloquear: no se garantiza una sustitución completamente manos libres de «Hey Google». Al regresar, reactiva expresamente PbtMetaGPT.
+
+Se utiliza español de España y la pronunciación «gúguel». Si el modelo local confunde la orden corta, usa **«abre el asistente del teléfono»**. La precisión de la voz real y del micrófono de las gafas requiere el [ensayo del dispositivo](docs/CANDIDATA_RAYBAN.md).
 
 ## Spotify con la pantalla bloqueada
 

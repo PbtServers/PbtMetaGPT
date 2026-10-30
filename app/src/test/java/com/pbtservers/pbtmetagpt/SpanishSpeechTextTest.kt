@@ -4,6 +4,11 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SpanishSpeechTextTest {
+    @Test fun pronunciaGoogleEnEspanolSinQuitarNegacionesNiAlterarSubcadenas() {
+        assertEquals("Abre gúguel.", SpanishSpeechText.pronunciation("Abre Google."))
+        assertEquals("No abre gúguel.", SpanishSpeechText.pronunciation("No abre GOOGLE."))
+        assertEquals("googler", SpanishSpeechText.pronunciation("googler"))
+    }
     @Test fun deletreaSiglasEnRespuestasSinCambiarLaFraseNiLaNegacion() {
         assertEquals("Abre chat ge pe te.", SpanishSpeechText.pronunciation("Abre ChatGPT."))
         assertEquals("Inicia chat ge pe te en voz.", SpanishSpeechText.pronunciation("Inicia ChatGPT en voz."))

@@ -20,6 +20,7 @@ class ListeningInstrumentedTest {
         instrumentation.runOnMainSync { ContinuousWakeService.stop(context); app.hosted.stop(); app.voice.stop() }
         context.getSharedPreferences("voz_escucha", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSystemService(NotificationManager::class.java).cancel(72)
+        context.getSystemService(NotificationManager::class.java).cancel(73)
     }
     @Test fun preferenciasPersistenSinArrancarCapturaNiServicio() {
         val expected = ListeningOptions(continuous = true, background = true, sensitivity = 0.75f,
@@ -53,6 +54,18 @@ class ListeningInstrumentedTest {
             assertTrue(intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
         }
         assertNull(app.microphone.owner())
+    }
+    @Test fun asistenteDelTelefonoSoloUsaAccionesPublicasSinBusquedaWeb() {
+        val launcher = SystemAssistantLauncher(context)
+        val intent = launcher.launchIntent()
+        if (intent == null) assertTrue(launcher.open(true).startsWith("No hay una acción pública"))
+        else {
+            assertTrue(intent.action in setOf(Intent.ACTION_VOICE_COMMAND, Intent.ACTION_ASSIST))
+            if (intent.action == Intent.ACTION_VOICE_COMMAND) assertEquals(SystemAssistantLauncher.GOOGLE, intent.`package`)
+            assertNull(intent.data); assertNull(intent.extras)
+            assertTrue(intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
+        }
+        assertFalse(ContinuousWakeService.running); assertNull(app.microphone.owner())
     }
     @Test fun comandosLocalesYRetornoNoCapturanMicrofonoPorSiMismos() {
         assertEquals(LocalVoiceCommand.CHATGPT, VoiceCommands.parse("Jarvis, abre GPT Live", "Jarvis", ListeningOptions()))

@@ -1,5 +1,15 @@
 # Seguimiento de PbtMetaGPT
 
+## Ampliación solicitada: «abre Google» y bloqueo · 30/10/2026
+
+**72 % acreditado · 00:27 UTC · 2 h 18 min desde el inicio.** El usuario pide Google/assistant del teléfono y reafirma pantalla bloqueada y pronunciación peninsular «gúguel». Se integra transferencia compartida con ChatGPT: respuesta cancelada, micrófono/foco liberados y escucha revocada antes de abrir. En espera, la orden incluida tras la activación se resuelve localmente sin conectar un proveedor. Entrada pública `ACTION_VOICE_COMMAND` para Google si existe y después `ACTION_ASSIST`; únicamente actividad exportada y permiso accesible. No se usa `VOICE_ASSIST` oculto, navegador, componentes privados, accesibilidad ni contexto de pantalla.
+
+Al bloquear/minimizar se ofrece notificación: **Android/Google pueden exigir toque o desbloqueo**. No se afirma sustitución manos libres de «Hey Google», asistente ya escuchando ni apertura física validada. El usuario elige Google en Aplicaciones predeterminadas; puede corresponder a Gemini. README y guía documentan esa diferencia respecto a Spotify, cuyo transporte no requiere abrir actividad.
+
+**45 JVM locales correctas (0,090 s)** como subconjunto: órdenes/negaciones/eco, cierre no ambiguo, Spotify, conversación/cancelación, políticas y pronunciación española; escáner y 21 enlaces locales de README correctos. La pronunciación se fija a gúguel, retirando el ensayo gúgol antes de publicarlo. **Limitación acústica explícita de escritorio:** la orden corta Davefx/Sharvard F se confunde, Sharvard M reconoce «abre google» con confianza 1,0; «abre el asistente del teléfono» se reconoce con las tres. No se convierten palabras parecidas en órdenes ni se rebajan umbrales. Preparadas regresiones nativas de ese alcance, acciones públicas/resolución y transferencia desde servicio con pantalla apagada, sin iniciar Google real desde CI.
+
+`376cefc` con Spotify supera compilación/JVM/Lint, seguridad y backend en [CI 40978269641](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40978269641); sus emuladores siguen ejecutándose. Este bloque Google necesita su propia CI. Próximo paso: comprobar esos resultados, publicar Google y completar todas las puertas de APK del SHA final. Sin SDK Android local, patchelf ni dispositivo ADB; no hay aceptación física. Se mantienen los pesos 10/25/15/25/15/10, con las ampliaciones pendientes de validación y estimaciones condicionadas a CI.
+
 ## Ampliación solicitada: Spotify con pantalla bloqueada · 30/10/2026
 
 **72 % acreditado · 00:11 UTC · 2 h 02 min desde el inicio.** El usuario añade reproducción/pausa y cambio de canción bloqueado. Se mantiene el porcentaje anterior hasta la CI del nuevo conjunto; esta ampliación añade un ciclo completo de compilación y emuladores. La aceptación física no tiene plazo fiable. `815afeb`, con el README de uso y Jarvis, supera JVM/Lint/compilación/seguridad/backend en [CI 40976326491](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40976326491); sus emuladores siguen en curso al redactar.

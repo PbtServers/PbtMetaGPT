@@ -39,6 +39,7 @@ class MicrophoneServiceInstrumentedTest {
         context.getSharedPreferences("configuracion", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("medidas_escucha", Context.MODE_PRIVATE).edit().clear().commit()
         MusicSettings(context).enable(false)
+        context.getSystemService(NotificationManager::class.java).cancel(73)
     }
     @Test fun servicioCapturaEnOtraTareaYPantallaBloqueadaYNotificacionPausaYDetiene() = runBlocking<Unit> {
         assertEquals(PackageManager.PERMISSION_GRANTED, context.checkSelfPermission(Manifest.permission.RECORD_AUDIO))
@@ -124,6 +125,33 @@ class MicrophoneServiceInstrumentedTest {
                 activity.onActivity { ContinuousWakeService.startVisible(it) }
                 await { ContinuousWakeService.state.value == ListeningPhase.LISTENING }
             } finally { manager.abandonAudioFocusRequest(other) }
+        }
+    }
+    @Test fun transferenciaAlAsistenteBloqueadoLiberaMicrofonoYSoloOfreceNotificacion() = runBlocking<Unit> {
+        WakeModel(context).install { instrumentation.context.assets.open("activacion-prueba.zip") }
+        val profile = AssistantProfile(name = "Jarvis").validated()
+        ProfileStore(context).save(listOf(profile), profile.id)
+        ListeningSettings(context).save(ListeningOptions(background = true))
+        val available = SystemAssistantLauncher(context).launchIntent() != null
+        ActivityScenario.launch(MainActivity::class.java).use { activity ->
+            activity.onActivity { ContinuousWakeService.startVisible(it) }
+            await { ContinuousWakeService.state.value == ListeningPhase.LISTENING }
+            activity.moveToState(Lifecycle.State.CREATED)
+            shell("input keyevent KEYCODE_SLEEP")
+            try {
+                instrumentation.runOnMainSync { app.openSystemAssistant() }
+                await { !ContinuousWakeService.running && app.microphone.owner() == null && !app.audioSession.hasOwners() }
+                if (available) {
+                    await { context.getSystemService(NotificationManager::class.java).activeNotifications.any { it.id == 73 } }
+                    val notification = context.getSystemService(NotificationManager::class.java).activeNotifications.single { it.id == 73 }.notification
+                    assertTrue(notification.contentIntent.isActivity)
+                }
+                // No se pulsa la acción ni se abre Google/Gemini desde la suite.
+                shell("input keyevent KEYCODE_WAKEUP"); shell("wm dismiss-keyguard")
+                activity.moveToState(Lifecycle.State.RESUMED)
+                delay(300)
+                assertFalse(ContinuousWakeService.running); assertNull(app.microphone.owner())
+            } finally { shell("input keyevent KEYCODE_WAKEUP"); shell("wm dismiss-keyguard") }
         }
     }
     @Test fun esperaConMusicaCedeElFocoYLoRecuperaSoloDuranteUnTurno() = runBlocking<Unit> {
