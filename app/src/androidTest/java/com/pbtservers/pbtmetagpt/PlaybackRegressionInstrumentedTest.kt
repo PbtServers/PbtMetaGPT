@@ -6,8 +6,8 @@ import org.junit.Test
 /** AudioTrack sustituido: no acredita Bluetooth físico. */
 class PlaybackRegressionInstrumentedTest {
     private class Output(private val writable: Boolean, private val advancing: Boolean) : PcmOutput {
-        var closed = false
-        var frames = 0L
+        @Volatile var closed = false
+        @Volatile var frames = 0L
         override fun play() = Unit
         override fun head() = if (advancing) frames else 0L
         override fun write(bytes: ByteArray, offset: Int, count: Int): Int {

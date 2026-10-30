@@ -2,6 +2,12 @@
 
 ## Reparación de regresiones comunicadas en teléfono · 30/10/2026
 
+**Corte 21:01 UTC · 06:47 · 68 %.** `bd0fe19` supera compilación/Lint/seguridad/39 Python/19 backend y **221 JVM, cero fallos, una prueba remota optativa ya omitida anteriormente**, en [CI 41126703492](https://github.com/PbtServers/PbtMetaGPT/actions/runs/41126703492). Sus emuladores están en preparación; no se acredita su resultado ni APK.
+
+La revisión reproduce una frontera nueva: transmitir `2*3` carácter a carácter producía «23». Se añade la prueba, se comprueba el fallo y se conserva el carácter previo entre tokens; **76 JVM locales correctas (0,562 s)** después de corregir. Se añade pausa PCM de 1,2 s a «No, espera…» y se exige que el dictado de producción conserve todos los segmentos obtenidos por el reconocedor libre de referencia sobre el mismo audio. La fuente debug vuelve a leer AudioRecord real antes de la inyección y evita girar con silencio artificial. Referencias de sustitución y contador falso de salida usan visibilidad entre hilos.
+
+El siguiente commit necesita su propia CI completa y sustituye la ejecución previa, sin omitir pruebas. Estimación de CI/APK: 20–40 minutos si no hay fallos nuevos; hardware y precisión humana sin estimación. Pesos actuales: 15/15 diagnóstico, 20/25 aviso, 13/20 comandos, 7/15 reconocimiento, 8/10 TTS, 3/5 ChatGPT y 2/10 cierre = **68/100**.
+
 **Inicio 14:13:55 UTC · corte previo a CI · 63 %.** Base local/remota `a15368d00f36f352de8d1fd2fc6398c0b0fa1e0e`. Su CI 41059259225 pasó 214 JVM (una remota optativa omitida) y 68 Android por API, pero no detectó las regresiones físicas comunicadas. No se consideran aceptadas por ese resultado.
 
 Confirmado: timeout del aviso suspende la escucha; vaciado PCM puede durar más que ese timeout; nueva concesión de ruta durante aviso; foco pasivo retenido al habilitar música posteriormente; variante musical ausente; rechazo local convertido en fallo de sesión; Markdown llega a voz sin limpieza. Corregidos en código y con regresiones, sin cambiar diseño. Se separa dictado libre de gramáticas y se amplían pruebas hasta controlador/transporte, servicio real con PCM sintético, respuesta de prueba y pantalla virtual bloqueada. Detalle y límites: [REGRESIONES_VOZ.md](REGRESIONES_VOZ.md).

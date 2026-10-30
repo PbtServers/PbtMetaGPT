@@ -93,17 +93,18 @@ class WakeConversationRegressionInstrumentedTest {
             // Misma implementación del servicio, tres escenarios independientes.
             for (mode in 0..2) {
                 captures.set(0); requests.clear(); spoken.clear(); frames.set(Int.MIN_VALUE)
+                DevelopmentVoice.wakeFrames = null
                 ProfileStore(context).save(listOf(profile.copy(confirmationSound = mode != 2)), profile.id)
                 DevelopmentVoice.confirmation = if (mode == 1) ({ awaitCancellation() }) else ({ delay(20) })
-                DevelopmentVoice.wakeFrames = { target ->
+                val input: (ShortArray) -> Int = { target ->
                     target.fill(0)
                     val offset = frames.get()
-                    if (offset >= 0) {
+                    if (offset < 0 || offset >= wakePcm.size) 0 else {
                         val count = minOf(target.size, (wakePcm.size - offset).coerceAtLeast(0))
                         if (count > 0) wakePcm.copyInto(target, 0, offset, offset + count)
                         frames.addAndGet(target.size)
+                        target.size
                     }
-                    target.size
                 }
                 ActivityScenario.launch(MainActivity::class.java).use { activity ->
                     activity.onActivity { ContinuousWakeService.startVisible(it) }
@@ -114,6 +115,7 @@ class WakeConversationRegressionInstrumentedTest {
                     }
                     try {
                         frames.set(0)
+                        DevelopmentVoice.wakeFrames = input
                         await { captures.get() == 1 }
                         assertTrue(ContinuousWakeService.authorizedRunning)
                         assertNotEquals(ListeningPhase.SUSPENDED, ContinuousWakeService.state.value)

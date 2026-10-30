@@ -5,6 +5,13 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class VoiceRegressionTest {
+    @Test fun simbolosEntreTokensNoSeConfundenConFormatoNiCambianNumeros() {
+        for (original in listOf("El producto es 2*3 = 6.", "Nombre foo_bar y 3,14 °C.", "```kotlin\nval n = 42\n```", "Un \\* literal.")) {
+            val stream = SpeechMarkup()
+            val output = original.map { stream.append(it.toString()) }.joinToString("") + stream.finish()
+            assertEquals(original, TtsText.clean(original), output.trim())
+        }
+    }
     @Test fun enrutadorEjecutaLasOrdenesYDejaLasPreguntasAlProveedor() {
         val commands = mutableListOf<LocalVoiceCommand>(); val web = mutableListOf<WebAction>()
         val router = LocalTurnRouter({ commands.add(it) }, { web.add(it) })

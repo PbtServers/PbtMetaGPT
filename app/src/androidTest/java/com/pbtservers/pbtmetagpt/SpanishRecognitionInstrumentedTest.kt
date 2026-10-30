@@ -37,10 +37,17 @@ class SpanishRecognitionInstrumentedTest {
                     val reuseMs = SystemClock.elapsedRealtime() - reuseAt
                     var freeTotal = RecognitionErrors(0, 0, 0, 0)
                     var commandTotal = RecognitionErrors(0, 0, 0, 0)
+                    var dictationTotal = RecognitionErrors(0, 0, 0, 0)
                     var correctIntents = 0
                     for ((index, phrase) in cases.withIndex()) {
                         val pcm = voice.synthesize(profile, phrase)
-                        val samples = at16k(pcm)
+                        val samples = if (phrase == "No, espera, que todavía no he terminado.") {
+                            val first = voice.synthesize(profile, "No, espera.")
+                            val second = voice.synthesize(profile, "Que todavía no he terminado.")
+                            val left = at16k(first); val right = at16k(second)
+                            try { left + ShortArray(19200) + right }
+                            finally { first.bytes.fill(0); second.bytes.fill(0); left.fill(0); right.fill(0) }
+                        } else at16k(pcm)
                         pcm.bytes.fill(0)
                         val full = mutableListOf<String>()
                         val commands = mutableListOf<String>()
@@ -91,11 +98,14 @@ class SpanishRecognitionInstrumentedTest {
                             val recognizedIntent = intent(recognized)
                             if (expectedIntent == recognizedIntent) correctIntents++
                             freeTotal += before; commandTotal += after
+                            dictationTotal += RecognitionMetrics.words(phrase, dictation.text)
+                            assertEquals("El dictado no puede perder segmentos finales: " + phrase, VoiceCommands.normalize(full.joinToString(" ")), VoiceCommands.normalize(dictation.text))
                             val score = JSONObject().put("caso", index).put("origen", "Davefx sintético es-ES").put("hz", 16000)
                                 .put("libre_wer", before.rate).put("comandos_wer", after.rate)
                                 .put("dictado_produccion_wer", RecognitionMetrics.words(phrase, dictation.text).rate)
                                 .put("dictado_produccion_cer", RecognitionMetrics.characters(phrase, dictation.text).rate)
                                 .put("dictado_omisiones", RecognitionMetrics.words(phrase, dictation.text).deletions)
+                                .put("pausa_inyectada_ms", if (phrase.startsWith("No, espera")) 1200 else 0)
                                 .put("dictado_produccion_wer", RecognitionMetrics.words(phrase, dictation.text).rate)
                                 .put("dictado_produccion_cer", RecognitionMetrics.characters(phrase, dictation.text).rate)
                                 .put("dictado_omisiones", RecognitionMetrics.words(phrase, dictation.text).deletions)
@@ -112,6 +122,7 @@ class SpanishRecognitionInstrumentedTest {
                     assertNotNull(commandTotal.rate)
                     Log.i("PbtAsrTest", JSONObject().put("corpus", "sintético es-ES, " + cases.size + " frases, 16 kHz")
                         .put("libre_wer", freeTotal.rate).put("comandos_wer", commandTotal.rate).put("omisiones", commandTotal.deletions)
+                        .put("dictado_produccion_wer", dictationTotal.rate).put("dictado_produccion_omisiones", dictationTotal.deletions)
                         .put("modelo_primera_carga_ms", firstMs).put("modelo_reutilizado_ms", reuseMs)
                         .put("intenciones_correctas", correctIntents).put("intenciones_total", cases.size)
                         .put("whisper_real_ejecutado", false).put("android_dictado_real_ejecutado", false).toString())

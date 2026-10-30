@@ -13,6 +13,7 @@ class SpeechMarkup {
     private val pending = StringBuilder()
     private var lineStart = true
     private var fenced = false
+    private var previousRaw: Char? = null
     fun append(delta: String): String { pending.append(delta); return drain(false) }
     fun finish(): String = drain(true)
 
@@ -23,6 +24,8 @@ class SpeechMarkup {
         while (i < pending.length) {
             val c = pending[i]
             val remaining = pending.substring(i)
+            val previous = if (i > 0) pending[i - 1] else previousRaw
+            if (!final && c in "*_~" && i + 1 == pending.length) break
             if (!final && (remaining == "\\" || remaining.all { it == '`' } && remaining.length < 3)) break
             if (remaining.startsWith("```")) {
                 if (fenced) { fenced = false; i += 3; continue }
@@ -60,7 +63,7 @@ class SpeechMarkup {
                     if (end >= 0) { out.append(TtsText.clean(pending.substring(begin, close))); i = end + 1; lineStart = false; continue }
                 }
             }
-            if (c in "*_~" && (i == 0 || !pending[i - 1].isLetterOrDigit())) {
+            if (c in "*_~" && previous?.isLetterOrDigit() != true) {
                 var count = 1
                 while (i + count < pending.length && pending[i + count] == c && count < 3) count++
                 if (i + count >= pending.length && !final) break
@@ -74,10 +77,11 @@ class SpeechMarkup {
                 }
             }
             out.append(if (c == '*') {
-                if (i > 0 && i + 1 < pending.length && pending[i - 1].isDigit() && pending[i + 1].isDigit()) " por " else " asterisco "
+                if (previous?.isDigit() == true && i + 1 < pending.length && pending[i + 1].isDigit()) " por " else " asterisco "
             } else c.toString())
             lineStart = c == '\n'; i++
         }
+        if (i > 0) previousRaw = pending[i - 1]
         pending.delete(0, i)
         return out.toString()
     }
