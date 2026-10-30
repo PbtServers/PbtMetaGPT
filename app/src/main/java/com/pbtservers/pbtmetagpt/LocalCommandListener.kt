@@ -30,7 +30,8 @@ class LocalCommandListener(private val context: Context) {
         val buffer = ShortArray(320) // 20 ms; sin asignaciones de PCM por lectura.
         try {
             LibVosk.setLogLevel(LogLevel.WARNINGS)
-            LocalCommandDecoder(WakeModel(context).model.absolutePath).use { decoder ->
+            (context.applicationContext as PbtApplication).voskModels.acquire(WakeModel(context).model.absolutePath).use { cached ->
+            LocalCommandDecoder(WakeModel(context).model.absolutePath, sharedModel = cached.model).use { decoder ->
                     check(context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
                     val minimum = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
                     check(minimum > 0)
@@ -79,8 +80,9 @@ class LocalCommandListener(private val context: Context) {
                                 break
                             }
                         }
-                        buffer.fill(0); delay(10)
+                        buffer.fill(0); if (n == 0) delay(10)
                     }
+            }
             }
         } catch (cancel: CancellationException) { throw cancel }
         catch (_: Exception) { withContext(Dispatchers.Main) {

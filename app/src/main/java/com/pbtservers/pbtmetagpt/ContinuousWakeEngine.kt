@@ -27,9 +27,9 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
             try {
                 check(WakeModel(context).installed())
                 LibVosk.setLogLevel(LogLevel.WARNINGS) // Nunca emitir texto reconocido por logs nativos.
-                Model(WakeModel(context).model.absolutePath).use { model ->
+                (context.applicationContext as PbtApplication).voskModels.acquire(WakeModel(context).model.absolutePath).use { model ->
                     // Modelo español abierto: permite nombres de su vocabulario sin sesgar todo el ruido a una frase.
-                    PassiveWakeDecoder(model).use { recognizer ->
+                    PassiveWakeDecoder(model.model).use { recognizer ->
                         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) throw SecurityException()
                         lease = gatekeeper.acquire(MicrophoneOwner.CONTINUOUS_LOCAL)
                         check(lease != null) { "El micrófono ya está en uso" }
@@ -101,7 +101,7 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
                                     }
                                 }
                                 buffer.fill(0)
-                                delay(20)
+                                if (size == 0) delay(10)
                             }
                         } finally {
                             try { if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) recorder.stop() }

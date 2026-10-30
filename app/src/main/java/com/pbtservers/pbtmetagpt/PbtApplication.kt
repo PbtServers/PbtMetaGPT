@@ -15,6 +15,9 @@ class PbtApplication : Application() {
     lateinit var journal: ErrorJournal; private set
     val diagnostics by lazy { Diagnostics(journal = journal) }
     val microphone = MicrophoneGate()
+    val voskModels = VoskModels()
+    val wakeDownload by lazy { WakeModelDownload(this, scope) }
+    val voiceTransitions = VoiceTransitions { android.os.SystemClock.elapsedRealtime() }
     val audioSession by lazy { CommunicationAudioSession(this) }
     val photoMemory = PhotoMemory()
     val glasses by lazy { MetaGlasses(this, scope, { mutableMessage.value = it }, diagnostics, photoMemory) }
@@ -31,6 +34,10 @@ class PbtApplication : Application() {
         if (HostedSettings(this).provider == "groq") free else paid
     } }
     fun clearMessage() { mutableMessage.value = null }
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (getProcessName() == packageName) scope.launch(Dispatchers.IO) { voskModels.close() }
+    }
     fun controlSpotify(action: MusicAction) {
         if (!MusicSettings(this).enabled) {
             mutableMessage.value = "Activa Controlar Spotify en Ajustes → Dispositivos → Música."
@@ -41,7 +48,9 @@ class PbtApplication : Application() {
         hosted.stop(); voice.stop()
         musicCommand?.cancel()
         musicCommand = scope.launch {
-            hosted.awaitReleased()
+            try { hosted.awaitReleased() }
+            catch (_: TimeoutCancellationException) { mutableMessage.value = "La liberación del audio ha agotado su plazo. Detén y reactiva la escucha."; return@launch }
+            catch (_: HostedFailure) { mutableMessage.value = "El micrófono anterior sigue ocupado. Detén y reactiva la escucha."; return@launch }
             val released = withTimeoutOrNull(5000) {
                 while (audioSession.hasFocusOwners()) delay(20)
                 true
@@ -52,6 +61,7 @@ class PbtApplication : Application() {
     }
     fun openChatGpt() = openExternalAssistant { OfficialChatGpt(this).open(activityVisible) }
     fun openSystemAssistant() = openExternalAssistant { SystemAssistantLauncher(this).open(activityVisible) }
+    fun openWeb(action: WebAction) = openExternalAssistant { WebLauncher(this).open(action, activityVisible) }
     private fun openExternalAssistant(open: () -> String) {
         if (handoff?.isActive == true) return
         musicCommand?.cancel()
@@ -60,9 +70,14 @@ class PbtApplication : Application() {
         // Invalidar inmediatamente; esperar la liberación antes del Intent, fuera de la UI.
         hosted.stop(); voice.stop()
         handoff = scope.launch {
-            ContinuousWakeService.releaseForExternal()
+            try {
+                withTimeout(10000) { ContinuousWakeService.releaseForExternal(); hosted.awaitReleased() }
+            } catch (_: TimeoutCancellationException) {
+                mutableMessage.value = "No se ha liberado el micrófono a tiempo. Detén la escucha y repite la apertura."; return@launch
+            } catch (_: HostedFailure) {
+                mutableMessage.value = "Micrófono anterior todavía ocupado. Detén la escucha y repite la apertura."; return@launch
+            }
             ContinuousWakeService.stop(this@PbtApplication)
-            hosted.awaitReleased()
             val released = withTimeoutOrNull(5000) {
                 while (microphone.owner() != null || audioSession.hasOwners()) delay(20)
                 true
@@ -75,7 +90,8 @@ class PbtApplication : Application() {
     fun errorReport(): String = "PbtMetaGPT ${BuildConfig.VERSION_NAME} · Android API ${android.os.Build.VERSION.SDK_INT}\n" +
         "ABI: " + android.os.Build.SUPPORTED_ABIS.filter { it in setOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86") }.joinToString() + "\n" + journal.report() +
         "\nLatencias numéricas (ms; primera trama no acredita sonido físico/Bluetooth):\n" + LatencyStore(this).report() +
-        "\nEscucha pasiva: CPU del proceso por ventana y PSS (no batería ni máximo):\n" + ListeningMeasurements(this).report()
+        "\nEscucha pasiva: CPU del proceso por ventana y PSS (no batería ni máximo):\n" + ListeningMeasurements(this).report() +
+        "\nTransiciones locales sin conversaciones ni audio:\n" + voiceTransitions.report()
     override fun onCreate() {
         super.onCreate()
         if (getProcessName() != packageName) return // UID aislado de TTS.

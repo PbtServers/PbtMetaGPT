@@ -29,10 +29,11 @@ class MusicCommandsTest {
     }
     @Test fun mencionesNegacionesYPreguntasNoControlanLaMusica() {
         listOf("No pongas Spotify", "No reproduce música", "Cómo cambia de canción", "Dijo siguiente canción",
-            "La siguiente canción me gusta", "Spotify", "Play", "Para").forEach {
+            "La siguiente canción me gusta", "Qué es Spotify", "Play", "Para").forEach {
             assertNull(it, MusicCommands.parse(it))
         }
         assertEquals(LocalVoiceCommand.INTERRUPT, VoiceCommands.parse("Para", "Jarvis", ListeningOptions()))
+        assertEquals(MusicAction.PLAY, MusicCommands.parse("Spotify"))
         assertEquals(LocalVoiceCommand.END, VoiceCommands.parse("Termina", "Jarvis", ListeningOptions()))
         assertEquals(LocalVoiceCommand.STOP_LISTENING, VoiceCommands.parse("Deja de escuchar", "Jarvis", ListeningOptions()))
     }

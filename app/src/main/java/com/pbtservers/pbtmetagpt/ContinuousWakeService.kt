@@ -21,6 +21,8 @@ class ContinuousWakeService : Service() {
     private var finishConversationOnDestroy = true
     private var candidates = emptyList<AssistantProfile>()
     private var activation: Job? = null
+    private var deadline: Job? = null
+    private var rearming: Job? = null
     private var retainedRoute: AudioRoute? = null
     private var audioRelease: Job? = null
     private var cpu: android.os.PowerManager.WakeLock? = null
@@ -30,6 +32,7 @@ class ContinuousWakeService : Service() {
         app = application as PbtApplication
         engine = ContinuousWakeEngine(this, scope)
         instance = this
+        alive.value = true
         scope.launch { ListeningMeasurements(this@ContinuousWakeService).observe(
             passive = { session.authorized && session.phase == ListeningPhase.LISTENING }, inputType = { inputTypeValue.value }) }
         scope.launch {
@@ -37,8 +40,9 @@ class ContinuousWakeService : Service() {
                 val wasAuthorized = session.authorized
                 val rearm = session.onVoice(voice.active && voice.sessionConfirmed, voice.connecting, voice.failed, voice.active && voice.paused)
                 update(session.phase)
-                if (wasAuthorized && !session.authorized) releaseListeningAudio()
-                if (rearm) listen()
+                if (voice.active && !voice.connecting && !voice.failed && !voice.paused) deadline?.cancel()
+                if (wasAuthorized && !session.authorized) suspendListening("El proveedor ha pausado o rechazado la conversación. Revisa su estado y pulsa Activar escucha para reintentar.")
+                if (rearm) { rearming?.cancel(); rearming = scope.launch { listen() } }
             }
         }
     }
@@ -57,6 +61,8 @@ class ContinuousWakeService : Service() {
             candidates = ProfileStore(this@ContinuousWakeService).load().filter { it.language.startsWith("es") && it.activationPhrases.any { p -> p.enabled } }
             check(candidates.isNotEmpty() && WakeModel(this).installed())
             session.authorize()
+            detail.value = ""
+            app.voiceTransitions.record(session.phase, TransitionReason.START, app.microphone.owner(), inputTypeValue.value)
             getSharedPreferences("escucha", MODE_PRIVATE).edit().putBoolean("proceso-activo", true).apply()
             scope.launch { listen() }
         } catch (problem: SecurityException) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); update(ListeningPhase.SUSPENDED); stopSelf() }
@@ -68,10 +74,14 @@ class ContinuousWakeService : Service() {
     private suspend fun listen() {
         // «Termina» publica el cierre inmediatamente; el AudioRecord anterior
         // todavía puede estar liberándose. No competir con él al volver a espera.
-        audioRelease?.join()
-        app.hosted.awaitReleased()
+        try {
+            awaitAudioRelease(audioRelease)
+            app.hosted.awaitReleased()
+        } catch (cancel: CancellationException) { throw cancel }
+        catch (_: Exception) { suspendListening("No se ha liberado el micrófono anterior. Pulsa Activar escucha para reintentar."); return }
         val current = session.beginListening() ?: return
         update(ListeningPhase.LOADING)
+        armDeadline(20000, "El detector no ha recibido audio a tiempo. Comprueba el micrófono seleccionado y reintenta.")
         try {
             if (cpu == null) {
                 // VAD/Vosk necesitan CPU con pantalla bloqueada, solo durante autorización.
@@ -88,12 +98,14 @@ class ContinuousWakeService : Service() {
             app.journal.record(Check.ROUTE, Fault.INITIALIZATION, problem)
             suspendListening(); return
         }
-        engine.start(candidates, ready = { if (session.ready(current)) update(session.phase) }, detected = { matched, question ->
+        engine.start(candidates, ready = { if (session.ready(current)) { deadline?.cancel(); update(session.phase) } }, detected = { matched, question ->
             if (session.detected(current)) {
                 update(ListeningPhase.DETECTED)
+                armDeadline(15000, "Se detectó la frase, pero no pudo iniciarse la conversación. Comprueba permisos, proveedor y micrófono y pulsa Activar escucha.")
                 activation?.cancel()
                 activation = scope.launch {
                 if (!session.authorized) return@launch
+                WebCommands.parse(question)?.let { app.openWeb(it); return@launch }
                 when (VoiceCommands.parse(question, matched.name, ListeningSettings(this@ContinuousWakeService).load())) {
                     LocalVoiceCommand.SYSTEM_ASSISTANT -> { app.openSystemAssistant(); return@launch }
                     LocalVoiceCommand.CHATGPT -> { app.openChatGpt(); return@launch }
@@ -105,7 +117,9 @@ class ContinuousWakeService : Service() {
                     return@launch
                 }
                 if (matched.confirmationSound) try {
-                    WakeConfirmation.play(this@ContinuousWakeService, getSharedPreferences("configuracion", MODE_PRIVATE).getBoolean("audio-bluetooth", false))
+                    withTimeout(3000) { WakeConfirmation.play(this@ContinuousWakeService, AudioInputSettings(this@ContinuousWakeService).useBluetooth()) }
+                } catch (_: TimeoutCancellationException) {
+                    suspendListening("El sonido de confirmación no ha terminado. Reintenta la escucha."); return@launch
                 } catch (cancel: CancellationException) { throw cancel }
                 catch (problem: Exception) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); suspendListening(); return@launch }
                 if (!session.authorized) return@launch
@@ -115,7 +129,7 @@ class ContinuousWakeService : Service() {
                 val direct = connection?.direct ?: preferences.getBoolean("directo", true)
                 if (HostedSettings(this@ContinuousWakeService).provider == "groq") {
                     try {
-                        if (!HostedSettings(this@ContinuousWakeService).authorized || !KeyVault(this@ContinuousWakeService, provider = "groq").exists()) suspendListening()
+                        if (!HostedSettings(this@ContinuousWakeService).authorized || !KeyVault(this@ContinuousWakeService, provider = "groq").exists()) suspendListening("Configura y autoriza GroqCloud antes de iniciar la conversación.")
                         else {
                             val store = ProfileStore(this@ContinuousWakeService)
                             store.save(store.load(), matched.id)
@@ -123,7 +137,7 @@ class ContinuousWakeService : Service() {
                         }
                     } catch (problem: Exception) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); suspendListening() }
                 }
-                else if ((direct && !KeyVault(this@ContinuousWakeService).exists()) || (!direct && connection == null)) suspendListening()
+                else if ((direct && !KeyVault(this@ContinuousWakeService).exists()) || (!direct && connection == null)) suspendListening("Falta la clave de OpenAI o una sesión del backend. Configúrala y vuelve a activar la escucha.")
                 else {
                     try {
                         val store = ProfileStore(this@ContinuousWakeService)
@@ -137,7 +151,21 @@ class ContinuousWakeService : Service() {
             }
         }, failed = { problem -> app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); suspendListening() }, input = { inputTypeValue.value = it })
     }
-    private fun suspendListening() {
+    private fun armDeadline(timeout: Long, message: String) {
+        deadline?.cancel()
+        deadline = scope.launch {
+            delay(timeout)
+            if (session.authorized) {
+                app.voiceTransitions.record(ListeningPhase.SUSPENDED, TransitionReason.TIMEOUT, app.microphone.owner(), inputTypeValue.value)
+                suspendListening(message)
+                app.hosted.suspendConversation()
+                if (app.voice.state.value.connecting) app.voice.stop()
+            }
+        }
+    }
+    private fun suspendListening(message: String = "Escucha pausada. Comprueba audio, permisos y proveedor; pulsa Activar escucha para reintentar.") {
+        detail.value = message
+        deadline?.cancel(); deadline = null
         activation?.cancel(); activation = null
         session.suspendListening()
         update(session.phase)
@@ -159,10 +187,19 @@ class ContinuousWakeService : Service() {
     }
     private suspend fun prepareConversation() {
         session.preparing()
-        engine.stop() // join de captura y liberación nativa antes de crear WebRTC.
+        withTimeout(8000) { engine.stop() } // No abrir una segunda captura si no termina la primera.
         update(session.phase)
     }
     private fun update(value: ListeningPhase) {
+        if (mutable.value != value) app.voiceTransitions.record(value, when(value) {
+            ListeningPhase.LISTENING -> TransitionReason.READY
+            ListeningPhase.DETECTED -> TransitionReason.DETECTED
+            ListeningPhase.PREPARING -> TransitionReason.HANDOFF
+            ListeningPhase.RETURNING -> TransitionReason.RETURN
+            ListeningPhase.OFF -> TransitionReason.STOP
+            ListeningPhase.SUSPENDED -> TransitionReason.PAUSE
+            else -> TransitionReason.HANDOFF
+        }, app.microphone.owner(), inputTypeValue.value)
         mutable.value = value
         if (foregroundStarted) getSystemService(NotificationManager::class.java).notify(41, notification(value))
     }
@@ -177,8 +214,9 @@ class ContinuousWakeService : Service() {
             .addAction(Notification.Action.Builder(null, "Detener escucha y conversación", stop).build()).build()
     }
     override fun onDestroy() {
+        deadline?.cancel(); rearming?.cancel()
         activation?.cancel(); activation = null
-        session.stop(); instance = null
+        session.stop(); instance = null; alive.value = false
         releaseSessionAudio()
         inputTypeValue.value = 0
         getSharedPreferences("escucha", MODE_PRIVATE).edit().putBoolean("proceso-activo", false).apply()
@@ -203,6 +241,10 @@ class ContinuousWakeService : Service() {
         private var instance: ContinuousWakeService? = null
         private val mutable = MutableStateFlow(ListeningPhase.OFF)
         private val inputTypeValue = MutableStateFlow(0)
+        private val detail = MutableStateFlow("")
+        private val alive = MutableStateFlow(false)
+        val isRunning = alive.asStateFlow()
+        val error = detail.asStateFlow()
         val inputType = inputTypeValue.asStateFlow()
         val state = mutable.asStateFlow()
         val running get() = instance != null

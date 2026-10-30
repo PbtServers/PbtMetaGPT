@@ -9,6 +9,8 @@ import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
@@ -34,12 +36,58 @@ class MicrophoneServiceInstrumentedTest {
         instrumentation.runOnMainSync { ContinuousWakeService.stop(context); app.hosted.stop(); app.voice.stop() }
         await { !ContinuousWakeService.running && app.microphone.owner() == null }
         WakeModel(context).delete()
+        app.wakeDownload.refresh()
         ProfileStore(context).save(emptyList(), null)
         context.getSharedPreferences("voz_escucha", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("configuracion", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("medidas_escucha", Context.MODE_PRIVATE).edit().clear().commit()
         MusicSettings(context).enable(false)
         context.getSystemService(NotificationManager::class.java).cancel(73)
+    }
+    @Test fun inicioOfreceDescargaConConsentimientoEInstalacionActualizaSuEstadoSinAbrirMicrofono() = runBlocking<Unit> {
+        WakeModel(context).delete()
+        app.wakeDownload.refresh()
+        ActivityScenario.launch(MainActivity::class.java).use { activity ->
+            activity.onActivity { it.setContent { MaterialTheme {
+                HomeDashboard(null, false, VoiceState(), "Sin gafas", true, {}, {}, {}, navigate = {})
+            } } }
+            compose.onNodeWithText("Descargar reconocimiento de voz en español").performScrollTo().performClick()
+            compose.onNodeWithText("Descargar reconocimiento español").assertIsDisplayed()
+            assertNull(app.microphone.owner())
+            compose.onNodeWithText("Cancelar").performClick()
+            instrumentation.runOnMainSync { app.wakeDownload.install { instrumentation.context.assets.open("activacion-prueba.zip") } }
+            await { app.wakeDownload.state.value.installed && !app.wakeDownload.state.value.downloading }
+            assertEquals(WakeModel.SHA256, WakeModel(context).digest())
+            compose.onNodeWithText("Modelo español instalado").performScrollTo().assertIsDisplayed()
+            compose.onNodeWithText("Activar escucha permanente").performScrollTo().assertIsDisplayed()
+            assertNull(app.microphone.owner())
+            assertFalse(ContinuousWakeService.running)
+        }
+    }
+    @Test fun transferenciaDetectorDictadoEsExclusivaYCancelarLiberaLaCapturaReal() = runBlocking<Unit> {
+        WakeModel(context).install { instrumentation.context.assets.open("activacion-prueba.zip") }
+        val profile = AssistantProfile(name = "Jarvis").validated()
+        ProfileStore(context).save(listOf(profile), profile.id)
+        ListeningSettings(context).save(ListeningOptions(background = true))
+        ActivityScenario.launch(MainActivity::class.java).use { activity ->
+            activity.onActivity { ContinuousWakeService.startVisible(it) }
+            await { ContinuousWakeService.state.value == ListeningPhase.LISTENING }
+            withContext(Dispatchers.Main) { ContinuousWakeService.beforeRealtime() }
+            assertNull(app.microphone.owner())
+            val ready = CompletableDeferred<Unit>()
+            val capture = launch { PcmSpeechCapture(context).capture(true, 1700, { ready.complete(Unit) }, {}, {}) { _, _ -> } }
+            try {
+                withTimeout(8000) { ready.await() }
+                assertEquals(MicrophoneOwner.HOSTED_LOCAL, app.microphone.owner())
+                assertNull(app.microphone.acquire(MicrophoneOwner.CONTINUOUS_LOCAL))
+                assertTrue(app.audioSession.captureConfirmed())
+            } finally { capture.cancelAndJoin() }
+            assertNull(app.microphone.owner())
+            instrumentation.runOnMainSync { ContinuousWakeService.stop(context) }
+            await { !ContinuousWakeService.running }
+            activity.onActivity { ContinuousWakeService.startVisible(it) }
+            await { ContinuousWakeService.state.value == ListeningPhase.LISTENING }
+        }
     }
     @Test fun servicioCapturaEnOtraTareaYPantallaBloqueadaYNotificacionPausaYDetiene() = runBlocking<Unit> {
         assertEquals(PackageManager.PERMISSION_GRANTED, context.checkSelfPermission(Manifest.permission.RECORD_AUDIO))
@@ -91,7 +139,7 @@ class MicrophoneServiceInstrumentedTest {
                 activity.onActivity { it.setContent {
                     MaterialTheme { ListeningControls(configured = true, microphoneReady = true, requestMic = {}, stopVisible = {}, compact = true) }
                 } }
-                compose.onNodeWithText("Activar escucha").performClick()
+                compose.onNodeWithText("Activar escucha permanente").performClick()
                 compose.onNodeWithText("Autorizar y activar").performClick()
                 assertFalse("Activar escucha debe respetar segundo plano desactivado", ListeningSettings(context).load().background)
                 await { ContinuousWakeService.state.value == ListeningPhase.LISTENING }

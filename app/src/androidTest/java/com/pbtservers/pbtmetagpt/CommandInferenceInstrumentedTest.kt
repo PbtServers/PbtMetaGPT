@@ -125,7 +125,8 @@ class CommandInferenceInstrumentedTest {
                     try {
                         val heard = decode(wake, pcm)
                         val accepted = heard.any {
-                            InterruptionGate().accept(it.text, it.confidence, 5000, 0, true, "Jarvis", ListeningOptions()) == LocalVoiceCommand.SYSTEM_ASSISTANT
+                            InterruptionGate().accept(it.text, it.confidence, 5000, 0, true, "Jarvis", ListeningOptions()) ==
+                                if (phrase == "Abre Google.") LocalVoiceCommand.GOOGLE else LocalVoiceCommand.SYSTEM_ASSISTANT
                         }
                         assertEquals("Fixture fija $id: $phrase → ${heard.map { it.text to it.confidence }}", phrase in positive, accepted)
                     } finally { pcm.bytes.fill(0) }

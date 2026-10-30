@@ -44,12 +44,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
         if (voice.responding || voice.connecting) Button(onClick = { if (provider == "groq") app.hosted.interrupt() else app.voice.interrupt() }, modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)) { Text("Parar", style = MaterialTheme.typography.headlineSmall) }
         if (voice.active || voice.connecting) OutlinedButton(onClick = { if (provider == "groq") app.hosted.stop() else app.voice.stop() }, modifier = Modifier.fillMaxWidth()) { Text("Terminar conversación") }
         TextButton(onClick = app::openChatGpt) { Text("Abrir ChatGPT") }
-        if (toggleWake != null) {
-            OutlinedButton(onClick = toggleWake, enabled = configured && !voice.active && !voice.connecting, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
-                Text(if (wakeEnabled) "Desactivar escucha por frase" else "Activar escucha por frase")
-            }
-            TextButton(onClick = { navigate("Activación por voz") }) { Text("Cambiar frase de activación") }
-        } else ListeningControls(configured, microphoneReady, requestMic, stop, compact = true, configure = { navigate("Activación por voz") })
+        ListeningControls(configured, microphoneReady, requestMic, stop, compact = true,
+            configure = { navigate("Activación por voz") })
         OutlinedCard(onClick = { navigate("Dispositivos") }, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Gafas y audio", style = MaterialTheme.typography.titleMedium)

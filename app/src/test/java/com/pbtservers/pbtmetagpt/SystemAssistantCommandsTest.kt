@@ -21,13 +21,15 @@ class SystemAssistantCommandsTest {
             assertFalse(it, SystemAssistantCommandGrammar.accepts(google.copy(text = it), google, bounds))
         }
     }
-    @Test fun abreGoogleEsUnaOrdenDeAsistenteYNoUnaBusqueda() {
-        listOf("Abre Google", "Jarvis, abre el asistente de Google", "Abre el asistente del teléfono", "Quiero hablar con Google").forEach {
+    @Test fun googleYAsistenteSonDestinosDistintos() {
+        assertEquals(LocalVoiceCommand.GOOGLE, VoiceCommands.parse("Abre Google", "Jarvis", ListeningOptions()))
+        assertEquals(LocalVoiceCommand.GOOGLE, VoiceCommands.parse("Google", "Jarvis", ListeningOptions()))
+        listOf("Jarvis, abre el asistente de Google", "Abre el asistente del teléfono", "Quiero hablar con Google").forEach {
             assertEquals(LocalVoiceCommand.SYSTEM_ASSISTANT, VoiceCommands.parse(it, "Jarvis", ListeningOptions()))
         }
     }
     @Test fun negacionesMencionesYEcoNoAbrenAsistentes() {
-        listOf("No abre Google", "No quiero hablar con Google", "Explícame cómo abre Google", "Busca algo en Google", "Google").forEach {
+        listOf("No abre Google", "No quiero hablar con Google", "Explícame cómo abre Google", "Busca algo en Google").forEach {
             assertNull(it, VoiceCommands.parse(it, "Jarvis", ListeningOptions()))
         }
         assertTrue(VoiceCommands.matchesEcho("abre google", "Para usarlo, di Abre Google."))

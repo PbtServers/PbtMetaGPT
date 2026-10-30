@@ -3,6 +3,8 @@ package com.pbtservers.pbtmetagpt
 import android.content.Context
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -15,12 +17,15 @@ import java.util.zip.ZipInputStream
 class WakeModel(context: Context) {
     private val root = File(context.noBackupFilesDir, "activacion-vosk")
     val model = File(root, NAME)
-    fun installed() = File(model, "instalado.sha256").isFile && required.all { File(model, it).isFile }
+    fun installed() = runCatching { digest() == SHA256 && required.all { File(model, it).length() > 0 } }.getOrDefault(false)
     fun digest() = File(model, "instalado.sha256").takeIf { it.isFile }?.readText().orEmpty()
     fun delete() { model.deleteRecursively() }
-    suspend fun install(source: (() -> java.io.InputStream)? = null) {
-        if (installed()) return
+    @Volatile private var download: okhttp3.Call? = null
+    fun cancelDownload() { download?.cancel() }
+    suspend fun install(progress: (Long, Long, String) -> Unit = { _, _, _ -> }, source: (() -> java.io.InputStream)? = null): Unit = installLock.withLock {
+        if (installed()) return@withLock
         root.mkdirs()
+        require(root.usableSpace >= 320L * 1024 * 1024) { "Necesitas 320 MiB libres para instalar el modelo." }
         val staging = File(root, "descarga-temporal"); staging.deleteRecursively(); staging.mkdirs()
         val archive = File(staging, "modelo.zip")
         try {
@@ -31,10 +36,12 @@ class WakeModel(context: Context) {
                     val n = input.read(buffer); if (n < 0) break
                     total += n; require(total <= 64L * 1024 * 1024)
                     output.write(buffer, 0, n)
+                    progress(total, -1, "Descargando modelo")
                 }
             } } else {
             val client = OkHttpClient.Builder().followRedirects(false).followSslRedirects(false).callTimeout(3, TimeUnit.MINUTES).build()
-            client.newCall(Request.Builder().url(URL).build()).execute().use { response ->
+            val call = client.newCall(Request.Builder().url(URL).build()); download = call
+            call.execute().use { response ->
                 if (!response.isSuccessful) throw IOException("Descarga no disponible")
                 val body = response.body ?: throw IOException("Descarga vacía")
                 body.byteStream().use { input -> archive.outputStream().use { output ->
@@ -44,15 +51,18 @@ class WakeModel(context: Context) {
                         val size = input.read(buffer); if (size < 0) break
                         total += size; require(total <= 64L * 1024 * 1024) { "Archivo demasiado grande" }
                         output.write(buffer, 0, size)
+                        progress(total, body.contentLength(), "Descargando modelo")
                     }
                 } }
             }
             }
+            progress(archive.length(), archive.length(), "Verificando SHA-256")
             val expected = MessageDigest.getInstance("SHA-256")
             archive.inputStream().use { input -> val buffer = ByteArray(32768); while (true) {
                 val n = input.read(buffer); if (n < 0) break; expected.update(buffer, 0, n)
             } }
             require(expected.digest().joinToString("") { "%02x".format(it) } == SHA256) { "Hash del modelo Vosk incorrecto" }
+            progress(archive.length(), archive.length(), "Instalando modelo español")
             val unpacked = File(staging, NAME); unpacked.mkdirs()
             var expanded = 0L; val seen = mutableSetOf<String>()
             ZipInputStream(archive.inputStream().buffered()).use { zip ->
@@ -81,11 +91,19 @@ class WakeModel(context: Context) {
                 val size = input.read(buffer); if (size < 0) break; hash.update(buffer, 0, size)
             } }
             File(unpacked, "instalado.sha256").writeText(hash.digest().joinToString("") { "%02x".format(it) })
-            model.deleteRecursively()
-            check(unpacked.renameTo(model)) { "No se pudo instalar el modelo" }
-        } finally { staging.deleteRecursively() }
+            currentCoroutineContext().ensureActive()
+            val backup = File(root, "modelo-anterior")
+            backup.deleteRecursively()
+            if (model.exists()) check(model.renameTo(backup)) { "No se pudo conservar el modelo anterior" }
+            if (!unpacked.renameTo(model)) {
+                if (backup.exists()) check(backup.renameTo(model))
+                error("No se pudo instalar el modelo")
+            }
+            backup.deleteRecursively()
+        } finally { download = null; staging.deleteRecursively() }
     }
     companion object {
+        private val installLock = Mutex()
         const val NAME = "vosk-model-small-es-0.42"
         const val URL = "https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip"
         const val SHA256 = "09b239888f633ef2f0b4e09736e3d9936acfd810bc65d53fad45261762c6511f"

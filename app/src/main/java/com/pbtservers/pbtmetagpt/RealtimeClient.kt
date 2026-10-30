@@ -511,6 +511,8 @@ class RealtimeClient(context: Context, private val scope: CoroutineScope, privat
                             }
                             LocalVoiceCommand.CHATGPT -> (appContext as PbtApplication).openChatGpt()
                             LocalVoiceCommand.SYSTEM_ASSISTANT -> (appContext as PbtApplication).openSystemAssistant()
+                            LocalVoiceCommand.GOOGLE -> (appContext as PbtApplication).openWeb(WebAction(WebDestination.GOOGLE))
+                            LocalVoiceCommand.BROWSER -> (appContext as PbtApplication).openWeb(WebAction(WebDestination.BROWSER))
                             LocalVoiceCommand.MUSIC_PLAY, LocalVoiceCommand.MUSIC_PAUSE, LocalVoiceCommand.MUSIC_NEXT, LocalVoiceCommand.MUSIC_PREVIOUS ->
                                 (appContext as PbtApplication).controlSpotify(requireNotNull(MusicCommands.action(command)))
                         }

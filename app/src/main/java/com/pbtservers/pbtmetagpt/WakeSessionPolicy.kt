@@ -26,7 +26,10 @@ class WakeSessionPolicy {
         if (!authorized || token != epoch || phase != ListeningPhase.LISTENING) return false
         phase = ListeningPhase.DETECTED; return true
     }
-    fun preparing() { epoch++; if (authorized) phase = ListeningPhase.PREPARING }
+    fun preparing() {
+        // Preparar la salida de otro turno no deshace una conversación ya confirmada.
+        if (authorized && phase != ListeningPhase.CONVERSATION) { epoch++; phase = ListeningPhase.PREPARING }
+    }
     /** Una orden local no abre proveedor ni concede una nueva autorización. */
     fun localCommandFinished(): Boolean {
         if (!authorized || phase != ListeningPhase.DETECTED) return false
@@ -35,10 +38,15 @@ class WakeSessionPolicy {
     /** true solo cuando una conversación real ha terminado y puede volver a escuchar. */
     fun onVoice(active: Boolean, connecting: Boolean, failed: Boolean, paused: Boolean = false): Boolean {
         if (!authorized) return false
-        if (failed || paused) { suspendListening(); return false }
+        // StateFlow conserva el error del proveedor anterior al autorizar otra escucha.
+        if ((failed || paused) && (hadSession || phase in setOf(ListeningPhase.DETECTED, ListeningPhase.PREPARING))) {
+            suspendListening(); return false
+        }
+        if (failed || paused) return false
         if (active) { hadSession = true; phase = ListeningPhase.CONVERSATION }
         else if (!connecting && hadSession) { hadSession = false; phase = ListeningPhase.RETURNING; return true }
-        else if (!connecting && phase == ListeningPhase.PREPARING) suspendListening()
+        // La captura puede estar liberándose antes de publicar connecting. El watchdog
+        // del servicio acota esta transición; un estado anterior no la cancela.
         return false
     }
     fun suspendListening() { epoch++; authorized = false; hadSession = false; phase = ListeningPhase.SUSPENDED }

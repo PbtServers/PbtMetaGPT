@@ -59,12 +59,14 @@ class GroqApi(private val http: OkHttpClient = HostedHttp.groq,
         val body = JSONObject(String(http.newCall(request("models", key).build()).hostedBytes(), Charsets.UTF_8)).getJSONArray("data")
         return (0 until body.length()).map { body.getJSONObject(it).getString("id") }.sorted()
     }
-    suspend fun transcribe(key: String, wav: ByteArray): String {
+    suspend fun transcribe(key: String, wav: ByteArray, model: String = "whisper-large-v3-turbo"): String {
+        require(model in setOf("whisper-large-v3", "whisper-large-v3-turbo"))
         require(wav.size in 44..1_000_000 && wav.copyOfRange(0, 4).contentEquals("RIFF".toByteArray(Charsets.US_ASCII)))
         val payload = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("file", "grabacion.wav", wav.toRequestBody("audio/wav".toMediaType()))
-            .addFormDataPart("model", "whisper-large-v3-turbo")
+            .addFormDataPart("model", model)
             .addFormDataPart("language", "es")
+            .addFormDataPart("prompt", "Conversación en español de España. Nombres propios: Google, Spotify, ChatGPT, Jarvis, Barcelona, Esterri d'Àneu, Puigcerdà.")
             .addFormDataPart("response_format", "json")
             .build()
         val req = request("audio/transcriptions", key).post(payload).build()

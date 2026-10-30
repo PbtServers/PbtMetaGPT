@@ -7,8 +7,10 @@ import org.vosk.Recognizer
 
 /** Mismo decodificador para captura real y regresión de inferencia; un único hilo propietario. */
 class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
-    private val evaluation: ((CommandHypothesis, CommandHypothesis, SpeechBounds?) -> Unit)? = null) : AutoCloseable {
-    private val model = Model(path)
+    private val evaluation: ((CommandHypothesis, CommandHypothesis, SpeechBounds?) -> Unit)? = null,
+    private val sharedModel: Model? = null) : AutoCloseable {
+    private val model = sharedModel ?: Model(path)
+    private fun closeModel() { if (sharedModel == null) model.close() }
     private var recognizer: Recognizer
     private var chat: Recognizer
     private var music: Recognizer
@@ -17,10 +19,10 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
     private var voiceStart: Double? = null
     private var voiceEnd = 0.0
     init {
-        val open = try { create(false) } catch (problem: Throwable) { model.close(); throw problem }
+        val open = try { create(false) } catch (problem: Throwable) { closeModel(); throw problem }
         recognizer = open
-        chat = try { create(true) } catch (problem: Throwable) { open.close(); model.close(); throw problem }
-        music = try { createMusic() } catch (problem: Throwable) { chat.close(); open.close(); model.close(); throw problem }
+        chat = try { create(true) } catch (problem: Throwable) { open.close(); closeModel(); throw problem }
+        music = try { createMusic() } catch (problem: Throwable) { chat.close(); open.close(); closeModel(); throw problem }
     }
     private fun createMusic(): Recognizer {
         val value = Recognizer(model, sampleRate, JSONArray((MusicCommandGrammar.vocabulary + SystemAssistantCommandGrammar.vocabulary).distinct()).toString())
@@ -84,5 +86,5 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
         recognizer = nextOpen; chat = nextChat; music = nextMusic
         samples = 0; vad = AdaptiveVad(sampleRate.toInt()); voiceStart = null; voiceEnd = 0.0
     }
-    override fun close() { try { recognizer.close() } finally { try { chat.close() } finally { try { music.close() } finally { model.close() } } } }
+    override fun close() { try { recognizer.close() } finally { try { chat.close() } finally { try { music.close() } finally { closeModel() } } } }
 }
