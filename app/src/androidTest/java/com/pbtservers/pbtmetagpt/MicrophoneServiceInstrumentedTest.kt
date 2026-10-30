@@ -72,6 +72,7 @@ class MicrophoneServiceInstrumentedTest {
         ActivityScenario.launch(MainActivity::class.java).use { activity ->
             activity.onActivity { ContinuousWakeService.startVisible(it) }
             await { ContinuousWakeService.state.value == ListeningPhase.LISTENING }
+            val transferAt = android.os.SystemClock.elapsedRealtime()
             withContext(Dispatchers.Main) { ContinuousWakeService.beforeRealtime() }
             assertNull(app.microphone.owner())
             val ready = CompletableDeferred<Unit>()
@@ -81,6 +82,7 @@ class MicrophoneServiceInstrumentedTest {
                 assertEquals(MicrophoneOwner.HOSTED_LOCAL, app.microphone.owner())
                 assertNull(app.microphone.acquire(MicrophoneOwner.CONTINUOUS_LOCAL))
                 assertTrue(app.audioSession.captureConfirmed())
+                android.util.Log.i("PbtAsrTest", "{\"transferencia_detector_dictado_ms\":${android.os.SystemClock.elapsedRealtime() - transferAt},\"origen\":\"AudioRecord emulador\",\"audio_fisico_verificado\":false}")
             } finally { capture.cancelAndJoin() }
             assertNull(app.microphone.owner())
             instrumentation.runOnMainSync { ContinuousWakeService.stop(context) }

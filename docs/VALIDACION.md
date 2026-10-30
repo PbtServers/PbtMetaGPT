@@ -1,5 +1,9 @@
 # Validación de PbtMetaGPT
 
+## Reconocimiento y escucha desde Inicio · 30/10/2026
+
+El contrato vigente de motores, consentimiento, recuperación y medición está en [RECONOCIMIENTO_ES.md](RECONOCIMIENTO_ES.md). Las métricas de la nueva fixture son audio **sintético es-ES remuestreado a 16 kHz**, no voces humanas ni Google/Spotify reales. Se conservan WER/CER/omisiones aunque el resultado sea imperfecto, y se comprueba que las preguntas/negaciones no ejecuten órdenes. La carga inicial frente a reutilización mide un componente, no la latencia física completa. No hay corpus humano autorizado, teléfono ADB ni credenciales de proveedor para una comparación Whisper/Android real. Los resultados de cada SHA, incluidos fallos, figuran en PROGRESO.
+
 ## Candidata Ray-Ban, micrófono, bloqueo y español · 30/10/2026
 
 El protocolo vigente de aceptación Nothing Phone 3a Lite/Ray-Ban Meta está en [CANDIDATA_RAYBAN.md](CANDIDATA_RAYBAN.md#aceptación-física-pendiente). Incluye entrada/salida separadas, tres estados de conexión, bloqueo 5/15/30 minutos, veinte activaciones/interrupciones, llamadas, permisos, notificaciones, retorno de ChatGPT, tres voces Piper de España y consumo. Todas esas comprobaciones físicas siguen pendientes. Mock Device Kit no ejecutado. Los resultados automáticos y la APK de cada SHA se registran en [PROGRESO.md](PROGRESO.md); los apartados inferiores conservan el historial y no acreditan cambios posteriores.

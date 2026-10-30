@@ -5,7 +5,7 @@ import kotlin.math.sqrt
 /** VAD energético adaptativo, independiente de la ganancia absoluta del micrófono.
  * No identifica al hablante y no sustituye a un detector neuronal de ruido/voz.
  */
-class AdaptiveVad(private val rate: Int = 16000, private val endSilenceMs: Int = 1100) {
+class AdaptiveVad(private val rate: Int = 16000, private val endSilenceMs: Int = 1100, private val adaptiveEnding: Boolean = false) {
     enum class Event { WAIT, START, VOICE, PAUSE, END }
     private var floor = 80.0
     private var attack = 0
@@ -27,7 +27,10 @@ class AdaptiveVad(private val rate: Int = 16000, private val endSilenceMs: Int =
         attack = 0
         if (!started) return Event.WAIT
         silence += count
-        return if (silence >= rate * endSilenceMs / 1000) Event.END else Event.PAUSE
+        // En dictado preciso dar 300 ms adicionales a intervenciones cortas: una
+        // primera palabra seguida de pausa no debe parecer una pregunta completa.
+        val ending = endSilenceMs + if (adaptiveEnding && voicedSamples < rate) 300 else 0
+        return if (silence >= rate * ending / 1000) Event.END else Event.PAUSE
     }
     fun enoughVoice() = voicedSamples >= rate * 120 / 1000
 }

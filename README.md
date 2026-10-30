@@ -34,7 +34,7 @@ Puedes utilizar **GroqCloud con clave propia y sin montar un servidor**, o confi
 - Voces neuronales locales de España: Davefx, Sharvard masculina y Sharvard femenina, con muestras y selección persistente.
 - GroqCloud, dictado local, Groq Whisper opcional y envío de fotos a Groq Vision con confirmación.
 - Apertura de la aplicación oficial ChatGPT, aprovechando «Iniciar con Voz» cuando su configuración lo permite.
-- Apertura del asistente digital del teléfono con «abre Google», mediante las acciones públicas de Android.
+- Apertura de Google, navegador y búsquedas; acceso separado al asistente digital del teléfono mediante acciones públicas de Android.
 - Controles de Spotify por voz: reproducir, pausar y cambiar de canción desde su sesión multimedia, también con el teléfono bloqueado.
 - Perfiles de asistentes, importación y exportación sin credenciales, claves cifradas con Android Keystore.
 - Opciones avanzadas: OpenAI Realtime/WebRTC, Kokoro, Qwen3-TTS remoto, RVC ONNX y paquetes de voces compatibles.
@@ -64,9 +64,13 @@ No necesitas gafas, servidor, VPS ni dominio para usar GroqCloud desde el teléf
 
 ## Activación, conversación y pantalla bloqueada
 
-Configura las frases de tu asistente en **Activación por voz** y descarga el **modelo español Vosk**. Habilita **Escuchar frase de activación en segundo plano** si quieres continuar al minimizar o bloquear.
+En **Inicio → Escucha permanente**, pulsa **Descargar reconocimiento de voz en español**. Confirma el origen, unos 39 MB de descarga y los 320 MiB libres necesarios durante la instalación. Se muestra el progreso real, se puede cancelar/reintentar y se verifica SHA-256. Descargar no activa el micrófono. Las frases y opciones avanzadas siguen en **Activación por voz**.
 
-Pulsa **Activar escucha** con la aplicación visible, concede micrófono y notificaciones y confirma **Autorizar y activar**. Comprueba el estado de espera y la entrada activa antes de guardar el teléfono.
+Pulsa **Activar escucha permanente** con la aplicación visible, concede micrófono y notificaciones, marca **Continuar con el teléfono bloqueado** si quieres usarlo en el bolsillo y confirma **Autorizar y activar**. La casilla respeta tu preferencia anterior; no activa segundo plano por sí sola. Comprueba el estado de espera y la entrada activa antes de guardar el teléfono. Puedes detenerla desde Inicio o la notificación.
+
+En las opciones avanzadas de escucha selecciona **Vosk español**, **Android local**, **Groq Whisper** o **Automático**. La selección se respeta también en conversación continua. Whisper requiere autorizar expresamente el envío de audio: sin esa autorización no se utiliza la red para reconocer la voz. **Máxima precisión** permite pausas de 1,7–2 s y utiliza Whisper large-v3 cuando está autorizado; **Máxima rapidez** utiliza pausas de 1 s y Whisper turbo. Los motores locales no cambian de modelo al cambiar esa preferencia. Vosk reconoce español genérico; Android solicita `es-ES` y depende del modelo del fabricante. La activación sigue siendo local.
+
+Espera **«Te escucho»** antes de formular la pregunta. Si no se confirma el micrófono o no arranca el proveedor, aparece una causa y una opción de reintento; no se mantiene indefinidamente «Frase detectada». La pregunta dicha junto a la frase de activación sigue procediendo del detector Vosk; para usar la transcripción precisa de Whisper, di la frase, espera la confirmación y pregunta. Los tiempos y límites se explican en la [guía de reconocimiento y diagnóstico](docs/RECONOCIMIENTO_ES.md).
 
 | Qué dices o haces | Resultado |
 | --- | --- |
@@ -107,7 +111,7 @@ No hay una interfaz pública documentada localizada que garantice iniciar Live d
 
 ## Abrir Google o el asistente del teléfono
 
-Di **«abre Google»**, **«abre el asistente de Google»** o **«abre el asistente del teléfono»**. En espera, antepón la frase guardada: «Atento Jarvis, abre Google». La orden solicita el asistente, sin abrir el navegador ni simular «Hey Google».
+Di **«Abre Google»** para abrir la aplicación Google, **«Abre el navegador»** para abrir el navegador predeterminado o **«Busca en Google restaurantes de Barcelona»** para iniciar una búsqueda. **«Abre el asistente de Google»** y **«Abre el asistente del teléfono»** solicitan el asistente digital configurado. Son destinos diferentes; no se simula «Hey Google». En espera, antepón la frase guardada.
 
 En **Aplicaciones predeterminadas → Asistente digital** de Android, selecciona **Google**. Según tu configuración, Google puede ofrecer Gemini o Google Assistant. El botón **Configurar asistente de Android** abre los ajustes públicos; PbtMetaGPT no cambia el asistente predeterminado.
 
@@ -128,7 +132,7 @@ Abre Spotify, reproduce una canción una vez y vuelve a PbtMetaGPT. Activa la es
 - «Atento Jarvis, siguiente canción».
 - «Atento Jarvis, canción anterior».
 
-Durante una conversación también se admiten las órdenes completas sin repetir la activación. La orden cancela la respuesta del asistente antes de ceder el audio y vuelve a la espera ya autorizada. **«Para» interrumpe al asistente**; para Spotify utiliza «pausa la música».
+Durante una conversación también se admiten las órdenes completas sin repetir la activación: **«Pon música»**, **«Ponme música»**, **«Ponme algo en Spotify»**, **«Continúa la música»** y **«Pon la siguiente»**, entre otras. La orden cancela la respuesta del asistente antes de ceder el audio y vuelve a la espera ya autorizada. **«Para» interrumpe al asistente**; **«Para Spotify»** y **«Pausa Spotify»** pausan música. Las preguntas «¿Qué es Spotify?» y «¿Qué música me recomiendas?» van al proveedor conversacional.
 
 Los controles actúan solo sobre la sesión de `com.spotify.music`, sin abrir actividades desde el bloqueo. Si Spotify no mantiene una sesión o no ofrece un control, la aplicación lo indica; no inicia una canción o playlist nueva por una ruta privada. Las restricciones de saltos, cuenta y conexión dependen de Spotify. La captura HFP de las gafas puede reducir la calidad de la música; la convivencia Bluetooth necesita validación física.
 

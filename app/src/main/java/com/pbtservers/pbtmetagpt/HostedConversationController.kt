@@ -82,6 +82,9 @@ class HostedConversation(private val context: Context, private val scope: Corout
         processing.value = true
         val next = scope.launch(start = CoroutineStart.LAZY) {
             try { awaitAudioRelease(draining); ensureActive(); action(trace) }
+            catch (_: TimeoutCancellationException) {
+                if (current == generation) failed(HostedFailure("La preparación o transcripción ha agotado su plazo. Comprueba el motor y vuelve a activar la escucha."))
+            }
             catch (cancel: CancellationException) {
                 if (current == generation) suspendConversation()
                 throw cancel

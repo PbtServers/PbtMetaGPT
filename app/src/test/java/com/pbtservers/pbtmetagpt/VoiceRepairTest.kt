@@ -5,6 +5,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class VoiceRepairTest {
+    @Test fun finalizacionPrecisaEsAdaptativaParaUnaPrimeraPalabraSeguidaDePausa() {
+        val vad = AdaptiveVad(endSilenceMs = 1700, adaptiveEnding = true)
+        repeat(20) { vad.accept(ShortArray(320) { 2000 }) }
+        repeat(99) { assertNotEquals(AdaptiveVad.Event.END, vad.accept(ShortArray(320))) }
+        assertEquals(AdaptiveVad.Event.END, vad.accept(ShortArray(320)))
+        val long = AdaptiveVad(endSilenceMs = 1700, adaptiveEnding = true)
+        repeat(60) { long.accept(ShortArray(320) { 2000 }) }
+        repeat(84) { assertNotEquals(AdaptiveVad.Event.END, long.accept(ShortArray(320))) }
+        assertEquals(AdaptiveVad.Event.END, long.accept(ShortArray(320)))
+    }
     @Test fun unErrorAnteriorNoRevocaUnaNuevaAutorizacionMientrasCargaElDetector() {
         val policy = WakeSessionPolicy().apply { authorize() }
         assertFalse(policy.onVoice(false, false, true))

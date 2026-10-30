@@ -20,7 +20,15 @@ class WavAudioTest {
     }
     @Test fun rechazaAudioVacioODemasiadoGrande() {
         assertTrue(runCatching { WavAudio.encodePcm16Mono(16000, byteArrayOf()) }.isFailure)
-        assertTrue(runCatching { WavAudio.encodePcm16Mono(16000, ByteArray(400002)) }.isFailure)
+        assertTrue(runCatching { WavAudio.encodePcm16Mono(16000, ByteArray(960002)) }.isFailure)
+        assertTrue(runCatching { WavAudio.encodePcm16Mono(16000, ByteArray(31)) }.isFailure)
         assertTrue(runCatching { WavAudio.encodePcm16Mono(8000, ByteArray(32)) }.isFailure)
+    }
+    @Test fun admitePreguntasDe28SegundosSinConservarElAntiguoCorteDe12Segundos() {
+        val pcm = ByteArray(16000 * 2 * 28)
+        val wav = WavAudio.encodePcm16Mono(16000, pcm)
+        assertEquals(pcm.size + 44, wav.size)
+        assertEquals(pcm.size, little32(wav, 40))
+        assertEquals(960044, WavAudio.encodePcm16Mono(16000, ByteArray(960000)).size)
     }
 }

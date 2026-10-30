@@ -24,7 +24,7 @@ En Ajustes → Voz y escucha → Conversación y escucha se elige continuidad, i
 - **Deja de escuchar:** cierra conversación, detiene escucha y desactiva la preferencia de segundo plano.
 - **Abre GPT Live**, **Inicia GPT Live**, **Abre ChatGPT**, **Inicia ChatGPT en voz**, **Abre ChatGPT en voz**, **Quiero hablar con ChatGPT**: transferencia a ChatGPT oficial. Se admite el nombre configurado delante de la orden.
 
-Las órdenes no se detectan mediante subcadenas: «esto es para mañana» y «para mañana» no son «Para». No se guardan grabaciones pasivas, ni se añaden órdenes al contexto del proveedor. El audio de una conversación Groq continua se reconoce localmente antes de enviar texto autorizado. Se mantienen los consentimientos separados para proveedores, cámara y síntesis.
+Las órdenes no se detectan mediante subcadenas: «esto es para mañana» y «para mañana» no son «Para». No se guardan grabaciones pasivas, ni se añaden órdenes al contexto del proveedor. El dictado continuo respeta Vosk, Android local o Whisper según la selección y autorización explícita de audio. Activación e interrupciones siguen siendo locales. Se mantienen los consentimientos separados para proveedores, cámara y síntesis. Consulta el [contrato actual de reconocimiento español](RECONOCIMIENTO_ES.md).
 
 Tras **Termina**, no se queda parado: vuelve a esperar la frase bajo el consentimiento de activación vigente. El servicio y la espera visible aguardan la liberación del capturador anterior para no suspenderse por una carrera de micrófono ocupado. Se prueba la repetición de tres ciclos sin nueva autorización. Si se dijo **Deja de escuchar**, se pausó o se transfirió a ChatGPT, esa autorización ya no está vigente y hace falta una acción explícita para escuchar otra vez.
 

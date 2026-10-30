@@ -32,6 +32,7 @@ fi
 mkdir -p app/build/reports/androidTests
 adb logcat -d -s PbtKokoroTest:I '*:S' > app/build/reports/androidTests/kokoro-metricas-emulador.txt
 adb logcat -d -s PbtListenTest:I '*:S' > app/build/reports/androidTests/escucha-metricas-emulador.txt
+adb logcat -d -s PbtAsrTest:I '*:S' > app/build/reports/androidTests/reconocimiento-es-metricas-emulador.txt
 cat app/build/reports/androidTests/kokoro-metricas-emulador.txt
 if [ "$result" -ne 0 ]; then
   echo "Diagnóstico Android y nativo tras el fallo de las pruebas controladas:"

@@ -31,7 +31,14 @@ class OnDeviceDictation(private val context: Context) {
                 override fun onBufferReceived(buffer: ByteArray?) = Unit
                 override fun onEndOfSpeech() { speechEnded() }
                 override fun onError(error: Int) {
-                    if (!result.isCompleted) result.completeExceptionally(HostedFailure("No se entendió el dictado offline. Repite la pregunta o escríbela."))
+                    if (!result.isCompleted) result.completeExceptionally(when (error) {
+                        SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> NoSpeechDetected()
+                        SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> HostedFailure("Falta el modelo local del idioma elegido. Instala español de España en Android o selecciona Vosk español.")
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> HostedFailure("Android ha denegado el permiso de micrófono al reconocedor local.")
+                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> HostedFailure("El reconocedor local de Android está ocupado. Detén la otra escucha y reintenta.")
+                        SpeechRecognizer.ERROR_AUDIO -> HostedFailure("Android no ha podido capturar audio. Revisa el micrófono y la ruta Bluetooth.")
+                        else -> HostedFailure("No se entendió el dictado local. Repite la pregunta o selecciona otro motor autorizado.")
+                    })
                 }
                 override fun onResults(results: Bundle?) {
                     val phrase = DictationHypotheses.best(results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty(),
@@ -47,13 +54,14 @@ class OnDeviceDictation(private val context: Context) {
             active.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.forLanguageTag(language).toLanguageTag())
+                if (android.os.Build.VERSION.SDK_INT >= 34) putExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_DETECTION, false)
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
                 putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, silenceMs.toLong())
                 putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, silenceMs.toLong())
             })
-            withTimeout(25_000) { result.await() }
+            withTimeout(50_000) { result.await() }
         } finally {
             try { recognizer?.cancel() } finally { try { recognizer?.destroy() } finally { gate.release(lease) } }
         }

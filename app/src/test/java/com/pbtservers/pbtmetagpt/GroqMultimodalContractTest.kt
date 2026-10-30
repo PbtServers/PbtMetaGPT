@@ -40,6 +40,22 @@ class GroqMultimodalContractTest {
             assertTrue(text.contains("whisper-large-v3-turbo"))
             assertTrue(text.contains("grabacion.wav"))
             assertTrue(text.contains("name=\"language\""))
+            assertTrue(text.contains("\r\n\r\nes\r\n"))
+            assertTrue(text.contains("name=\"prompt\""))
+            assertFalse(req.path.orEmpty().contains("translations"))
+        }
+    }
+    @Test fun modoPrecisoEnviaLargeV3ConIdiomaFijoSinDeteccionAutomatica() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("""{"text":"Quiero ir a Puigcerdà."}"""))
+            val api = GroqApi(OkHttpClient(), server.url("/openai/v1/").toString())
+            assertEquals("Quiero ir a Puigcerdà.", api.transcribe("token-de-prueba-no-real", WavAudio.encodePcm16Mono(16000, ByteArray(32000)), RecognitionPolicy.whisperModel(RecognitionMode.PRECISION)))
+            val req = server.takeRequest()
+            val body = req.body.readUtf8()
+            assertTrue(body.contains("\r\n\r\nwhisper-large-v3\r\n"))
+            assertTrue(body.contains("\r\n\r\nes\r\n"))
+            assertTrue(body.contains("Google, Spotify, ChatGPT"))
+            assertEquals("/openai/v1/audio/transcriptions", req.path)
         }
     }
 }

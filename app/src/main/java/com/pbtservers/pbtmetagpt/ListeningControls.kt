@@ -34,6 +34,7 @@ import java.io.IOException
     var source by remember { mutableStateOf(settings.dictationSource) }
     LaunchedEffect(Unit) { app.wakeDownload.refresh() }
     var consent by remember { mutableStateOf(false) }
+    var backgroundConsent by remember { mutableStateOf(ListeningSettings(context).load().background) }
     val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         status = if (granted) "Notificaciones autorizadas. Pulsa Activar escucha para continuar." else "Activa las notificaciones para disponer del control de parada fuera de la aplicación."
     }
@@ -67,7 +68,7 @@ import java.io.IOException
                 listOf(RecognitionMode.PRECISION to "Máxima precisión", RecognitionMode.SPEED to "Máxima rapidez").forEach { (value, label) ->
                     TextButton(onClick = { settings.recognitionMode(value); mode = value }, enabled = !ContinuousWakeService.running) { Text(if (mode == value) "● $label" else label) }
                 }
-                Text("Precisión: pausas de hasta 1,7 s y Whisper large-v3 si autorizas Groq. Rapidez: 1 s y Whisper turbo. La calidad real depende del micrófono y requiere comparación; Vosk sigue siendo español genérico.", style = MaterialTheme.typography.bodySmall)
+                Text("Precisión: pausas de 1,7–2 s y Whisper large-v3 si autorizas Groq. Rapidez: 1 s y Whisper turbo. La calidad real depende del micrófono y requiere comparación; Vosk sigue siendo español genérico.", style = MaterialTheme.typography.bodySmall)
                 listOf(DictationSource.AUTO to "Automático", DictationSource.VOSK to "Vosk español · sin enviar audio",
                     DictationSource.ANDROID_LOCAL to "Android local · es-ES", DictationSource.GROQ_WHISPER to "Groq Whisper · requiere autorizar audio").forEach { (value, label) ->
                     TextButton(onClick = { settings.dictationSource(value); source = value }, enabled = !ContinuousWakeService.running) { Text(if (source == value) "● $label" else label) }
@@ -78,7 +79,7 @@ import java.io.IOException
             if (!running || phase == ListeningPhase.SUSPENDED) Button(onClick = {
                 if (!microphoneReady) requestMic()
                 else if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-                else consent = true
+                else { backgroundConsent = ListeningSettings(context).load().background; consent = true }
             }, enabled = installed && configured && !downloading, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text("Activar escucha permanente") }
             if (!configured) Text("Guarda un asistente y configura el proveedor elegido antes de activar la escucha.")
             if (!compact && installed && !ContinuousWakeService.running) TextButton(onClick = { app.voskModels.close(); app.wakeDownload.delete(); status = "Modelo eliminado del teléfono." }) { Text("Eliminar modelo de activación") }
@@ -96,12 +97,16 @@ import java.io.IOException
         confirmButton = { TextButton(onClick = { downloadConsent = false; app.wakeDownload.install() }) { Text("Descargar e instalar") } },
         dismissButton = { TextButton(onClick = { downloadConsent = false }) { Text("Cancelar") } })
     if (consent) AlertDialog(onDismissRequest = { consent = false }, title = { Text("Autorizar escucha local") },
-        text = { Text((if (ListeningSettings(context).load().background)
+        text = { Column {
+            Row { Checkbox(checked = backgroundConsent, onCheckedChange = { backgroundConsent = it }); Text("Continuar con el teléfono bloqueado") }
+            Text((if (backgroundConsent)
             "Has habilitado segundo plano: el micrófono seguirá activo al minimizar y bloquear el móvil mientras Android lo permita. "
             else "Segundo plano desactivado: la escucha se detendrá al salir de la aplicación y la conversación quedará pausada. ") +
-            "Una frase guardada abrirá el proveedor elegido: GroqCloud Free utiliza cuota gratuita; OpenAI API opcional es facturable. Configura el servicio y su consentimiento antes. Podrás detenerlo desde Inicio y la notificación. No se guardan grabaciones de fondo. Las frases deben estar guardadas y ser del idioma español. Al detener el servicio no se reinicia solo.") },
+            "Una frase guardada abrirá el proveedor elegido: GroqCloud Free utiliza cuota gratuita; OpenAI API opcional es facturable. Configura el servicio y su consentimiento antes. Podrás detenerlo desde Inicio y la notificación. No se guardan grabaciones de fondo. Las frases deben estar guardadas y ser del idioma español. Al detener el servicio no se reinicia solo.") } },
         confirmButton = { TextButton(onClick = {
-            consent = false; stopVisible()
+            consent = false
+            ListeningSettings(context).let { it.save(it.load().copy(background = backgroundConsent)) }
+            stopVisible()
             try { ContinuousWakeService.startVisible(context) }
             catch (_: SecurityException) { status = "Android ha denegado el servicio. Revisa permiso de micrófono y notificaciones." }
             catch (_: IllegalStateException) { status = "Android no permite iniciar el servicio ahora. Vuelve a Inicio e inténtalo con la aplicación visible." }

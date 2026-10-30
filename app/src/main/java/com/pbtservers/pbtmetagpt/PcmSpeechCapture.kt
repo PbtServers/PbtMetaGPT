@@ -33,7 +33,7 @@ class PcmSpeechCapture(private val context: Context) {
             AudioInputSettings(context).prefer(record)
             record.startRecording()
             check(record.recordingState == AudioRecord.RECORDSTATE_RECORDING)
-            val vad = AdaptiveVad(endSilenceMs = silenceMs)
+            val vad = AdaptiveVad(endSilenceMs = silenceMs, adaptiveEnding = silenceMs >= 1700)
             val opened = SystemClock.elapsedRealtime()
             var announced = false
             var speechAt = 0L
