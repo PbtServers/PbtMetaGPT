@@ -14,6 +14,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 
 @Composable fun MusicPanel(context: Context) {
     val settings = remember { MusicSettings(context) }
+    val app = context.applicationContext as PbtApplication
     var enabled by remember { mutableStateOf(settings.enabled) }
     var message by remember { mutableStateOf("") }
     var consent by remember { mutableStateOf(false) }
@@ -28,7 +29,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
     }
     fun enable(value: Boolean) {
         ContinuousWakeService.stop(context)
-        (context.applicationContext as PbtApplication).let { it.hosted.stop(); it.voice.stop() }
+        app.hosted.stop(); app.voice.stop()
         settings.enable(value); enabled = value
         message = "Preferencia guardada. Activa de nuevo la escucha para aplicar la convivencia con música."
     }
@@ -47,9 +48,9 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
         }) { Text("Gestionar acceso de música en Android") }
         if (enabled) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { message = SpotifyControls(context).execute(MusicAction.PLAY) }) { Text("Reproducir") }
-                TextButton(onClick = { message = SpotifyControls(context).execute(MusicAction.PAUSE) }) { Text("Pausar música") }
-                TextButton(onClick = { message = SpotifyControls(context).execute(MusicAction.NEXT) }) { Text("Siguiente") }
+                TextButton(onClick = { app.controlSpotify(MusicAction.PLAY) }) { Text("Reproducir") }
+                TextButton(onClick = { app.controlSpotify(MusicAction.PAUSE) }) { Text("Pausar música") }
+                TextButton(onClick = { app.controlSpotify(MusicAction.NEXT) }) { Text("Siguiente") }
             }
             Text("La captura Bluetooth HFP puede reducir la calidad de la música. Se comprueban entrada, salida y comandos con tus gafas; no se garantiza audio A2DP mientras se usa su micrófono.", style = MaterialTheme.typography.bodySmall)
         }
