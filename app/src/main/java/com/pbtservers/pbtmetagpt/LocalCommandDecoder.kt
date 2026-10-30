@@ -23,7 +23,7 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
         music = try { createMusic() } catch (problem: Throwable) { chat.close(); open.close(); model.close(); throw problem }
     }
     private fun createMusic(): Recognizer {
-        val value = Recognizer(model, sampleRate, JSONArray(MusicCommandGrammar.vocabulary).toString())
+        val value = Recognizer(model, sampleRate, JSONArray((MusicCommandGrammar.vocabulary + SystemAssistantCommandGrammar.vocabulary).distinct()).toString())
         try { value.setWords(true); value.setEndpointerMode(1); return value }
         catch (problem: Throwable) { value.close(); throw problem }
     }
@@ -58,6 +58,7 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
         evaluation?.invoke(full, command, bounds)
         val result = when {
             bounds != null && ChatGptCommandGrammar.accepts(full, command, bounds) -> command
+            bounds != null && SystemAssistantCommandGrammar.accepts(full, musicCommand, bounds) -> musicCommand
             bounds != null && MusicCommandGrammar.accepts(full, musicCommand, bounds) -> musicCommand
             else -> full
         }

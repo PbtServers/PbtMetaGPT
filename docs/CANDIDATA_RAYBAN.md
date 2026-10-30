@@ -106,6 +106,8 @@ Pantalla bloqueada/segundo plano: no se fuerza una actividad. Una notificación 
 
 La pronunciación Piper se adapta a **gúguel**, según lo solicitado para España, conservando negaciones y texto de pantalla. No se usa «gúgol» para conseguir resultados de ASR. Ensayo de escritorio: Sharvard M reconoce «abre google»; Davefx y Sharvard F confunden el enunciado corto. «Abre el asistente del teléfono» se reconoce con las tres. No se convierten «agregó» o «regula él» en órdenes, ni se reducen umbrales. La regresión nueva documenta exactamente este alcance, prueba los negativos y añade transferencia de recursos con pantalla apagada sin abrir Google real desde CI. La acústica del usuario necesita hardware.
 
+Para autorizar Google con confianza de palabras libre insuficiente, se exige que el decodificador restringido de acciones obtenga **el mismo texto completo**, confianza ≥0,95 y límites de voz completos. No autoriza una corrección inventada de «regula él» a «abre Google». Comparte modelo y capturador, conserva la gramática ChatGPT y no se ejecuta durante espera pasiva. Se conserva como regresión el caso Android Davefx con texto correcto y confianza 0,718073.
+
 ## Spotify: configuración y límites
 
 Activa **Dispositivos → Música → Controlar Spotify** y concede manualmente acceso a notificaciones a **PbtMetaGPT · música**. El permiso es amplio en Android; el servicio no inspecciona ni almacena texto, imágenes ni metadatos de notificaciones. No inicia sensores al conectarse. Desactivar la preferencia no revoca el permiso del sistema: usa el botón de gestión para retirarlo. Android puede exigir permitir ajustes restringidos para una APK instalada fuera de una tienda; respeta sus indicaciones, sin automatización ni evasión.

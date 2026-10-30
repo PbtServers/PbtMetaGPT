@@ -1,5 +1,13 @@
 # Seguimiento de PbtMetaGPT
 
+## Acuerdo de texto para Google tras inferencia Android · 30/10/2026
+
+**80 % acreditado · 00:56 UTC · 2 h 47 min desde el inicio.** `8e2b4a0` supera **196 JVM (195 correctas, una remota optativa omitida), Lint, compilación, seguridad y backend** en [CI 40981035518](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40981035518). El bloque inicial API35 de 52 pruebas detecta un fallo Google: Davefx transcribe exactamente «abre el asistente del teléfono», confianza mínima 0,718073, insuficiente para ejecutar. La prueba musical anterior ya pasa en ese bloque, con sus positivos y negativos ampliados. Captura/servicio y la otra API aún necesitan resultados completos; no se atribuye al aviso de consola 5554 ni se publica APK.
+
+Se mantiene el umbral de ejecución y el positivo Google. El reconocedor restringido de acciones comparte modelo/PCM con el libre y con la gramática ChatGPT conservada. Para Google se exige **igualdad del texto completo entre ambos**, confianza restringida ≥0,95 y las mismas fronteras inicial/final de voz. No se acepta «regula él», «agregó», negaciones, explicaciones ni continuaciones; no se añade un cuarto reconocedor ni inferencia pasiva. Dos JVM nuevas cubren el caso 0,718073 con acuerdo alto y rechazan textos distintos/0,94/NaN/fronteras truncadas. Las limitaciones de la orden corta y el bloqueo de Android siguen explícitas, con gúguel peninsular.
+
+Próximo paso: publicar esta corrección, ejecutar todas las suites y generar la APK del SHA final solo si pasan ambas APIs. La estimación anterior se amplía un ciclo de CI; la aceptación física sigue sin fecha. ADB sigue sin dispositivo tras volver a comprobarlo; se ha consultado al usuario si puede conectar el Nothing mientras continúa CI.
+
 ## Corrección de inferencia Spotify tras CI · 30/10/2026
 
 La CI Google `ee56d0a` detecta a las 00:34 UTC una importación ausente de `Intent` en el botón de ajustes de MainActivity. Se corrige explícitamente; no llegó a JVM/emuladores y no publicó APK. La corrección musical `7aad232` necesita también esa importación, incluida en el siguiente commit. Las puertas de publicación permanecen intactas.

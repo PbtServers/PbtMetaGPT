@@ -52,7 +52,7 @@ object VoiceCommands {
             command in setOf("termina", "termina la conversacion", normalize(options.endPhrase)) -> LocalVoiceCommand.END
             command == "hasta luego" && options.goodbye -> LocalVoiceCommand.END
             command in setOf("abre gpt live", "inicia gpt live", "abre chatgpt", "inicia chatgpt en voz", "abre chatgpt en voz", "quiero hablar con chatgpt") || command in ChatGptCommandGrammar.phrases -> LocalVoiceCommand.CHATGPT
-            command in setOf("abre google", "abre el asistente de google", "abre asistente google", "abre el asistente del telefono", "quiero hablar con google") -> LocalVoiceCommand.SYSTEM_ASSISTANT
+            command in SystemAssistantCommandGrammar.phrases -> LocalVoiceCommand.SYSTEM_ASSISTANT
             else -> MusicCommands.parse(command)?.let(MusicCommands::command)
         }
     }

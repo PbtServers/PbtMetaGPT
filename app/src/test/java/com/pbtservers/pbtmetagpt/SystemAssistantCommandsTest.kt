@@ -4,6 +4,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SystemAssistantCommandsTest {
+    @Test fun acuerdoTextoCompletoYConfianzaAltaResuelvenLaOrdenSinRebajarElUmbral() {
+        val free = CommandHypothesis("abre el asistente del teléfono", .718073f, 1.0, 2.5)
+        val restricted = free.copy(confidence = .99f)
+        val bounds = SpeechBounds(1.0, 2.5)
+        assertTrue(SystemAssistantCommandGrammar.accepts(free, restricted, bounds))
+        assertFalse(SystemAssistantCommandGrammar.accepts(free, restricted.copy(confidence = .94f), bounds))
+        assertFalse(SystemAssistantCommandGrammar.accepts(free, restricted.copy(confidence = Float.NaN), bounds))
+        assertFalse(SystemAssistantCommandGrammar.accepts(free, restricted, SpeechBounds(.7, 2.5)))
+        assertFalse(SystemAssistantCommandGrammar.accepts(free, restricted, SpeechBounds(1.0, 2.9)))
+    }
+    @Test fun gramaticaNoPuedeConvertirPalabrasParecidasONegacionesEnApertura() {
+        val google = CommandHypothesis("abre google", 1f, 1.0, 2.0)
+        val bounds = SpeechBounds(1.0, 2.0)
+        listOf("regula el", "agregó", "no abre google", "explica cómo abre google", "abre google mañana", "abre el asistente del teléfono").forEach {
+            assertFalse(it, SystemAssistantCommandGrammar.accepts(google.copy(text = it), google, bounds))
+        }
+    }
     @Test fun abreGoogleEsUnaOrdenDeAsistenteYNoUnaBusqueda() {
         listOf("Abre Google", "Jarvis, abre el asistente de Google", "Abre el asistente del teléfono", "Quiero hablar con Google").forEach {
             assertEquals(LocalVoiceCommand.SYSTEM_ASSISTANT, VoiceCommands.parse(it, "Jarvis", ListeningOptions()))
