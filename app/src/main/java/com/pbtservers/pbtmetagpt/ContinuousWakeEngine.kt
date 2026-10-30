@@ -40,7 +40,7 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
                                 captureJob.cancel()
                                 scope.launch(Dispatchers.Main) { failed(IllegalStateException("Ruta de audio interrumpida")) }
                             }
-                            route = requested; requested.start(bluetooth, speaker = true)
+                            route = requested; requested.start(bluetooth, speaker = true, passive = true)
                         }
                         val minimum = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
                         check(minimum > 0)

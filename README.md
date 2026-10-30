@@ -34,6 +34,7 @@ Puedes utilizar **GroqCloud con clave propia y sin montar un servidor**, o confi
 - Voces neuronales locales de España: Davefx, Sharvard masculina y Sharvard femenina, con muestras y selección persistente.
 - GroqCloud, dictado local, Groq Whisper opcional y envío de fotos a Groq Vision con confirmación.
 - Apertura de la aplicación oficial ChatGPT, aprovechando «Iniciar con Voz» cuando su configuración lo permite.
+- Controles de Spotify por voz: reproducir, pausar y cambiar de canción desde su sesión multimedia, también con el teléfono bloqueado.
 - Perfiles de asistentes, importación y exportación sin credenciales, claves cifradas con Android Keystore.
 - Opciones avanzadas: OpenAI Realtime/WebRTC, Kokoro, Qwen3-TTS remoto, RVC ONNX y paquetes de voces compatibles.
 
@@ -103,6 +104,21 @@ En ChatGPT, activa **Ajustes → Voz → Iniciar con Voz**, si aparece en tu ver
 
 No hay una interfaz pública documentada localizada que garantice iniciar Live desde otra aplicación. Se utiliza la entrada pública de ChatGPT, sin pulsaciones simuladas ni componentes privados. Si Android impide abrirla desde segundo plano o con el móvil bloqueado, utiliza la acción de la notificación. Abrir ChatGPT no acredita que Voz se haya iniciado. Al volver, pulsa **Hablar** o **Activar escucha** para recuperar el micrófono.
 
+## Spotify con la pantalla bloqueada
+
+En **Ajustes → Dispositivos → Música**, activa **Controlar Spotify**, lee el consentimiento y pulsa **Gestionar acceso de música en Android**. Habilita **PbtMetaGPT · música** en el acceso especial a notificaciones. Android concede un permiso amplio; la aplicación no procesa ni almacena el contenido de las notificaciones. Puedes desactivar los controles y revocar ese acceso cuando quieras.
+
+Abre Spotify, reproduce una canción una vez y vuelve a PbtMetaGPT. Activa la escucha autorizada en segundo plano y bloquea el teléfono. En espera, usa la frase de tu asistente antes de cada orden:
+
+- «Atento Jarvis, reproduce música» o «Atento Jarvis, pon Spotify».
+- «Atento Jarvis, pausa la música».
+- «Atento Jarvis, siguiente canción».
+- «Atento Jarvis, canción anterior».
+
+Durante una conversación también se admiten las órdenes completas sin repetir la activación. La orden cancela la respuesta del asistente antes de ceder el audio y vuelve a la espera ya autorizada. **«Para» interrumpe al asistente**; para Spotify utiliza «pausa la música».
+
+Los controles actúan solo sobre la sesión de `com.spotify.music`, sin abrir actividades desde el bloqueo. Si Spotify no mantiene una sesión o no ofrece un control, la aplicación lo indica; no inicia una canción o playlist nueva por una ruta privada. Las restricciones de saltos, cuenta y conexión dependen de Spotify. La captura HFP de las gafas puede reducir la calidad de la música; la convivencia Bluetooth necesita validación física.
+
 ## Voces de España
 
 En **Voces → Natural** tienes tres voces Piper de español de España (`es_ES`, calidad medium):
@@ -128,6 +144,7 @@ RVC es una conversión opcional que añade procesamiento. Los `.pth` y `.index` 
 | Activación Vosk, dictado Vosk y prueba de micrófono | Local después de descargar el modelo |
 | Piper, Kokoro y RVC compatibles | Local después de instalar sus recursos |
 | Perfiles, selección de voces y ajustes | Local |
+| Controles de la sesión de Spotify | Local; reproducir contenido depende de Spotify y de sus descargas/conexión |
 | GroqCloud, Groq Vision, OpenAI y ChatGPT oficial | Internet |
 | Groq Whisper | Internet y consentimiento adicional para enviar el audio de la petición |
 | Qwen3-TTS remoto y API TTS externa | Internet; reciben el texto autorizado |

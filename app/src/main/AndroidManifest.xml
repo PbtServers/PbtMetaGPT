@@ -15,6 +15,7 @@
     <queries>
         <package android:name="com.openai.chatgpt" />
         <package android:name="com.facebook.stella" />
+        <package android:name="com.spotify.music" />
         <intent><action android:name="android.speech.RecognitionService" /></intent>
         <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
     </queries>
@@ -25,6 +26,11 @@
         <meta-data android:name="com.meta.wearable.mwdat.CRASH_REPORTING_OPT_OUT" android:value="true" />
         <service android:name=".ModelVoiceService" android:exported="false" android:isolatedProcess="true" android:stopWithTask="true" />
         <service android:name=".ContinuousWakeService" android:exported="false" android:foregroundServiceType="microphone|connectedDevice" android:stopWithTask="false" />
+        <service android:name=".MusicNotificationAccess" android:label="PbtMetaGPT · música" android:exported="true" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
+            <meta-data android:name="android.service.notification.default_filter_types" android:value="ongoing" />
+            <meta-data android:name="android.service.notification.disabled_filter_types" android:value="conversations|alerting|silent" />
+        </service>
         <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

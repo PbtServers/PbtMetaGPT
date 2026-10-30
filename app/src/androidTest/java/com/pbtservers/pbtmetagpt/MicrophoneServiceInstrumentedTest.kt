@@ -38,6 +38,7 @@ class MicrophoneServiceInstrumentedTest {
         context.getSharedPreferences("voz_escucha", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("configuracion", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("medidas_escucha", Context.MODE_PRIVATE).edit().clear().commit()
+        MusicSettings(context).enable(false)
     }
     @Test fun servicioCapturaEnOtraTareaYPantallaBloqueadaYNotificacionPausaYDetiene() = runBlocking<Unit> {
         assertEquals(PackageManager.PERMISSION_GRANTED, context.checkSelfPermission(Manifest.permission.RECORD_AUDIO))
@@ -123,6 +124,39 @@ class MicrophoneServiceInstrumentedTest {
                 activity.onActivity { ContinuousWakeService.startVisible(it) }
                 await { ContinuousWakeService.state.value == ListeningPhase.LISTENING }
             } finally { manager.abandonAudioFocusRequest(other) }
+        }
+    }
+    @Test fun esperaConMusicaCedeElFocoYLoRecuperaSoloDuranteUnTurno() = runBlocking<Unit> {
+        WakeModel(context).install { instrumentation.context.assets.open("activacion-prueba.zip") }
+        val profile = AssistantProfile(name = "Jarvis").validated()
+        ProfileStore(context).save(listOf(profile), profile.id)
+        ListeningSettings(context).save(ListeningOptions(background = true))
+        MusicSettings(context).enable(true)
+        val manager = context.getSystemService(AudioManager::class.java)
+        val media = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build())
+            .setOnAudioFocusChangeListener({}, android.os.Handler(android.os.Looper.getMainLooper())).build()
+        val turn = AudioRoute(context) { fail("La ruta del turno se ha perdido") }
+        ActivityScenario.launch(MainActivity::class.java).use { activity ->
+            try {
+                activity.onActivity { ContinuousWakeService.startVisible(it) }
+                await { ContinuousWakeService.state.value == ListeningPhase.LISTENING }
+                assertFalse(app.audioSession.hasFocusOwners())
+                assertEquals(AudioManager.AUDIOFOCUS_REQUEST_GRANTED, manager.requestAudioFocus(media))
+                activity.moveToState(Lifecycle.State.CREATED)
+                shell("input keyevent KEYCODE_SLEEP")
+                delay(500)
+                assertEquals(ListeningPhase.LISTENING, ContinuousWakeService.state.value)
+                assertEquals(MicrophoneOwner.CONTINUOUS_LOCAL, app.microphone.owner())
+                turn.start(false, true)
+                assertTrue(app.audioSession.hasFocusOwners())
+                turn.close()
+                assertFalse(app.audioSession.hasFocusOwners())
+                assertEquals(ListeningPhase.LISTENING, ContinuousWakeService.state.value)
+            } finally {
+                turn.close(); manager.abandonAudioFocusRequest(media); MusicSettings(context).enable(false)
+                shell("input keyevent KEYCODE_WAKEUP"); shell("wm dismiss-keyguard")
+            }
         }
     }
     @Test fun audioRecordYAudioTrackOperanSimultaneamenteYParadaManualLiberaAmbos() = runBlocking<Unit> {

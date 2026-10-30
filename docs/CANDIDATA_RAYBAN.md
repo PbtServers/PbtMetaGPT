@@ -96,7 +96,19 @@ Español/acento se basa en la ficha `es_ES`; naturalidad, preferencia de timbre 
 
 No se ha añadido un modelo de conversación LLM offline: una voz local no convierte en local al proveedor conversacional.
 
-## Aceptación física pendiente
+## Controles locales de Spotify solicitados
+
+Activa **Dispositivos → Música → Controlar Spotify** y concede manualmente acceso a notificaciones a **PbtMetaGPT · música**. El permiso es amplio en Android; el servicio no inspecciona ni almacena texto, imágenes ni metadatos de notificaciones. No inicia sensores al conectarse. Desactivar la preferencia no revoca el permiso del sistema: usa el botón de gestión para retirarlo. Android puede exigir permitir ajustes restringidos para una APK instalada fuera de una tienda; respeta sus indicaciones, sin automatización ni evasión.
+
+Se usa [`MediaSessionManager.getActiveSessions`](https://developer.android.com/reference/android/media/session/MediaSessionManager#getActiveSessions(android.content.ComponentName)) con el componente autorizado y filtro exacto `com.spotify.music`, seguido de [`MediaController.TransportControls`](https://developer.android.com/reference/android/media/session/MediaController.TransportControls). Nunca se envían teclas multimedia globales, órdenes a otro reproductor, intents internos ni pulsaciones de accesibilidad. Se comprueban las acciones publicadas en PlaybackState; «Orden enviada» no certifica reproducción audible. Hace falta abrir Spotify y reproducir una canción una vez para que publique sesión; no se promete arranque en frío, selección de catálogo, playlists o saltos ilimitados.
+
+En espera: «Atento Jarvis, reproduce música», «Atento Jarvis, pon Spotify», «Atento Jarvis, pausa la música», «Atento Jarvis, siguiente canción», «Atento Jarvis, canción anterior». Cada orden exige activación; dentro de una conversación se admiten completas sin prefijo. Las negaciones, menciones y fragmentos se rechazan. «Para», «Termina» y «Deja de escuchar» conservan su significado anterior. La orden local con pregunta en la activación no abre Groq/OpenAI ni reproduce un tono que compita con la música.
+
+Al habilitar el modo música se detiene la sesión actual; se requiere activar otra vez la escucha. Solo en ese modo, el servicio y capturador pasivos mantienen la ruta autorizada **sin retener foco de reproducción**. Los turnos y sonidos del asistente sí solicitan foco y lo abandonan al liberarse el último propietario; una conversación puede pausar Spotify y se reanuda con una orden expresa. Se mantienen detección de silenciamiento del sistema, llamada y cambios de ruta. Sin modo música permanece el comportamiento de foco anterior. HFP puede degradar la salida musical y competir con A2DP; hace falta comprobarlo con las gafas. No se afirma reproducción estéreo de calidad mientras su micrófono está abierto.
+
+Pruebas añadidas: política JVM de comandos, negaciones y rearme autorizado; Piper→Vosk para cinco órdenes; sesión multimedia Android auténtica de prueba controlada con pantalla apagada, paquete equivocado y permiso revocado; servicio pasivo que no pierde la escucha al conceder foco multimedia y lo solicita solo para un turno. La sesión de prueba pertenece a la app, **no es Spotify**. Los resultados requieren la CI de este bloque y no acreditan Spotify real.
+
+## Matriz de aceptación física
 
 Registra SHA/APK, Android 15/16 y versión exacta de Nothing OS, Meta AI, firmware y modelo real. No guardes claves, conversaciones ni imágenes en Git.
 
@@ -116,6 +128,7 @@ Registra SHA/APK, Android 15/16 y versión exacta de Nothing OS, Meta AI, firmwa
 | ChatGPT instalado/ausente; Voz activada/desactivada; chat nuevo/con mensajes | Mensaje exacto, micrófono libre y acción legítima; retorno sin competencia | Pendiente |
 | Davefx/Sharvard M/F offline y con RVC autorizado | Muestras distintas/comprensibles; sin volver a descargar al cambiar M/F | Pendiente |
 | Cámara y confirmaciones | Captura puntual visible; ningún envío o rearme en segundo plano | Pendiente |
+| Spotify con pantalla bloqueada, gafas y permiso activado/revocado | Play/pausa/siguiente/anterior, activación durante música, llamadas y calidad HFP/A2DP; ninguna orden a otro reproductor | Pendiente |
 | Batería, temperatura y estabilidad | Comparar reposo/escucha durante al menos 30 min, repetir condiciones y registrar CPU/PSS | Pendiente |
 
 Emulador API35/API36 comprueba permisos, servicio y bloqueo simulado, captura del emulador, persistencia, JNI/ORT, inferencia real y cancelación. **Mock Device Kit no ejecutado**. Ninguno acredita las filas físicas. Las suites y barreras de publicación se mantienen; consulta [VALIDACION.md](VALIDACION.md).

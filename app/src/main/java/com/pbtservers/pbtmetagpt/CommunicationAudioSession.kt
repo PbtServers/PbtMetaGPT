@@ -14,6 +14,8 @@ class CommunicationAudioSession(private val context: Context) {
     private val settings = AudioInputSettings(context)
     private val handler = Handler(Looper.getMainLooper())
     private val owners = linkedMapOf<Any, (String) -> Unit>()
+    private val focusOwners = mutableSetOf<Any>()
+    private var focusHeld = false
     private var previousMode = AudioManager.MODE_NORMAL
     private var previousDevice: AudioDeviceInfo? = null
     private var selected: AudioDeviceInfo? = null
@@ -35,7 +37,10 @@ class CommunicationAudioSession(private val context: Context) {
     }
     private val focus = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
         .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
-        .setOnAudioFocusChangeListener({ if (it < 0) interrupt("Audio pausado porque otra aplicación o una llamada necesita el micrófono.") }, handler).build()
+        .setOnAudioFocusChangeListener({ change -> synchronized(this) {
+            if (change < 0 && focusHeld && focusOwners.isNotEmpty())
+                interrupt("Audio pausado porque otra aplicación o una llamada necesita el micrófono.")
+        } }, handler).build()
     private val devices = object : AudioDeviceCallback() {
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
             if (removedDevices.any { it.id == selected?.id }) interrupt("Se ha desconectado la ruta de audio. Selecciona una entrada disponible y reanuda expresamente.")
@@ -57,16 +62,17 @@ class CommunicationAudioSession(private val context: Context) {
             report(active.audioDevice, active.clientFormat.sampleRate)
         }
     }
-    @Synchronized fun acquire(owner: Any, legacyBluetooth: Boolean, speaker: Boolean, lost: (String) -> Unit): String {
+    @Synchronized fun acquire(owner: Any, legacyBluetooth: Boolean, speaker: Boolean, lost: (String) -> Unit, requireFocus: Boolean = true): String {
         if (owner in owners) return label()
         val useBluetooth = settings.useBluetooth(legacyBluetooth)
         if (owners.isNotEmpty()) {
             check(!interrupted && bluetooth == useBluetooth) { "Detén la escucha antes de cambiar la ruta de audio." }
+            if (requireFocus) acquireFocus(owner)
             owners[owner] = lost
             return label()
         }
         previousMode = manager.mode; previousDevice = manager.communicationDevice
-        check(manager.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) { "Otra aplicación está usando el audio. Reanuda con la app visible." }
+        if (requireFocus) acquireFocus(owner)
         configured = true
         try {
             manager.mode = AudioManager.MODE_IN_COMMUNICATION
@@ -91,6 +97,13 @@ class CommunicationAudioSession(private val context: Context) {
         } catch (problem: Exception) { release(owner); throw problem }
     }
     private fun label() = "${if (bluetooth) "Bluetooth" else "Teléfono"} solicitado: ${selected?.productName ?: "sin ruta"}. Entrada PCM aún por comprobar."
+    private fun acquireFocus(owner: Any) {
+        if (!focusHeld) {
+            check(manager.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) { "Otra aplicación está usando el audio. Reanuda con la app visible." }
+            focusHeld = true
+        }
+        focusOwners += owner
+    }
     @Synchronized fun report(device: AudioDeviceInfo?, rate: Int): Boolean {
         if (owners.isEmpty() || interrupted) return false
         if (!confirmed) confirmed = manager.communicationDevice?.id == selected?.id
@@ -107,9 +120,15 @@ class CommunicationAudioSession(private val context: Context) {
     }
     @Synchronized fun captureConfirmed() = owners.isNotEmpty() && !interrupted && inputValid && input.value.active
     @Synchronized fun hasOwners() = owners.isNotEmpty()
+    @Synchronized fun hasFocusOwners() = focusOwners.isNotEmpty()
     @Synchronized fun actualRoute() = "Comunicación: ${manager.communicationDevice?.productName ?: "sin confirmar"}. Captura: ${input.value.description}"
     @Synchronized fun release(owner: Any) {
         owners.remove(owner)
+        focusOwners.remove(owner)
+        if (focusOwners.isEmpty() && focusHeld) {
+            focusHeld = false
+            closePart { manager.abandonAudioFocusRequest(focus) }
+        }
         if (owners.isNotEmpty() || !configured) return
         configured = false; selected = null; confirmed = false; interrupted = false; inputValid = false
         reportedDeviceId = null; expectedAddress = ""
@@ -120,7 +139,6 @@ class CommunicationAudioSession(private val context: Context) {
         closePart { manager.clearCommunicationDevice() }
         closePart { previousDevice?.let { manager.setCommunicationDevice(it) } }
         closePart { manager.mode = previousMode }
-        closePart { manager.abandonAudioFocusRequest(focus) }
         mutableInput.value = ActiveMicrophone()
     }
     @Synchronized private fun interrupt(message: String) {

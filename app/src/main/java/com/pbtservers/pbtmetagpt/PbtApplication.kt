@@ -21,6 +21,7 @@ class PbtApplication : Application() {
     var activityVisible = false
     var stopVisibleWake: (() -> Unit)? = null
     private var handoff: Job? = null
+    private var musicCommand: Job? = null
     var connection: WakeConnection? = null
     private val mutableMessage = MutableStateFlow<String?>(null)
     val message = mutableMessage.asStateFlow()
@@ -30,8 +31,28 @@ class PbtApplication : Application() {
         if (HostedSettings(this).provider == "groq") free else paid
     } }
     fun clearMessage() { mutableMessage.value = null }
+    fun controlSpotify(action: MusicAction) {
+        if (!MusicSettings(this).enabled) {
+            mutableMessage.value = "Activa Controlar Spotify en Ajustes → Dispositivos → Música."
+            return
+        }
+        handoff?.cancel()
+        // Cancelar respuestas/colas antes de ceder foco; conservar el consentimiento del servicio.
+        hosted.stop(); voice.stop()
+        musicCommand?.cancel()
+        musicCommand = scope.launch {
+            hosted.awaitReleased()
+            val released = withTimeoutOrNull(5000) {
+                while (audioSession.hasFocusOwners()) delay(20)
+                true
+            } == true
+            mutableMessage.value = if (released) SpotifyControls(this@PbtApplication).execute(action)
+                else "El asistente aún está liberando el audio. Espera y repite la orden de música."
+        }
+    }
     fun openChatGpt() {
         if (handoff?.isActive == true) return
+        musicCommand?.cancel()
         stopVisibleWake?.invoke()
         ContinuousWakeService.revokeConsent()
         // Invalidar inmediatamente; esperar la liberación antes del Intent, fuera de la UI.

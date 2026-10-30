@@ -25,12 +25,12 @@ data class ListeningOptions(
         require(endPhrase.length in 1..80 && !SecretPatterns.contains(endPhrase))
         val closing = VoiceCommands.normalize(endPhrase)
         require(closing.isNotBlank())
-        require(VoiceCommands.parse(closing, "", ListeningOptions()) !in setOf(LocalVoiceCommand.INTERRUPT, LocalVoiceCommand.STOP_LISTENING, LocalVoiceCommand.CHATGPT))
+        require(VoiceCommands.parse(closing, "", ListeningOptions()).let { it == null || it == LocalVoiceCommand.END })
         return this
     }
 }
 
-enum class LocalVoiceCommand { INTERRUPT, END, STOP_LISTENING, CHATGPT }
+enum class LocalVoiceCommand { INTERRUPT, END, STOP_LISTENING, CHATGPT, MUSIC_PLAY, MUSIC_PAUSE, MUSIC_NEXT, MUSIC_PREVIOUS }
 
 /** Solo enunciados completos: nunca una subcadena ni una hipótesis parcial. */
 object VoiceCommands {
@@ -52,7 +52,7 @@ object VoiceCommands {
             command in setOf("termina", "termina la conversacion", normalize(options.endPhrase)) -> LocalVoiceCommand.END
             command == "hasta luego" && options.goodbye -> LocalVoiceCommand.END
             command in setOf("abre gpt live", "inicia gpt live", "abre chatgpt", "inicia chatgpt en voz", "abre chatgpt en voz", "quiero hablar con chatgpt") || command in ChatGptCommandGrammar.phrases -> LocalVoiceCommand.CHATGPT
-            else -> null
+            else -> MusicCommands.parse(command)?.let(MusicCommands::command)
         }
     }
 }

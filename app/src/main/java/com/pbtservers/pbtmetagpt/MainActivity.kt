@@ -160,6 +160,7 @@ class MainActivity : ComponentActivity() {
                                     else { voice.stop(); app.hosted.stop(); localAudio.speaker(bluetooth) }
                                 }, enabled = !localBusy) { Text("Probar sonido") }
                                 if (localBusy) OutlinedButton(onClick = localAudio::stop) { Text("Detener sonido") }
+                                MusicPanel(this@MainActivity)
                                 TextButton(onClick = { deviceAdvanced = !deviceAdvanced }) { Text(if (deviceAdvanced) "Cerrar opciones de gafas" else "Opciones avanzadas de gafas") }
                             }
                         }

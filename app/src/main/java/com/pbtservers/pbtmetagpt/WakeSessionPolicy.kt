@@ -27,6 +27,11 @@ class WakeSessionPolicy {
         phase = ListeningPhase.DETECTED; return true
     }
     fun preparing() { epoch++; if (authorized) phase = ListeningPhase.PREPARING }
+    /** Una orden local no abre proveedor ni concede una nueva autorización. */
+    fun localCommandFinished(): Boolean {
+        if (!authorized || phase != ListeningPhase.DETECTED) return false
+        epoch++; phase = ListeningPhase.RETURNING; return true
+    }
     /** true solo cuando una conversación real ha terminado y puede volver a escuchar. */
     fun onVoice(active: Boolean, connecting: Boolean, failed: Boolean, paused: Boolean = false): Boolean {
         if (!authorized) return false

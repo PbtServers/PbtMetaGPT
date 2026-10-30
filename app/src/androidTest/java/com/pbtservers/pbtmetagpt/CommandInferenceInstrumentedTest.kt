@@ -72,6 +72,35 @@ class CommandInferenceInstrumentedTest {
             }
         } finally { engine.close(); model.delete(); wake.delete() }
     }
+    @Test fun ordenesDeMusicaReconocidasLocalmenteSinAceptarNegaciones() = runBlocking<Unit> {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val wake = WakeModel(context)
+        val model = SpainVoiceModel(context)
+        val engine = SpainVoiceEngine(context, reproducibleFixture = true)
+        try {
+            withContext(Dispatchers.IO) {
+                wake.install { instrumentation.context.assets.open("activacion-prueba.zip") }
+                model.install(source = { instrumentation.context.assets.open("piper-es/${it.name}") })
+            }
+            val voice = VoiceModes.spain(AssistantProfile(name = "Jarvis")).validated()
+            val positive = mapOf("Reproduce música." to MusicAction.PLAY, "Pon Spotify." to MusicAction.PLAY,
+                "Pausa la música." to MusicAction.PAUSE, "Siguiente canción." to MusicAction.NEXT,
+                "Canción anterior." to MusicAction.PREVIOUS)
+            val negative = listOf("No reproduce música.", "No pongas Spotify.", "Explica la siguiente canción.")
+            for (phrase in positive.keys + negative) {
+                val pcm = engine.synthesize(voice, phrase)
+                try {
+                    val heard = decode(wake, pcm)
+                    val accepted = heard.mapNotNull {
+                        InterruptionGate().accept(it.text, it.confidence, 5000, 0, true, "Jarvis", ListeningOptions())
+                            ?.let(MusicCommands::action)
+                    }
+                    assertEquals("Fixture fija $phrase → ${heard.map { it.text to it.confidence }}", positive[phrase], accepted.firstOrNull())
+                } finally { pcm.bytes.fill(0) }
+            }
+        } finally { engine.close(); model.delete(); wake.delete() }
+    }
     private suspend fun decode(wake: WakeModel, audio: PcmAudio): List<CommandHypothesis> = withContext(Dispatchers.IO) {
         val results = mutableListOf<CommandHypothesis>()
         LocalCommandDecoder(wake.model.absolutePath, audio.sampleRate.toFloat(), evaluation = { open, restricted, bounds ->

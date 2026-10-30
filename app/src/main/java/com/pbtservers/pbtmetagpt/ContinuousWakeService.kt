@@ -81,7 +81,7 @@ class ContinuousWakeService : Service() {
             }
             if (retainedRoute == null) {
                 val route = AudioRoute(this) { pause() }
-                route.start(getSharedPreferences("configuracion", MODE_PRIVATE).getBoolean("audio-bluetooth", false), speaker = true)
+                route.start(getSharedPreferences("configuracion", MODE_PRIVATE).getBoolean("audio-bluetooth", false), speaker = true, passive = true)
                 retainedRoute = route
             }
         } catch (problem: Exception) {
@@ -94,6 +94,11 @@ class ContinuousWakeService : Service() {
                 activation?.cancel()
                 activation = scope.launch {
                 if (!session.authorized) return@launch
+                MusicCommands.parse(question)?.let { action ->
+                    app.controlSpotify(action)
+                    if (session.localCommandFinished()) listen()
+                    return@launch
+                }
                 if (matched.confirmationSound) try {
                     WakeConfirmation.play(this@ContinuousWakeService, getSharedPreferences("configuracion", MODE_PRIVATE).getBoolean("audio-bluetooth", false))
                 } catch (cancel: CancellationException) { throw cancel }

@@ -370,6 +370,8 @@ class HostedConversation(private val context: Context, private val scope: Corout
                 (context.applicationContext as PbtApplication).stopVisibleWake?.invoke()
             }
             LocalVoiceCommand.CHATGPT -> (context.applicationContext as PbtApplication).openChatGpt()
+            LocalVoiceCommand.MUSIC_PLAY, LocalVoiceCommand.MUSIC_PAUSE, LocalVoiceCommand.MUSIC_NEXT, LocalVoiceCommand.MUSIC_PREVIOUS ->
+                (context.applicationContext as PbtApplication).controlSpotify(requireNotNull(MusicCommands.action(command)))
         }
     }
     /** Prioridad de parada: invalidar antes de detener PCM o esperar trabajo nativo. */
