@@ -87,7 +87,9 @@ class CommandInferenceInstrumentedTest {
             val positive = mapOf("Reproduce música." to MusicAction.PLAY, "Pon Spotify." to MusicAction.PLAY,
                 "Pausa la música." to MusicAction.PAUSE, "Siguiente canción." to MusicAction.NEXT,
                 "Canción anterior." to MusicAction.PREVIOUS)
-            val negative = listOf("No reproduce música.", "No pongas Spotify.", "Explica la siguiente canción.")
+            val negative = listOf("No reproduce música.", "No pongas Spotify.", "Explica la siguiente canción.",
+                "Cuando Spotify está abierto.", "Pon Spotify mañana.", "Esto es para mañana.",
+                "Prepara la cena.", "Para mañana.", "Quiero hablar contigo.", "No cambies de canción.", "La siguiente canción me gusta.")
             for (phrase in positive.keys + negative) {
                 val pcm = engine.synthesize(voice, phrase)
                 try {

@@ -118,6 +118,8 @@ Al habilitar el modo música se detiene la sesión actual; se requiere activar o
 
 Pruebas añadidas: política JVM de comandos, negaciones y rearme autorizado; Piper→Vosk para cinco órdenes; sesión multimedia Android auténtica de prueba controlada con pantalla apagada, paquete equivocado y permiso revocado; servicio pasivo que no pierde la escucha al conceder foco multimedia y lo solicita solo para un turno. La sesión de prueba pertenece a la app, **no es Spotify**. Los resultados requieren la CI de este bloque y no acreditan Spotify real.
 
+La gramática musical comparte Model/PCM con el reconocimiento libre, exige confianza ≥0,93 y fronteras de voz completas, y rechaza negaciones/explicaciones. Solo funciona durante captura de órdenes, no en espera pasiva. Se conserva aparte la gramática ChatGPT. La CI inicial reconocía mal «Pon Spotify»; transporte y foco pasaron, pero ese fallo impedía publicar APK. La corrección mantiene el positivo y añade negativos/continuaciones; resultados por SHA en Progreso.
+
 ## Matriz de aceptación física
 
 Registra SHA/APK, Android 15/16 y versión exacta de Nothing OS, Meta AI, firmware y modelo real. No guardes claves, conversaciones ni imágenes en Git.

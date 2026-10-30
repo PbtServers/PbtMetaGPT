@@ -4,6 +4,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class MusicCommandsTest {
+    @Test fun gramaticaMusicalExigeConfianzaAltaYLaIntervencionCompletaSinNegacion() {
+        val open = CommandHypothesis("pon spotify", .4f, 1.0, 2.0)
+        val candidate = open.copy(confidence = .98f)
+        val bounds = SpeechBounds(1.0, 2.0)
+        assertTrue(MusicCommandGrammar.accepts(open, candidate, bounds))
+        assertFalse(MusicCommandGrammar.accepts(open, candidate.copy(confidence = .92f), bounds))
+        assertFalse(MusicCommandGrammar.accepts(open, candidate.copy(confidence = Float.NaN), bounds))
+        assertFalse(MusicCommandGrammar.accepts(open.copy(text = ""), candidate, bounds))
+        assertFalse(MusicCommandGrammar.accepts(open.copy(text = "no pon spotify"), candidate, bounds))
+        assertFalse(MusicCommandGrammar.accepts(open.copy(text = "explica pon spotify"), candidate, bounds))
+        assertFalse(MusicCommandGrammar.accepts(open, candidate, SpeechBounds(.7, 2.0)))
+        assertFalse(MusicCommandGrammar.accepts(open, candidate, SpeechBounds(1.0, 2.4)))
+    }
     @Test fun ordenesDeMusicaCompletasYNombreDelAsistente() {
         val cases = mapOf("Pon Spotify" to MusicAction.PLAY, "Dale al play" to MusicAction.PLAY,
             "Reproduce música" to MusicAction.PLAY, "Pausa la música" to MusicAction.PAUSE,

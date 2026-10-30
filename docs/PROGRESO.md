@@ -1,5 +1,15 @@
 # Seguimiento de PbtMetaGPT
 
+## Corrección de inferencia Spotify tras CI · 30/10/2026
+
+**78 % acreditado · 00:37 UTC · 2 h 28 min desde el inicio.** La [CI de 376cefc](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40978269641) registra **191 JVM (190 correctas, una remota optativa omitida), Lint/compilación/seguridad/backend correctos y 55/56 instrumentadas por API** en los informes conservados. API36 termina con fallo; API35 se cancela al publicarse el siguiente bloque, después de conservar su informe de 56 casos. Pasan Jarvis/Luna por VAD→Vosk, tres ciclos de pantalla, foco/interrupción, transporte multimedia bajo bloqueo, filtro de paquete, revocación y convivencia de foco durante escucha. No hubo APK de ese SHA por fallar la barrera.
+
+Fallo exacto: «Pon Spotify» produce «cuando spotify», confianza libre 0,443869 en Android. Se añade un reconocedor restringido musical **con el mismo Model y PCM**, separado de la gramática ChatGPT existente. Solo el reconocedor libre marca el cierre. Se exige orden completa, confianza musical ≥0,93, misma frontera inicial/final del VAD y rechazo de negación/explicación del dictado libre. No se crea alias «cuando spotify» ni se baja ningún umbral. No se ejecuta la gramática durante espera pasiva. Se liberan/recrean todos los reconocedores al cerrar/perder tramas.
+
+Se conserva el positivo que falló y se amplían negativos con continuación «mañana», mención «Cuando Spotify está abierto», «Prepara la cena», «Para mañana», «Quiero hablar contigo», negación de salto y frase sobre una canción. Pruebas de escritorio dan confianza restringida 1,0 en las cinco órdenes; las negaciones se filtran por dictado libre y las continuaciones por fronteras, sin atribuirlo al runtime Android. Una nueva JVM cubre confianza 0,92/NaN, negación, ausencia de texto y fronteras incompletas. La CI del bloque Google `ee56d0a` sigue en curso; esta corrección requiere nueva ejecución completa.
+
+Pesos acreditados: auditoría 10/10, DAT/micrófono 20/25, ChatGPT/transferencias 12/15, bloqueo 16/25, voces 12/15 y pruebas/documentación 8/10 = **78/100**. Aumenta por comprobar los nuevos recorridos Android de conexión, foco, pantalla y transporte; no se acredita hardware. Siguen pendientes la nueva inferencia musical, Google/retorno, APK final y aceptación Nothing/Ray-Ban. Estimación de cierre de código/CI/APK 25–40 min, condicionada a resultados; hardware sin plazo fiable.
+
 ## Ampliación solicitada: «abre Google» y bloqueo · 30/10/2026
 
 **72 % acreditado · 00:27 UTC · 2 h 18 min desde el inicio.** El usuario pide Google/assistant del teléfono y reafirma pantalla bloqueada y pronunciación peninsular «gúguel». Se integra transferencia compartida con ChatGPT: respuesta cancelada, micrófono/foco liberados y escucha revocada antes de abrir. En espera, la orden incluida tras la activación se resuelve localmente sin conectar un proveedor. Entrada pública `ACTION_VOICE_COMMAND` para Google si existe y después `ACTION_ASSIST`; únicamente actividad exportada y permiso accesible. No se usa `VOICE_ASSIST` oculto, navegador, componentes privados, accesibilidad ni contexto de pantalla.

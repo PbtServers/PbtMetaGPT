@@ -11,6 +11,7 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
     private val model = Model(path)
     private var recognizer: Recognizer
     private var chat: Recognizer
+    private var music: Recognizer
     private var vad = AdaptiveVad(sampleRate.toInt())
     private var samples = 0L
     private var voiceStart: Double? = null
@@ -19,6 +20,12 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
         val open = try { create(false) } catch (problem: Throwable) { model.close(); throw problem }
         recognizer = open
         chat = try { create(true) } catch (problem: Throwable) { open.close(); model.close(); throw problem }
+        music = try { createMusic() } catch (problem: Throwable) { chat.close(); open.close(); model.close(); throw problem }
+    }
+    private fun createMusic(): Recognizer {
+        val value = Recognizer(model, sampleRate, JSONArray(MusicCommandGrammar.vocabulary).toString())
+        try { value.setWords(true); value.setEndpointerMode(1); return value }
+        catch (problem: Throwable) { value.close(); throw problem }
     }
     private fun create(restricted: Boolean): Recognizer {
         val value = if (restricted) Recognizer(model, sampleRate, JSONArray(ChatGptCommandGrammar.vocabulary).toString()) else Recognizer(model, sampleRate)
@@ -38,16 +45,22 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
         // Ambos reciben exactamente los mismos PCM y cierran el segmento juntos.
         // Solo el reconocedor libre decide el fin; la gramática no corta frases.
         chat.acceptWaveForm(buffer, size)
+        music.acceptWaveForm(buffer, size)
         if (!recognizer.acceptWaveForm(buffer, size)) return null
-        return combine(recognizer.result, chat.result)
+        return combine(recognizer.result, chat.result, music.result)
     }
-    fun finish(): CommandHypothesis = combine(recognizer.finalResult, chat.finalResult)
-    private fun combine(open: String, restricted: String): CommandHypothesis {
+    fun finish(): CommandHypothesis = combine(recognizer.finalResult, chat.finalResult, music.finalResult)
+    private fun combine(open: String, restricted: String, musical: String): CommandHypothesis {
         val full = decode(open, average = false)
         val command = decode(restricted, average = true)
+        val musicCommand = decode(musical, average = true)
         val bounds = voiceStart?.let { SpeechBounds(it, voiceEnd) }
         evaluation?.invoke(full, command, bounds)
-        val result = if (bounds != null && ChatGptCommandGrammar.accepts(full, command, bounds)) command else full
+        val result = when {
+            bounds != null && ChatGptCommandGrammar.accepts(full, command, bounds) -> command
+            bounds != null && MusicCommandGrammar.accepts(full, musicCommand, bounds) -> musicCommand
+            else -> full
+        }
         vad = AdaptiveVad(sampleRate.toInt()); voiceStart = null; voiceEnd = 0.0
         return result
     }
@@ -65,9 +78,10 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
         // al perder tramas evita registrar latencias cero con un origen nuevo.
         val nextOpen = create(false)
         val nextChat = try { create(true) } catch (problem: Throwable) { nextOpen.close(); throw problem }
-        try { recognizer.close() } finally { chat.close() }
-        recognizer = nextOpen; chat = nextChat
+        val nextMusic = try { createMusic() } catch (problem: Throwable) { nextChat.close(); nextOpen.close(); throw problem }
+        try { recognizer.close() } finally { try { chat.close() } finally { music.close() } }
+        recognizer = nextOpen; chat = nextChat; music = nextMusic
         samples = 0; vad = AdaptiveVad(sampleRate.toInt()); voiceStart = null; voiceEnd = 0.0
     }
-    override fun close() { try { recognizer.close() } finally { try { chat.close() } finally { model.close() } } }
+    override fun close() { try { recognizer.close() } finally { try { chat.close() } finally { try { music.close() } finally { model.close() } } } }
 }
