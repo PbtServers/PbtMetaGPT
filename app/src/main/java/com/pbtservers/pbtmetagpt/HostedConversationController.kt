@@ -137,6 +137,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
                 transitionStarted = 0
             }
         }, speechStarted = { trace.mark(VoiceStage.SPEECH_START); inactivity?.cancel(); inactivity = null }, speechEnded = {
+            mutable.update { it.copy(status = "Transcribiendo tu pregunta", connecting = true) }
             if (speechEnd.compareAndSet(0, trace.now())) trace.once(VoiceStage.END_OF_SPEECH, trace.now() - started)
         }, engine = { selected ->
             (context.applicationContext as PbtApplication).voiceTransitions.engine(selected)
@@ -144,7 +145,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
             RecognitionEngine.VOSK -> "Vosk español · local"
             RecognitionEngine.ANDROID_LOCAL -> "Android local · ${profile?.language ?: "es-ES"} · entrada gestionada por Android"
             RecognitionEngine.GROQ_WHISPER -> "Groq Whisper · español · envío de audio autorizado"
-        } }, assistantName = profile?.name.orEmpty())
+        } }, assistantName = profile?.name.orEmpty(), transcribing = { prepareOutputRoute(); startCommands(session.epoch) })
         inactivity?.cancel(); inactivity = null
         val captureEnd = speechEnd.get().takeIf { it > 0 } ?: started
         trace.add(VoiceStage.TRANSCRIPTION, trace.now() - captureEnd)
@@ -353,7 +354,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
         job?.cancel(); job = null
         val detector = commands; commands = null
         limit?.cancel(); idleRelease?.cancel(); player.stop(); route?.close(); route = null; android.close()
-        draining = scope.launch { old?.join(); detector?.join() }
+        draining = drainAudioJobs(scope, old, detector)
         idleRelease = scope.launch { delay(30000); if (!mutable.value.active) { kokoro.close(); spain.close() } }
         history.clear(); profile = null; resolved = null
         phaseValue.value = ConversationPhase.READY
@@ -367,7 +368,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
         followUp = scope.launch { yield(); if (mutable.value.active && session.phase != SessionPhase.SUSPENDED) listen() }
     }
     private fun startCommands(token: Long) {
-        commands?.cancel()
+        if (commands?.isActive == true) return // El mismo detector continúa de transcripción a respuesta.
         if (!session.spoken || !options.interruption) return
         commands = scope.launch {
             LocalCommandListener(context).run(profile?.name.orEmpty(), options,
@@ -405,8 +406,9 @@ class HostedConversation(private val context: Context, private val scope: Corout
         val started = SystemClock.elapsedRealtime()
         session.interrupt(); sessionValue.value = session.phase
         generation++; followUp?.cancel(); inactivity?.cancel(); inactivity = null
-        commands?.cancel()
-        val previous = job ?: draining; job?.cancel(); job = null; draining = previous
+        val detector = commands; commands = null; detector?.cancel()
+        val previous = job ?: draining; job?.cancel(); job = null
+        val released = drainAudioJobs(scope, previous, detector); draining = released
         player.stop(); android.close()
         // Una respuesta parcial sigue visible, pero no se envía como respuesta completa en el contexto.
         chat.update { list -> list.map { if (it == list.lastOrNull() && it.assistant) it.copy(text = it.text + "\n[Interrumpida]") else it } }
@@ -415,7 +417,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
         processing.value = false
         LatencyStore(context).record(mapOf(VoiceStage.STOP_AUDIO_REQUEST to (SystemClock.elapsedRealtime() - started)))
         followUp = scope.launch {
-            try { awaitAudioRelease(previous) }
+            try { awaitAudioRelease(released) }
             catch (_: HostedFailure) { failed(HostedFailure("El audio interrumpido sigue ocupado. Detén y reanuda la conversación.")); return@launch }
             if (mutable.value.active && session.phase == SessionPhase.INTERRUPTING) {
                 if (session.spoken) { move(SessionPhase.FOLLOW_UP_LISTENING); scheduleFollowUp() }
@@ -426,8 +428,10 @@ class HostedConversation(private val context: Context, private val scope: Corout
     fun suspendConversation() {
         if (!mutable.value.active) return
         generation++; session.suspendSession(); sessionValue.value = session.phase
-        followUp?.cancel(); inactivity?.cancel(); inactivity = null; commands?.cancel()
-        job?.let { it.cancel(); draining = it }; job = null
+        followUp?.cancel(); inactivity?.cancel(); inactivity = null
+        val detector = commands; commands = null; detector?.cancel()
+        val previous = job ?: draining; job?.cancel(); job = null
+        draining = drainAudioJobs(scope, previous, detector)
         player.stop(); android.close(); route?.close(); route = null
         processing.value = false
         mutable.update { it.copy(paused = true, responding = false, connecting = false, status = "Pausado · pulsa Micrófono para reanudar") }

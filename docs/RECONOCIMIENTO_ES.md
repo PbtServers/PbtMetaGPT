@@ -37,6 +37,8 @@ En los decodificadores de comandos, el endpoint acústico nativo no decide el ci
 
 El aviso Bluetooth conserva 190 ms de sonido, pero evita otros 300 ms de silencio cuando la ruta ya está retenida por el servicio. Es una reducción de espera programada; no acredita la latencia audible física. La codificación WAV usa un búfer reutilizado por bloque y una escritura por trama. La primera frase se mide cuando queda disponible en el flujo, antes de esperar a la síntesis.
 
+«Para» espera la finalización tanto del trabajo cancelado como del capturador de órdenes antes de volver a abrir el micrófono. Durante la transcripción remota se muestra **Transcribiendo tu pregunta**, se libera primero la captura del dictado y se conserva un único detector local de órdenes durante la petición y la respuesta. El cambio de transcripción a generación no sustituye ese detector por otro que compita con él. Si desactivas la interrupción en los ajustes, ese detector concurrente también se desactiva.
+
 ## Órdenes y proveedores
 
 Las órdenes completas se resuelven antes de Groq. No se ejecutan acciones por una mención de una palabra dentro de una pregunta.

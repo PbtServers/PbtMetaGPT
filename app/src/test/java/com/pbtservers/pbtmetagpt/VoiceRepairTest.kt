@@ -5,6 +5,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class VoiceRepairTest {
+    @Test fun unaInterrupcionEsperaTambienAlDetectorAntesDePermitirOtraCaptura() = runBlocking {
+        val response = Job()
+        val microphone = Job()
+        val released = drainAudioJobs(this, response, microphone)
+        try {
+            response.complete(); yield()
+            assertFalse(released.isCompleted)
+            assertNull(withTimeoutOrNull(20) { released.join(); true })
+            microphone.complete()
+            awaitAudioRelease(released, 1000)
+            assertTrue(released.isCompleted)
+        } finally { response.cancel(); microphone.cancel(); released.cancel() }
+    }
     @Test fun elDictadoLocalDudosoNoEjecutaAccionesNiSeConfundeConPregunta() {
         val options = ListeningOptions()
         assertFalse(VoiceCommands.confident("pon música", .84f, "Jarvis", options))

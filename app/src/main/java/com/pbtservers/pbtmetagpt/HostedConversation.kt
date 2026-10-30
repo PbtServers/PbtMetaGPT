@@ -35,7 +35,7 @@ class HostedSettings(context: Context) {
 /** El motor elegido se aplica también a la conversación continua. Activación siempre local. */
 class HostedDictation(private val context: Context) {
     suspend fun capture(language: String = "es-ES", continuous: Boolean = false, ready: () -> Unit = {},
-        speechStarted: () -> Unit = {}, speechEnded: () -> Unit = {}, engine: (RecognitionEngine) -> Unit = {}, assistantName: String = ""): String {
+        speechStarted: () -> Unit = {}, speechEnded: () -> Unit = {}, engine: (RecognitionEngine) -> Unit = {}, assistantName: String = "", transcribing: () -> Unit = {}): String {
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
             throw HostedFailure("Falta permiso de micrófono.")
         val settings = HostedSettings(context)
@@ -53,7 +53,10 @@ class HostedDictation(private val context: Context) {
                 try {
                     val local = LocalRecordedCommand(context).recognize(recorded, assistantName, ListeningSettings(context).load())
                     if (local != null) { withContext(Dispatchers.Main) { engine(RecognitionEngine.VOSK) }; local }
-                    else GroqApi().transcribe(KeyVault(context, provider = "groq").read(), recorded, RecognitionPolicy.whisperModel(settings.recognitionMode))
+                    else {
+                        withContext(Dispatchers.Main) { transcribing() }
+                        GroqApi().transcribe(KeyVault(context, provider = "groq").read(), recorded, RecognitionPolicy.whisperModel(settings.recognitionMode))
+                    }
                 }
                 finally { recorded.fill(0) }
             }
