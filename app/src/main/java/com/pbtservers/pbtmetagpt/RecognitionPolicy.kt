@@ -11,7 +11,7 @@ object RecognitionPolicy {
             source == DictationSource.VOSK -> RecognitionEngine.VOSK
             source == DictationSource.ANDROID_LOCAL -> RecognitionEngine.ANDROID_LOCAL
             source == DictationSource.GROQ_WHISPER || cloudAuthorized -> RecognitionEngine.GROQ_WHISPER
-            androidAvailable && !continuous -> RecognitionEngine.ANDROID_LOCAL
+            androidAvailable -> RecognitionEngine.ANDROID_LOCAL
             else -> RecognitionEngine.VOSK
         }
     fun whisperModel(mode: RecognitionMode) = if (mode == RecognitionMode.PRECISION) "whisper-large-v3" else "whisper-large-v3-turbo"

@@ -76,7 +76,7 @@ class ContinuousWakeEngine(private val context: Context, private val scope: Coro
                                         withContext(Dispatchers.Main) { input(device.type) }
                                     }
                                 }
-                                val size = recorder.read(buffer, 0, buffer.size, AudioRecord.READ_NON_BLOCKING)
+                                val size = DevelopmentVoice.wakeFrames?.invoke(buffer) ?: recorder.read(buffer, 0, buffer.size, AudioRecord.READ_NON_BLOCKING)
                                 check(size >= 0) { "Captura interrumpida" }
                                 val validInput = (context.applicationContext as PbtApplication).audioSession.report(recorder.routedDevice, recorder.sampleRate)
                                 if (!announcedReady && size > 0 && validInput) {

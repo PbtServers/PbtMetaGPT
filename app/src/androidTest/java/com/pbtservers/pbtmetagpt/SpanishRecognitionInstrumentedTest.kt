@@ -21,7 +21,8 @@ class SpanishRecognitionInstrumentedTest {
         val profile = VoiceModes.spain(AssistantProfile(name = "Jarvis"), "davefx").validated()
         val cases = listOf("Pon música.", "Ponme algo en Spotify.", "Abre Google.", "Busca en Google.", "Abre ChatGPT.",
             "¿Qué tiempo hará mañana en Barcelona?", "¿Cuánto tardaré en llegar a Esterri d'Àneu?", "Quiero ir a Puigcerdà.",
-            "Para.", "Termina.", "¿Qué es Spotify?", "¿Cómo funciona Google?", "¿Qué música me recomiendas?", "No pongas Spotify.")
+            "Para.", "Termina.", "¿Qué es Spotify?", "¿Cómo funciona Google?", "¿Qué música me recomiendas?", "No pongas Spotify.", "Atento Jarvis.", "Pon música en Spotify.", "Quiero saber qué tiempo va a hacer mañana.",
+            "No, espera, que todavía no he terminado.", "¿Qué temperatura hará en Esterri d'Àneu?", "¿Cuánto tardaré en llegar a Puigcerdà?")
         try {
             wake.install { instrumentation.context.assets.open("activacion-prueba.zip") }
             store.install(source = { instrumentation.context.assets.open("piper-es/${it.name}") })
@@ -43,6 +44,7 @@ class SpanishRecognitionInstrumentedTest {
                         pcm.bytes.fill(0)
                         val full = mutableListOf<String>()
                         val commands = mutableListOf<String>()
+                        var dictation = CommandHypothesis("", 0f, 0.0)
                         val started = SystemClock.elapsedRealtime()
                         var localCommandMs: Long? = null
                         try {
@@ -59,8 +61,10 @@ class SpanishRecognitionInstrumentedTest {
                             }
                             val decodingAt = SystemClock.elapsedRealtime()
                             Recognizer(cached.model, 16000f).use { free ->
+                                VoskDictationDecoder(cached.model).use { dictationDecoder ->
                                 LocalCommandDecoder(wake.model.absolutePath, sharedModel = cached.model).use { decoder ->
                                     fun feed(frame: ShortArray, count: Int) {
+                                        dictationDecoder.accept(frame, count)
                                         if (free.acceptWaveForm(frame, count)) JSONObject(free.result).optString("text").takeIf { it.isNotBlank() }?.let(full::add)
                                         decoder.accept(frame, count)?.text?.takeIf { it.isNotBlank() }?.let(commands::add)
                                     }
@@ -75,6 +79,8 @@ class SpanishRecognitionInstrumentedTest {
                                     frame.fill(0); repeat(150) { feed(frame, frame.size) }
                                     JSONObject(free.finalResult).optString("text").takeIf { it.isNotBlank() }?.let(full::add)
                                     decoder.finish().text.takeIf { it.isNotBlank() }?.let(commands::add)
+                                    dictation = dictationDecoder.finish()
+                                }
                                 }
                             }
                             val recognized = commands.joinToString(" ")
@@ -87,6 +93,12 @@ class SpanishRecognitionInstrumentedTest {
                             freeTotal += before; commandTotal += after
                             val score = JSONObject().put("caso", index).put("origen", "Davefx sintético es-ES").put("hz", 16000)
                                 .put("libre_wer", before.rate).put("comandos_wer", after.rate)
+                                .put("dictado_produccion_wer", RecognitionMetrics.words(phrase, dictation.text).rate)
+                                .put("dictado_produccion_cer", RecognitionMetrics.characters(phrase, dictation.text).rate)
+                                .put("dictado_omisiones", RecognitionMetrics.words(phrase, dictation.text).deletions)
+                                .put("dictado_produccion_wer", RecognitionMetrics.words(phrase, dictation.text).rate)
+                                .put("dictado_produccion_cer", RecognitionMetrics.characters(phrase, dictation.text).rate)
+                                .put("dictado_omisiones", RecognitionMetrics.words(phrase, dictation.text).deletions)
                                 .put("comandos_cer", RecognitionMetrics.characters(phrase, recognized).rate)
                                 .put("intencion_esperada", expectedIntent).put("intencion_reconocida", recognizedIntent)
                                 .put("omisiones", after.deletions).put("inferencia_ms", SystemClock.elapsedRealtime() - decodingAt).put("orden_local_ms", localCommandMs)
@@ -98,7 +110,7 @@ class SpanishRecognitionInstrumentedTest {
                     }
                     assertTrue(freeTotal.reference > 20)
                     assertNotNull(commandTotal.rate)
-                    Log.i("PbtAsrTest", JSONObject().put("corpus", "sintético es-ES, 14 frases, 16 kHz")
+                    Log.i("PbtAsrTest", JSONObject().put("corpus", "sintético es-ES, " + cases.size + " frases, 16 kHz")
                         .put("libre_wer", freeTotal.rate).put("comandos_wer", commandTotal.rate).put("omisiones", commandTotal.deletions)
                         .put("modelo_primera_carga_ms", firstMs).put("modelo_reutilizado_ms", reuseMs)
                         .put("intenciones_correctas", correctIntents).put("intenciones_total", cases.size)

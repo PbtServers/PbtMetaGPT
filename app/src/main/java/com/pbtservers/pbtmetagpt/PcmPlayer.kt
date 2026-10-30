@@ -8,22 +8,30 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flowOf
 
-class PcmPlayer {
+/** Punto de sustitución interno para instrumentación; sin Intent ni entrada externa. */
+internal interface PcmOutput {
+    fun play()
+    fun head(): Long
+    fun write(bytes: ByteArray, offset: Int, count: Int): Int
+    fun close()
+}
+
+class PcmPlayer internal constructor(private val outputFactory: ((Int) -> PcmOutput)? = null) {
     private val ownerLock = Any()
     private var revision = 0L
-    private var track: Output? = null
+    private var track: PcmOutput? = null
 
     /** Una escritura no bloqueante y la liberación nunca acceden a la vez al puntero JNI. */
-    private class Output(private val native: AudioTrack) {
+    private class Output(private val native: AudioTrack) : PcmOutput {
         private var closed = false
-        @Synchronized fun play() { checkOpen(); native.play() }
-        @Synchronized fun head(): Long { checkOpen(); return native.playbackHeadPosition.toLong() and 0xffffffffL }
-        @Synchronized fun write(bytes: ByteArray, offset: Int, count: Int): Int {
+        @Synchronized override fun play() { checkOpen(); native.play() }
+        @Synchronized override fun head(): Long { checkOpen(); return native.playbackHeadPosition.toLong() and 0xffffffffL }
+        @Synchronized override fun write(bytes: ByteArray, offset: Int, count: Int): Int {
             checkOpen()
             return native.write(bytes, offset, count, AudioTrack.WRITE_NON_BLOCKING)
         }
         private fun checkOpen() { if (closed) throw CancellationException("Reproducción interrumpida") }
-        @Synchronized fun close() {
+        @Synchronized override fun close() {
             if (closed) return
             closed = true
             runCatching { native.pause() }; runCatching { native.flush() }
@@ -35,19 +43,20 @@ class PcmPlayer {
         require(preRollMs in 0..500)
         ensureActive()
         val token = synchronized(ownerLock) { revision }
-        var output: Output? = null
+        var output: PcmOutput? = null
         var rate = 0; var totalFrames = 0L; var preRollFrames = 0; var observing: Job? = null
         try {
             chunks.collect { audio ->
                 require(audio.sampleRate in 8000..48000 && audio.bytes.isNotEmpty() && audio.bytes.size % 2 == 0)
                 if (output == null) {
                     rate = audio.sampleRate
+                    val created = outputFactory?.invoke(rate) ?: run {
                     val minimum = AudioTrack.getMinBufferSize(rate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
                     require(minimum > 0)
-                    val created = Output(AudioTrack.Builder().setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                    Output(AudioTrack.Builder().setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
                         .setAudioFormat(AudioFormat.Builder().setSampleRate(rate).setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
-                        .setTransferMode(AudioTrack.MODE_STREAM).setBufferSizeInBytes(minimum * 2).build())
+                        .setTransferMode(AudioTrack.MODE_STREAM).setBufferSizeInBytes(minimum * 2).build()) }
                     output = created
                     synchronized(ownerLock) {
                         if (token != revision) throw CancellationException("Reproducción interrumpida antes de abrir salida")
@@ -66,11 +75,15 @@ class PcmPlayer {
                         val silence = ByteArray(preRollFrames * 2)
                         withContext(Dispatchers.IO) {
                             var offset = 0
+                            var progressed = System.nanoTime()
                             while (offset < silence.size) {
                                 ensureActive()
                                 val written = current.write(silence, offset, minOf(8192, silence.size - offset))
                                 check(written >= 0)
-                                if (written == 0) delay(2) else offset += written
+                                if (written == 0) {
+                                    check(System.nanoTime() - progressed < 3_000_000_000L) { "La salida PCM no admite más audio." }
+                                    delay(2)
+                                } else { offset += written; progressed = System.nanoTime() }
                             }
                         }
                         totalFrames += preRollFrames
@@ -84,18 +97,26 @@ class PcmPlayer {
                 }
                 withContext(Dispatchers.IO) {
                     var offset = 0
+                    var progressed = System.nanoTime()
                     while (offset < audio.bytes.size) {
                         ensureActive()
                         val written = current.write(audio.bytes, offset, minOf(8192, audio.bytes.size - offset))
                         check(written >= 0)
-                        if (written == 0) delay(2) else offset += written
+                        if (written == 0) {
+                            check(System.nanoTime() - progressed < 3_000_000_000L) { "La salida PCM no admite más audio." }
+                            delay(2)
+                        } else { offset += written; progressed = System.nanoTime() }
                     }
                 }
                 totalFrames += audio.bytes.size / 2L
             }
-            output?.let { current -> withTimeout(totalFrames * 1000 / rate + 3000) {
-                while (current.head() < totalFrames) delay(10)
-            } }
+            output?.let { current ->
+                val completed = withTimeoutOrNull(totalFrames * 1000 / rate + 3000) {
+                    while (current.head() < totalFrames) delay(10)
+                    true
+                } == true
+                check(completed) { "La salida no confirmó la reproducción PCM." }
+            }
         } finally {
             observing?.cancel()
             val current = output

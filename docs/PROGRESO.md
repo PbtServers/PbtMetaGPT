@@ -1,5 +1,15 @@
 # Seguimiento de PbtMetaGPT
 
+## Reparación de regresiones comunicadas en teléfono · 30/10/2026
+
+**Inicio 14:13:55 UTC · corte previo a CI · 63 %.** Base local/remota `a15368d00f36f352de8d1fd2fc6398c0b0fa1e0e`. Su CI 41059259225 pasó 214 JVM (una remota optativa omitida) y 68 Android por API, pero no detectó las regresiones físicas comunicadas. No se consideran aceptadas por ese resultado.
+
+Confirmado: timeout del aviso suspende la escucha; vaciado PCM puede durar más que ese timeout; nueva concesión de ruta durante aviso; foco pasivo retenido al habilitar música posteriormente; variante musical ausente; rechazo local convertido en fallo de sesión; Markdown llega a voz sin limpieza. Corregidos en código y con regresiones, sin cambiar diseño. Se separa dictado libre de gramáticas y se amplían pruebas hasta controlador/transporte, servicio real con PCM sintético, respuesta de prueba y pantalla virtual bloqueada. Detalle y límites: [REGRESIONES_VOZ.md](REGRESIONES_VOZ.md).
+
+**Validación local: 75 JVM (0,356 s último pase), 39 Python, 19 Node/backend y escáner de fuentes correctos.** Java 17/Gradle comprobados; Gradle termina por SDK ausente, preparación Sherpa por patchelf ausente. ADB sin dispositivos, emulador oficial no localizado. Se reutilizan Actions API35/36; no se ha instalado software desconocido ni cambiado virtualización global. Las nuevas instrumentadas todavía requieren su ejecución; no se presenta una APK anterior como validación.
+
+Pesos acreditados: diagnóstico 15/15, aviso 18/25, comandos 12/20, reconocimiento 7/15, TTS 6/10, ChatGPT 3/5, pruebas/documentación/publicación 2/10 = **63/100**. Tiempo transcurrido: consultar el corte de CI posterior; inicio conservado para medición. Estimación CI/APK condicionada a compilación y regresiones, aceptación física todavía no estimable. Próximo paso: publicar el bloque experimental y resolver cualquier fallo de CI sin retirar pruebas.
+
 ## Reparación de activación, español y acceso desde Inicio · 30/10/2026
 
 **Corte 12:54 UTC · 02:00 · 70 %.** La primera ejecución de `ed66fc9` no llegó a compilar: el instalador de Google rechazó el ZIP del NDK 28.2.13676358 (`unknown archive`). Se solicita reintentar únicamente los trabajos fallidos del mismo SHA; HTTP 201, sin omitir pruebas. El conector GitHub devuelve 403 de escritura y se utiliza la autenticación Git existente, solo en memoria. El reintento está en [CI 41057595483](https://github.com/PbtServers/PbtMetaGPT/actions/runs/41057595483).

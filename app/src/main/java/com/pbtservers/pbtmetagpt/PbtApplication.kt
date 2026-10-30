@@ -51,6 +51,7 @@ class PbtApplication : Application() {
             try { hosted.awaitReleased() }
             catch (_: TimeoutCancellationException) { mutableMessage.value = "La liberación del audio ha agotado su plazo. Detén y reactiva la escucha."; return@launch }
             catch (_: HostedFailure) { mutableMessage.value = "El micrófono anterior sigue ocupado. Detén y reactiva la escucha."; return@launch }
+            ContinuousWakeService.releaseFocusForMusic()
             val released = withTimeoutOrNull(5000) {
                 while (audioSession.hasFocusOwners()) delay(20)
                 true

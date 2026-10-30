@@ -45,7 +45,10 @@ class AlternativeSpeech(private val context: Context, private val scope: Corouti
             }
         }
     }
-    suspend fun synthesize(profile: AssistantProfile, text: String): PcmAudio = when (profile.ttsEngine) {
+    suspend fun synthesize(profile: AssistantProfile, original: String): PcmAudio {
+        val text = TtsText.clean(original)
+        require(text.isNotBlank()) { "No hay texto hablado en esta respuesta." }
+        return when (profile.ttsEngine) {
         "kokoro" -> kokoro.synthesize(profile, text)
         "piper_es" -> spain.synthesize(profile, text)
         "qwen_space" -> {
@@ -69,6 +72,7 @@ class AlternativeSpeech(private val context: Context, private val scope: Corouti
             PcmAudio(http.newCall(request).awaitPcm(), config.sampleRate)
         }
         else -> throw IllegalArgumentException("La voz Realtime usa exclusivamente su audio nativo.")
+        }
     }
     fun stop() { queue.stop(); android.close(); scope.launch { kokoro.close(); spain.close() } }
 }

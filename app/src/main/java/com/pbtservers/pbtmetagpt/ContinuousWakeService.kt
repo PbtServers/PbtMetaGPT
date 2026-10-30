@@ -135,12 +135,15 @@ class ContinuousWakeService : Service() {
                     }
                     null -> Unit
                 }
-                if (matched.confirmationSound) try {
-                    withTimeout(3000) { WakeConfirmation.play(this@ContinuousWakeService, AudioInputSettings(this@ContinuousWakeService).useBluetooth(), preparedRoute = true) }
-                } catch (_: TimeoutCancellationException) {
-                    suspendListening("El sonido de confirmación no ha terminado. Reintenta la escucha."); return@launch
-                } catch (cancel: CancellationException) { throw cancel }
-                catch (problem: Exception) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); suspendListening(); return@launch }
+                // Un aviso no revoca el consentimiento ni adquiere otra ruta/foco.
+                val confirmationAt = android.os.SystemClock.elapsedRealtime()
+                val confirmation = OptionalConfirmation.run(matched.confirmationSound) {
+                    val replacement = DevelopmentVoice.confirmation
+                    if (replacement != null) replacement() else WakeConfirmation.play(this@ContinuousWakeService, AudioInputSettings(this@ContinuousWakeService).useBluetooth(), preparedRoute = true)
+                }
+                app.voiceTransitions.record(session.phase, if (confirmation == ConfirmationResult.OMITTED) TransitionReason.OPTIONAL_AUDIO_SKIPPED else TransitionReason.HANDOFF,
+                    app.microphone.owner(), inputTypeValue.value)
+                LatencyStore(this@ContinuousWakeService).record(mapOf(VoiceStage.WAKE_CONFIRMATION to (android.os.SystemClock.elapsedRealtime() - confirmationAt)))
                 if (!session.authorized) return@launch
                 val preferences = getSharedPreferences("configuracion", MODE_PRIVATE)
                 // El backend usa token solo en memoria de la sesión actual; no se exporta ni persiste aquí.
@@ -281,6 +284,7 @@ class ContinuousWakeService : Service() {
             context.stopService(Intent(context, ContinuousWakeService::class.java))
         }
         suspend fun beforeRealtime() { instance?.prepareConversation() }
+        fun releaseFocusForMusic() { instance?.retainedRoute?.releaseFocusForMusic() }
         fun revokeConsent() { instance?.session?.suspendListening(); instance?.activation?.cancel() }
         suspend fun releaseForExternal() {
             instance?.let { service ->

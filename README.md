@@ -25,6 +25,8 @@ PbtMetaGPT es una aplicación Android de código abierto para hablar con asisten
 
 Puedes utilizar **GroqCloud con clave propia y sin montar un servidor**, o configurar OpenAI Realtime y un backend opcional. Las voces **Piper Davefx y Sharvard** se ejecutan localmente después de descargarlas. GroqCloud tiene cuotas y condiciones propias; **ChatGPT Plus y la API de OpenAI se facturan por separado**.
 
+Consulta la [guía de diagnóstico de voz](docs/REGRESIONES_VOZ.md) para reconocimiento, órdenes locales, aviso y texto hablado.
+
 ## Funciones
 
 - Conversación continua con contexto y una sola cola de respuesta cancelable.

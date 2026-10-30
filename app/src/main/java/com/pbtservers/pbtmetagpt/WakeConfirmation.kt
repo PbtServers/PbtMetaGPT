@@ -2,6 +2,8 @@ package com.pbtservers.pbtmetagpt
 
 import android.content.Context
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -22,14 +24,15 @@ object WakeConfirmation {
         return PcmAudio(data, SAMPLE_RATE)
     }
 
-    suspend fun play(context: Context, preferBluetooth: Boolean, preparedRoute: Boolean = false) {
-        val route = AudioRoute(context) {}
+    suspend fun play(context: Context, preferBluetooth: Boolean, preparedRoute: Boolean = false) = withContext(Dispatchers.IO) {
+        // El servicio ya retiene su ruta: no renegociar Bluetooth/foco por 190 ms.
+        val route = if (preparedRoute) null else AudioRoute(context) {}
         try {
-            route.start(preferBluetooth)
+            route?.start(preferBluetooth)
             // El servicio ya retiene su ruta: no añadir 300 ms en cada activación.
             PcmPlayer().playStream(flowOf(pcm()), preRollMs = if (preferBluetooth && !preparedRoute) 300 else 0)
         } finally {
-            route.close()
+            route?.close()
         }
     }
 }

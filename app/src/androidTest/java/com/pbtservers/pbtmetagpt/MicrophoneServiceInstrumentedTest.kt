@@ -44,6 +44,26 @@ class MicrophoneServiceInstrumentedTest {
         MusicSettings(context).enable(false)
         context.getSystemService(NotificationManager::class.java).cancel(73)
     }
+    @Test fun activarMusicaDespuesDelServicioCedeFocoSinRevocarEscucha() = runBlocking<Unit> {
+        WakeModel(context).install { instrumentation.context.assets.open("activacion-prueba.zip") }
+        val profile = AssistantProfile(name = "Jarvis").validated()
+        ProfileStore(context).save(listOf(profile), profile.id)
+        ListeningSettings(context).save(ListeningOptions(background = true))
+        MusicSettings(context).enable(false)
+        ActivityScenario.launch(MainActivity::class.java).use { activity ->
+            activity.onActivity { ContinuousWakeService.startVisible(it) }
+            await { ContinuousWakeService.state.value == ListeningPhase.LISTENING }
+            assertTrue(app.audioSession.hasFocusOwners())
+            MusicSettings(context).enable(true)
+            instrumentation.runOnMainSync { app.clearMessage(); app.controlSpotify(MusicAction.PLAY) }
+            await { app.message.value != null }
+            assertTrue(app.message.value.orEmpty(), app.message.value.orEmpty().let { it.startsWith("Autoriza") || it.startsWith("No hay una sesión") })
+            assertFalse(app.audioSession.hasFocusOwners())
+            assertTrue(app.audioSession.hasOwners())
+            assertTrue(ContinuousWakeService.authorizedRunning)
+            assertEquals(ListeningPhase.LISTENING, ContinuousWakeService.state.value)
+        }
+    }
     @Test fun inicioOfreceDescargaConConsentimientoEInstalacionActualizaSuEstadoSinAbrirMicrofono() = runBlocking<Unit> {
         WakeModel(context).delete()
         app.wakeDownload.refresh()

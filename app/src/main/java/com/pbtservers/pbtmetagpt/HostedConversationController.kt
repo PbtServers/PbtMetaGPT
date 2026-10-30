@@ -11,7 +11,8 @@ enum class ConversationPhase(val label: String) { READY("Listo"), LISTENING("Esc
 data class ChatMessage(val id: Long, val assistant: Boolean, val text: String)
 
 /** Contexto privado solo en memoria. Ningún fallback facturable, una única generación cancelable. */
-class HostedConversation(private val context: Context, private val scope: CoroutineScope) {
+class HostedConversation internal constructor(private val context: Context, private val scope: CoroutineScope,
+    private val api: GroqApi = GroqApi()) {
     private val mutable = MutableStateFlow(VoiceState(status = "Listo"))
     val state = mutable.asStateFlow()
     private val processing = MutableStateFlow(false)
@@ -29,7 +30,6 @@ class HostedConversation(private val context: Context, private val scope: Corout
     private val timing = MutableStateFlow<Map<VoiceStage, Long>>(emptyMap())
     val metrics = timing.asStateFlow()
     private val settings = HostedSettings(context)
-    private val api = GroqApi()
     private val player = PcmPlayer()
     private val android = AndroidVoiceEngine(context)
     private val kokoro = KokoroEngine(context)
@@ -90,6 +90,12 @@ class HostedConversation(private val context: Context, private val scope: Corout
                 throw cancel
             }
             catch (_: NoSpeechDetected) { /* El silencio de un turno no finaliza la conversación. */ }
+            catch (repeat: RepeatLocalCommand) {
+                if (current == generation) {
+                    commandValue.value = repeat.explanation
+                    mutable.update { it.copy(failed = false, paused = false, status = repeat.explanation) }
+                }
+            }
             catch (problem: Exception) { if (current == generation) failed(problem) }
             finally {
                 // El finally antiguo nunca cancela el detector de una respuesta nueva.
@@ -182,9 +188,8 @@ class HostedConversation(private val context: Context, private val scope: Corout
     }
 
     private suspend fun generate(text: String, trace: VoiceLatency) {
-        WebCommands.parse(text, profile?.name.orEmpty())?.let { (context.applicationContext as PbtApplication).openWeb(it); return }
-        val local = VoiceCommands.parse(text, profile?.name.orEmpty(), options)
-        if (local != null) { handle(local); return }
+        if (LocalTurnRouter(::handle, (context.applicationContext as PbtApplication)::openWeb)
+                .dispatch(text, profile?.name.orEmpty(), options)) return
         trace.responseStarted()
         require(text.trim().length in 1..2000 && !SecretPatterns.contains(text))
         check(settings.authorized && settings.provider == "groq")
@@ -208,7 +213,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
         val full = StringBuilder()
         val result = speakStream(target, trace, produce = { delta ->
             val groqStart = trace.now()
-            val response = api.answerStream(KeyVault(context, provider = "groq").read(), settings.model, messages) { part ->
+            val response = (DevelopmentVoice.api ?: api).answerStream(KeyVault(context, provider = "groq").read(), settings.model, messages) { part ->
                 trace.once(VoiceStage.GROQ_FIRST_TOKEN, trace.now() - groqStart)
                 delta(part)
             }
@@ -269,7 +274,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
                 // Abrir la ruta de salida ANTES de sintetizar: la negociación Bluetooth/
                 // Meta deja de competir con la primera sílaba del PCM generado.
                 prepareOutputRoute()
-                val normalAudio = when (chosen.ttsEngine) {
+                val normalAudio = DevelopmentVoice.synthesis?.invoke(chosen, phrase) ?: when (chosen.ttsEngine) {
                     "kokoro" -> kokoro.synthesize(chosen, phrase) { trace.mark(VoiceStage.TTS_FIRST_PCM) }
                     "piper_es" -> spain.synthesize(chosen, phrase).also { trace.mark(VoiceStage.TTS_FIRST_PCM) }
                     "android" -> android.synthesize(chosen, phrase).also { trace.mark(VoiceStage.TTS_FIRST_PCM) }

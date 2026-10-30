@@ -13,6 +13,7 @@ class StreamSpeechPipeline {
         sentenceReady: () -> Unit = {},
     ): String = coroutineScope {
         val segments = SpeechSegments(remote, groupedLocal)
+        val spoken = SpeechMarkup()
         val phrases = Channel<String>(192) // respuesta <=4000 caracteres: nunca retiene el streaming por esperar TTS
         val audio = Channel<PcmAudio>(1)
         var voiceFailed = false
@@ -46,8 +47,9 @@ class StreamSpeechPipeline {
                 characters += delta.length
                 require(characters <= 4000)
                 text(delta)
-                segments.append(delta).forEach { sentenceReady(); phrases.send(it) }
+                segments.append(spoken.append(delta)).filter { it.isNotBlank() }.forEach { sentenceReady(); phrases.send(it) }
             }
+            segments.append(spoken.finish()).filter { it.isNotBlank() }.forEach { sentenceReady(); phrases.send(it) }
             segments.finish()?.let { sentenceReady(); phrases.send(it) }
             phrases.close()
             synthesis.join(); playback.join()

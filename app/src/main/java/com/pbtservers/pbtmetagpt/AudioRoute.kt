@@ -11,4 +11,5 @@ class AudioRoute(context: Context, private val onInterrupted: (String) -> Unit) 
             requireFocus = !passive || !music.enabled)
     fun actualRoute() = session.actualRoute()
     fun close() = session.release(this)
+    fun releaseFocusForMusic() = session.releaseFocus(this)
 }

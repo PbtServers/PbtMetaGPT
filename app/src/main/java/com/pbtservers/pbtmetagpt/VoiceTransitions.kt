@@ -18,7 +18,7 @@ fun drainAudioJobs(scope: CoroutineScope, previous: Job?, detector: Job?): Job =
     detector?.join()
 }
 
-enum class TransitionReason { START, READY, DETECTED, HANDOFF, RETURN, PAUSE, STOP, TIMEOUT, FAILURE }
+enum class TransitionReason { START, READY, DETECTED, HANDOFF, RETURN, PAUSE, STOP, TIMEOUT, FAILURE, OPTIONAL_AUDIO_SKIPPED }
 
 /** Solo categorías y números. No admite textos de usuario, excepciones ni identificadores externos. */
 class VoiceTransitions(private val clock: () -> Long) {

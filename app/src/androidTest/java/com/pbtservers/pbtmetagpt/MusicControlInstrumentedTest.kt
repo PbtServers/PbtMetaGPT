@@ -49,12 +49,26 @@ class MusicControlInstrumentedTest {
                     await { calls.size == index + 1 }
                     assertEquals(action, calls[index])
                 }
+                val controls = SpotifyControls(context, transport::execute)
+                val router = LocalTurnRouter({ local ->
+                    assertEquals("Orden enviada a Spotify.", controls.execute(requireNotNull(MusicCommands.action(local))))
+                }, { error("Una orden musical no abre el navegador") })
+                val phrases = listOf("Pon música", "Ponme música", "Abre Spotify", "Pon Spotify", "Pon música en Spotify", "Reproduce música en Spotify",
+                    "Pausa Spotify", "Continúa la música", "Siguiente canción", "Canción anterior")
+                phrases.forEachIndexed { index, phrase ->
+                    assertTrue("Debe resolverse localmente: " + phrase, router.dispatch(phrase, "Jarvis", ListeningOptions(), .98f))
+                    await { calls.size == index + 5 }
+                    assertEquals(MusicCommands.parse(phrase), calls.last())
+                }
+                val expectedCalls = 4 + phrases.size
+                assertFalse(router.dispatch("¿Qué es Spotify?", "Jarvis", ListeningOptions()))
+                assertFalse(router.dispatch("No pongas Spotify", "Jarvis", ListeningOptions()))
                 assertTrue(SessionMusicTransport(context, "invalid.no_session").execute(MusicAction.NEXT).startsWith("No hay una sesión"))
-                assertEquals(4, calls.size)
+                assertEquals(expectedCalls, calls.size)
                 shell("cmd notification disallow_listener $component")
                 await { !SpotifyControls.authorized(context) }
                 assertTrue(transport.execute(MusicAction.PLAY).startsWith("Autoriza"))
-                assertEquals(4, calls.size)
+                assertEquals(expectedCalls, calls.size)
                 MusicSettings(context).enable(false)
                 assertTrue(SpotifyControls(context).execute(MusicAction.NEXT).startsWith("Activa"))
             }

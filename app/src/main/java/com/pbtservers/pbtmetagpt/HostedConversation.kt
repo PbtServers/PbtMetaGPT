@@ -38,6 +38,7 @@ class HostedDictation(private val context: Context) {
         speechStarted: () -> Unit = {}, speechEnded: () -> Unit = {}, engine: (RecognitionEngine) -> Unit = {}, assistantName: String = "", transcribing: () -> Unit = {}): String {
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
             throw HostedFailure("Falta permiso de micrófono.")
+        DevelopmentVoice.capture?.let { return it(VoiceCaptureRequest(language, continuous, ready, speechStarted, speechEnded)) }
         val settings = HostedSettings(context)
         val offline = OnDeviceDictation(context)
         val selected = RecognitionPolicy.engine(settings.dictationSource,
@@ -79,19 +80,24 @@ class HostedDictation(private val context: Context) {
         val app = context.applicationContext as PbtApplication
         try {
             app.voskModels.acquire(WakeModel(context).model.absolutePath).use { model ->
-                LocalCommandDecoder(WakeModel(context).model.absolutePath, sharedModel = model.model).use { recognizer ->
-                    val transcript = mutableListOf<CommandHypothesis>()
-                    try {
+                VoskDictationDecoder(model.model).use { recognizer -> ShortCommandAudio().use { commandAudio ->
                         PcmSpeechCapture(context).capture(continuous, silenceMs, ready, started, ended) { frame, count ->
-                            recognizer.accept(frame, count)?.takeIf { it.text.isNotBlank() }?.let(transcript::add)
+                            recognizer.accept(frame, count)
+                            commandAudio.append(frame, count)
                         }
-                        recognizer.finish().takeIf { it.text.isNotBlank() }?.let(transcript::add)
-                        val text = transcript.joinToString(" ") { it.text }.ifEmpty { throw NoSpeechDetected() }
-                        if (!VoiceCommands.confident(text, transcript.minOf { it.confidence }, name, ListeningSettings(context).load()))
-                            throw HostedFailure("La orden no se ha reconocido con suficiente confianza. No se ha ejecutado; pulsa Micrófono y repítela.")
+                        val transcript = recognizer.finish()
+                        // Solo una orden completa validada puede sustituir al dictado;
+                        // el ASR libre conserva todas las pausas y resultados finales.
+                        val wav = commandAudio.wav()
+                        val local = if (wav == null) null else try {
+                            LocalRecordedCommand(context).recognize(wav, name, ListeningSettings(context).load())
+                        } finally { wav.fill(0) }
+                        if (local != null) return@withContext local
+                        val text = transcript.text.ifEmpty { throw NoSpeechDetected() }
+                        if (!VoiceCommands.confident(text, transcript.confidence, name, ListeningSettings(context).load()))
+                            throw RepeatLocalCommand()
                         text
-                    } finally { transcript.clear() }
-                }
+                } }
             }
         } catch (_: LinkageError) { throw HostedFailure("El runtime Vosk no está disponible en este dispositivo. Puedes escribir tu petición.") }
     }

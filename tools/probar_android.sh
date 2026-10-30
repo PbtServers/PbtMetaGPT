@@ -6,7 +6,7 @@ result=0
 # Dos procesos de instrumentación: los casos de denegación conservan su permiso
 # denegado; los casos de captura se ejecutan después con concesión explícita de CI.
 # Todos los casos se ejecutan; se conservan ambos XML antes de la siguiente tarea.
-capture_class=com.pbtservers.pbtmetagpt.MicrophoneServiceInstrumentedTest
+capture_class=com.pbtservers.pbtmetagpt.MicrophoneServiceInstrumentedTest,com.pbtservers.pbtmetagpt.WakeConversationRegressionInstrumentedTest
 package=com.pbtservers.pbtmetagpt
 bash ./gradlew --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass="$capture_class" || result=$?
 mkdir -p app/build/reports/androidTests/sin-microfono

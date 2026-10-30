@@ -16,10 +16,11 @@ class MusicSettings(context: Context) {
 /** Solo habilita la autorización pública de sesiones. No inspecciona notificaciones, texto ni metadatos. */
 class MusicNotificationAccess : NotificationListenerService()
 
-class SpotifyControls(private val context: Context) {
+class SpotifyControls internal constructor(private val context: Context,
+    private val transport: (MusicAction) -> String = SessionMusicTransport(context, PACKAGE)::execute) {
     fun execute(action: MusicAction): String {
         if (!MusicSettings(context).enabled) return "Activa Controlar Spotify en Ajustes → Dispositivos → Música."
-        return SessionMusicTransport(context, PACKAGE).execute(action)
+        return transport(action)
     }
     companion object {
         const val PACKAGE = "com.spotify.music"

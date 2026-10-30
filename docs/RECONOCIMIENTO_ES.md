@@ -39,6 +39,10 @@ El aviso Bluetooth conserva 190 ms de sonido, pero evita otros 300 ms de silenci
 
 «Para» espera la finalización tanto del trabajo cancelado como del capturador de órdenes antes de volver a abrir el micrófono. Durante la transcripción remota se muestra **Transcribiendo tu pregunta**, se libera primero la captura del dictado y se conserva un único detector local de órdenes durante la petición y la respuesta. El cambio de transcripción a generación no sustituye ese detector por otro que compita con él. Si desactivas la interrupción en los ajustes, ese detector concurrente también se desactiva.
 
+## Regresión y operación actual
+
+Consulta [REGRESIONES_VOZ.md](REGRESIONES_VOZ.md) para el aviso recuperable, cesión de foco musical, dictado separado y limpieza de Markdown. Automático puede elegir Android local también en continuo; Vosk explícito conserva funcionamiento local. El corpus nuevo tiene 20 frases sintéticas y no acredita precisión humana.
+
 ## Órdenes y proveedores
 
 Las órdenes completas se resuelven antes de Groq. No se ejecutan acciones por una mención de una palabra dentro de una pregunta.

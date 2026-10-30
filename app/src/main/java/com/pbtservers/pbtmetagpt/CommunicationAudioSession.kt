@@ -104,6 +104,13 @@ class CommunicationAudioSession(private val context: Context) {
         }
         focusOwners += owner
     }
+    @Synchronized fun releaseFocus(owner: Any) {
+        focusOwners.remove(owner)
+        if (focusOwners.isEmpty() && focusHeld) {
+            focusHeld = false
+            closePart { manager.abandonAudioFocusRequest(focus) }
+        }
+    }
     @Synchronized fun report(device: AudioDeviceInfo?, rate: Int): Boolean {
         if (owners.isEmpty() || interrupted) return false
         if (!confirmed) confirmed = manager.communicationDevice?.id == selected?.id

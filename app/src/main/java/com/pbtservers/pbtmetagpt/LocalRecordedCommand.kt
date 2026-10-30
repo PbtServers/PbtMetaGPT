@@ -28,9 +28,11 @@ class LocalRecordedCommand(private val context: Context) {
             // No ejecutar un fragmento si el resto de la intervención contiene otra cosa.
             val text = hypotheses.joinToString(" ") { it.text }
             val confidence = hypotheses.minOfOrNull { it.confidence } ?: return@withContext null
-            if (!confidence.isFinite() || confidence < .9f) return@withContext null
-            text.takeIf { VoiceCommands.parse(it, name, options) != null || WebCommands.parse(it, name) != null }
+            val known = VoiceCommands.parse(text, name, options) != null || WebCommands.parse(text, name) != null
+            if (known && (!confidence.isFinite() || confidence < .9f)) throw RepeatLocalCommand()
+            text.takeIf { known }
         } catch (cancel: CancellationException) { throw cancel }
+        catch (repeat: RepeatLocalCommand) { throw repeat }
         catch (_: Exception) { null } // Solo continúa el Whisper ya autorizado, nunca un proveedor nuevo.
         catch (_: LinkageError) { null }
         finally { buffer.fill(0); hypotheses.clear() }

@@ -18,7 +18,9 @@ internal class SpeechTaskQueue(private val scope: CoroutineScope,
         job = scope.launch {
             try {
                 status("Generando voz alternativa · micrófono apagado")
-                val audio = render(profile, text)
+                val spoken = TtsText.clean(text)
+                if (spoken.isBlank()) return@launch
+                val audio = render(profile, spoken)
                 ensureActive()
                 if (current != generation) return@launch
                 status("Reproduciendo voz alternativa · micrófono apagado")

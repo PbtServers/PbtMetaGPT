@@ -7,7 +7,8 @@ object MusicCommands {
     val phrases: Map<String, MusicAction> = buildMap {
         listOf("pon spotify", "reproduce spotify", "pon musica", "reproduce musica", "reanuda la musica", "dale al play",
             "ponme musica", "pon algo de musica", "ponme algo de musica", "quiero escuchar musica", "abre spotify", "spotify",
-            "ponme algo en spotify", "reproduce musica en spotify", "continua la musica", "continua musica", "continua spotify").forEach { put(it, MusicAction.PLAY) }
+            "ponme algo en spotify", "reproduce musica en spotify", "pon musica en spotify", "ponme musica en spotify",
+            "continua la musica", "continua musica", "continua spotify").forEach { put(it, MusicAction.PLAY) }
         listOf("pausa spotify", "pausa la musica", "pausa musica", "para spotify").forEach { put(it, MusicAction.PAUSE) }
         listOf("siguiente cancion", "cambia de cancion", "pasa de cancion", "pon la siguiente").forEach { put(it, MusicAction.NEXT) }
         listOf("cancion anterior", "anterior cancion", "vuelve a la cancion anterior").forEach { put(it, MusicAction.PREVIOUS) }
