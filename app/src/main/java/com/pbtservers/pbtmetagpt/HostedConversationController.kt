@@ -142,9 +142,9 @@ class HostedConversation(private val context: Context, private val scope: Corout
             (context.applicationContext as PbtApplication).voiceTransitions.engine(selected)
             recognitionValue.value = when (selected) {
             RecognitionEngine.VOSK -> "Vosk español · local"
-            RecognitionEngine.ANDROID_LOCAL -> "Android local · ${profile?.language ?: "es-ES"}"
-            RecognitionEngine.GROQ_WHISPER -> "Groq Whisper · español · audio enviado con autorización"
-        } })
+            RecognitionEngine.ANDROID_LOCAL -> "Android local · ${profile?.language ?: "es-ES"} · entrada gestionada por Android"
+            RecognitionEngine.GROQ_WHISPER -> "Groq Whisper · español · envío de audio autorizado"
+        } }, assistantName = profile?.name.orEmpty())
         inactivity?.cancel(); inactivity = null
         val captureEnd = speechEnd.get().takeIf { it > 0 } ?: started
         trace.add(VoiceStage.TRANSCRIPTION, trace.now() - captureEnd)
@@ -181,7 +181,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
     }
 
     private suspend fun generate(text: String, trace: VoiceLatency) {
-        WebCommands.parse(text)?.let { (context.applicationContext as PbtApplication).openWeb(it); return }
+        WebCommands.parse(text, profile?.name.orEmpty())?.let { (context.applicationContext as PbtApplication).openWeb(it); return }
         val local = VoiceCommands.parse(text, profile?.name.orEmpty(), options)
         if (local != null) { handle(local); return }
         trace.responseStarted()
@@ -258,9 +258,9 @@ class HostedConversation(private val context: Context, private val scope: Corout
             val costlyRvc = rvcStore.enabled && (target.voiceMode == "rapida" || target.ttsEngine in setOf("kokoro", "piper_es", "android"))
             return StreamSpeechPipeline().run(remote = target.voiceMode != "rapida" && target.ttsEngine == "qwen_space",
                 groupedLocal = costlyRvc,
+                sentenceReady = { trace.mark(VoiceStage.FIRST_SENTENCE) },
                 produce = produce, text = text,
         synthesize = { phrase ->
-            trace.mark(VoiceStage.FIRST_SENTENCE)
             val started = trace.now()
             val chosen = resolve(target)
             engineValue.value = VoiceSynthesisContract.label(chosen.ttsEngine) + " · " + chosen.ttsVoice
@@ -271,7 +271,7 @@ class HostedConversation(private val context: Context, private val scope: Corout
                 val normalAudio = when (chosen.ttsEngine) {
                     "kokoro" -> kokoro.synthesize(chosen, phrase) { trace.mark(VoiceStage.TTS_FIRST_PCM) }
                     "piper_es" -> spain.synthesize(chosen, phrase).also { trace.mark(VoiceStage.TTS_FIRST_PCM) }
-                    "android" -> android.synthesize(chosen, phrase)
+                    "android" -> android.synthesize(chosen, phrase).also { trace.mark(VoiceStage.TTS_FIRST_PCM) }
                     "qwen_space" -> {
                         if (!settings.qwenAuthorized) throw HostedFailure("Autoriza Qwen3-TTS en Voces antes de enviarle texto.")
                         HostedHttp.qwenApi.synthesize(chosen, phrase, { message -> mutable.update { it.copy(status = message) } }, trace)

@@ -16,6 +16,9 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
     private var music: Recognizer
     private var vad = AdaptiveVad(sampleRate.toInt())
     private var samples = 0L
+    private var inferenceFrames = 0L
+    private var timelineOffset = 0L
+    private val preRoll = PcmPreRoll(sampleRate.toInt() * 300 / 1000)
     private var voiceStart: Double? = null
     private var voiceEnd = 0.0
     init {
@@ -36,20 +39,33 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
     }
     fun accept(buffer: ShortArray, size: Int): CommandHypothesis? {
         samples += size
-        when (vad.accept(buffer, size)) {
+        val wasStarted = vad.started
+        if (!wasStarted) preRoll.append(buffer, size)
+        val event = vad.accept(buffer, size)
+        when (event) {
             AdaptiveVad.Event.START -> {
                 voiceStart = (samples / sampleRate.toDouble() - .060).coerceAtLeast(0.0)
                 voiceEnd = samples / sampleRate.toDouble()
+                recognizer.reset(); chat.reset(); music.reset()
+                val prefix = preRoll.snapshot()
+                timelineOffset = samples - prefix.size - inferenceFrames
+                try { feed(prefix, prefix.size) } finally { prefix.fill(0); preRoll.clear() }
             }
             AdaptiveVad.Event.VOICE -> voiceEnd = samples / sampleRate.toDouble()
             else -> Unit
         }
-        // Ambos reciben exactamente los mismos PCM y cierran el segmento juntos.
-        // Solo el reconocedor libre decide el fin; la gramática no corta frases.
+        if (wasStarted) feed(buffer, size)
+        // El endpoint nativo SHORT puede interpretar nombres desconocidos como
+        // silencio y partir «Inicia ChatGPT en voz». Solo el VAD físico cierra.
+        val maximum = voiceStart?.let { samples / sampleRate.toDouble() - it >= 20.0 } == true
+        if (event != AdaptiveVad.Event.END && !maximum) return null
+        return combine(recognizer.finalResult, chat.finalResult, music.finalResult)
+    }
+    private fun feed(buffer: ShortArray, size: Int) {
+        inferenceFrames += size
+        recognizer.acceptWaveForm(buffer, size)
         chat.acceptWaveForm(buffer, size)
         music.acceptWaveForm(buffer, size)
-        if (!recognizer.acceptWaveForm(buffer, size)) return null
-        return combine(recognizer.result, chat.result, music.result)
     }
     fun finish(): CommandHypothesis = combine(recognizer.finalResult, chat.finalResult, music.finalResult)
     private fun combine(open: String, restricted: String, musical: String): CommandHypothesis {
@@ -64,7 +80,7 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
             bounds != null && MusicCommandGrammar.accepts(full, musicCommand, bounds) -> musicCommand
             else -> full
         }
-        vad = AdaptiveVad(sampleRate.toInt()); voiceStart = null; voiceEnd = 0.0
+        vad = AdaptiveVad(sampleRate.toInt()); preRoll.clear(); voiceStart = null; voiceEnd = 0.0
         return result
     }
     private fun decode(json: String, average: Boolean): CommandHypothesis {
@@ -73,8 +89,8 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
         val confidences = if (words == null) emptyList() else (0 until words.length()).map { words.getJSONObject(it).optDouble("conf", 0.0) }
         val confidence = if (confidences.isEmpty()) 0f else if (average) confidences.average().toFloat() else confidences.min().toFloat()
         return CommandHypothesis(result.optString("text"), confidence,
-            words?.optJSONObject(0)?.optDouble("start", 0.0) ?: 0.0,
-            words?.optJSONObject(words.length() - 1)?.optDouble("end", 0.0) ?: 0.0)
+            (words?.optJSONObject(0)?.optDouble("start", 0.0) ?: 0.0) + timelineOffset / sampleRate.toDouble(),
+            (words?.optJSONObject(words.length() - 1)?.optDouble("end", 0.0) ?: 0.0) + timelineOffset / sampleRate.toDouble())
     }
     fun reset() {
         // Reset() nativo conserva el reloj acumulado: recrear solo decodificadores
@@ -84,7 +100,8 @@ class LocalCommandDecoder(path: String, private val sampleRate: Float = 16000f,
         val nextMusic = try { createMusic() } catch (problem: Throwable) { nextChat.close(); nextOpen.close(); throw problem }
         try { recognizer.close() } finally { try { chat.close() } finally { music.close() } }
         recognizer = nextOpen; chat = nextChat; music = nextMusic
-        samples = 0; vad = AdaptiveVad(sampleRate.toInt()); voiceStart = null; voiceEnd = 0.0
+        samples = 0; inferenceFrames = 0; timelineOffset = 0; preRoll.clear()
+        vad = AdaptiveVad(sampleRate.toInt()); voiceStart = null; voiceEnd = 0.0
     }
-    override fun close() { try { recognizer.close() } finally { try { chat.close() } finally { try { music.close() } finally { closeModel() } } } }
+    override fun close() { preRoll.clear(); try { recognizer.close() } finally { try { chat.close() } finally { try { music.close() } finally { closeModel() } } } }
 }

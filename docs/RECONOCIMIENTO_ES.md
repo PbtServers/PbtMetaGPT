@@ -21,6 +21,8 @@ Las opciones avanzadas conservan la configuración del dictado. Cambiarla no abr
 
 El prompt de Whisper orienta nombres como Google, Spotify y ChatGPT; no sustituye audio, no traduce y no modifica palabras a posteriori para forzar órdenes. La activación y las interrupciones siguen siendo locales. Autoriza el envío de audio de dictado en las opciones avanzadas únicamente si quieres usar Whisper. Groq conversacional recibe texto aunque el reconocimiento sea local: un reconocedor offline no convierte el proveedor de respuestas en offline.
 
+Antes de enviar una intervención breve (hasta seis segundos, incluido silencio) a Whisper, se intenta resolver una orden local sobre ese mismo PCM ya capturado. Solo acepta texto completo y confianza suficiente; si reconoce Para, Termina o una acción, evita la petición de transcripción y de respuesta. No abre otro micrófono ni ejecuta ASR adicional sobre preguntas largas. Si el modelo local no puede confirmar la orden, continúa únicamente el Whisper previamente autorizado. En dictado Vosk, una acción con confianza insuficiente produce un error recuperable y no se ejecuta ni se envía como pregunta genérica.
+
 **Pregunta junto a la activación:** el texto ya reconocido por el detector Vosk se conserva sin pedir repetirlo. Ese texto inicial no se vuelve a transcribir con Whisper porque no se conserva ni se envía retrospectivamente el audio de espera. Para máxima precisión, di la activación, espera **Te escucho** y formula la pregunta; las intervenciones siguientes utilizan el motor elegido. Esta diferencia debe tenerse en cuenta al comparar exactitud.
 
 ## Activación, recuperación y recursos
@@ -29,7 +31,11 @@ El servicio espera la liberación de la captura anterior antes de armar el detec
 
 La espera de intervención del dictado continuo se acota a 60 s por captura y las preguntas a 28 s de voz; el silencio retorna al siguiente turno autorizado. La preferencia de inactividad puede finalizar antes. Se mantienen 300 ms de prebuffer en RAM para conservar las primeras sílabas. Se reutilizan bloques de 20 ms y se vacía el PCM pendiente sin imponer otra pausa después de cada trama. Los búferes de captura/Whisper se borran al liberar y no se escriben grabaciones permanentes.
 
-El Model Vosk se comparte en el proceso, con reconocedores independientes. La presión de memoria puede liberar el modelo cuando no hay consumidores; no se cierra mientras una captura lo usa. Se evita esperar al cierre de modelos TTS para volver a capturar. La cola de síntesis/reproducción sigue cancelable y una generación antigua no cancela el detector de una nueva.
+El Model Vosk se comparte en el proceso, con reconocedores independientes. La presión de memoria puede liberar el modelo cuando no hay consumidores; no se cierra mientras una captura lo usa. Se evita esperar al cierre de modelos TTS para volver a capturar. La cola de síntesis/reproducción sigue cancelable y una generación antigua no cancela el detector de una nueva. Iniciar/detener el detector se serializa; sus callbacks antiguos no suspenden una conversación posterior. Tener una notificación pausada no concede permiso para continuar otra captura manual al salir de la actividad.
+
+En los decodificadores de comandos, el endpoint acústico nativo no decide el cierre: puede interpretar un nombre desconocido como silencio y perder el centro de «Inicia ChatGPT en voz». La compuerta de energía conserva toda la intervención y su prebuffer; solo después consulta los resultados finales. Mantiene confianza/fronteras y limita cada segmento a 20 s. En silencio no alimenta los tres reconocedores. El cierre local de comandos utiliza 1,1 s de silencio: mejora la integridad a costa de esperar esa confirmación, cuya latencia debe medirse en el dispositivo.
+
+El aviso Bluetooth conserva 190 ms de sonido, pero evita otros 300 ms de silencio cuando la ruta ya está retenida por el servicio. Es una reducción de espera programada; no acredita la latencia audible física. La codificación WAV usa un búfer reutilizado por bloque y una escritura por trama. La primera frase se mide cuando queda disponible en el flujo, antes de esperar a la síntesis.
 
 ## Órdenes y proveedores
 

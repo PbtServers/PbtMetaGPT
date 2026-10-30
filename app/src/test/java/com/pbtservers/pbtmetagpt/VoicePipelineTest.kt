@@ -5,6 +5,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class VoicePipelineTest {
+    @Test fun registraLaPrimeraFraseDisponibleAntesDeEsperarLaSintesis() = runBlocking {
+        var sentenceReady = false
+        var synthesized = false
+        StreamSpeechPipeline().run(false,
+            produce = { emit -> emit("Esta frase ya está disponible para su síntesis."); "respuesta" },
+            text = {}, sentenceReady = { assertFalse(synthesized); sentenceReady = true },
+            synthesize = { assertTrue(sentenceReady); synthesized = true; PcmAudio(ByteArray(320), 16000) },
+            play = { channel -> for (ignored in channel) Unit }, failed = { throw it })
+        assertTrue(synthesized)
+    }
     @Test fun primeraFraseSeReproduceAntesDeTerminarElTextoYPreservaOrden() = runBlocking {
         val first = CompletableDeferred<Unit>()
         val heard = mutableListOf<String>()

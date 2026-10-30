@@ -5,6 +5,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class VoiceRepairTest {
+    @Test fun elDictadoLocalDudosoNoEjecutaAccionesNiSeConfundeConPregunta() {
+        val options = ListeningOptions()
+        assertFalse(VoiceCommands.confident("pon música", .84f, "Jarvis", options))
+        assertFalse(VoiceCommands.confident("Abre Google", Float.NaN, "Jarvis", options))
+        assertFalse(VoiceCommands.confident("Busca en Google Barcelona", .4f, "Jarvis", options))
+        assertTrue(VoiceCommands.confident("Pausa Spotify", .95f, "Jarvis", options))
+        assertTrue(VoiceCommands.confident("Qué es Spotify", .5f, "Jarvis", options))
+    }
     @Test fun finalizacionPrecisaEsAdaptativaParaUnaPrimeraPalabraSeguidaDePausa() {
         val vad = AdaptiveVad(endSilenceMs = 1700, adaptiveEnding = true)
         repeat(20) { vad.accept(ShortArray(320) { 2000 }) }
@@ -29,6 +37,18 @@ class VoiceRepairTest {
         policy.preparing()
         assertEquals(ListeningPhase.CONVERSATION, policy.phase)
         assertTrue(policy.onVoice(false, false, false))
+    }
+    @Test fun callbacksDeCapturaAnterioresNoSuspendenUnaConversacionNiUnaNuevaAutorizacion() {
+        val policy = WakeSessionPolicy().apply { authorize() }
+        val old = requireNotNull(policy.beginListening())
+        assertTrue(policy.captureCurrent(old))
+        policy.ready(old); policy.detected(old)
+        assertFalse(policy.captureCurrent(old))
+        policy.preparing(); policy.onVoice(true, false, false)
+        assertFalse(policy.captureCurrent(old))
+        policy.stop(); policy.authorize()
+        val next = requireNotNull(policy.beginListening())
+        assertTrue(policy.captureCurrent(next)); assertFalse(policy.captureCurrent(old))
     }
     @Test fun unaLiberacionAtascadaProduceErrorYNoConcedeOtraCaptura() = runBlocking {
         val gate = MicrophoneGate()
@@ -85,6 +105,8 @@ class VoiceRepairTest {
         assertEquals(LocalVoiceCommand.SYSTEM_ASSISTANT, VoiceCommands.parse("Abre el asistente del teléfono", "Jarvis", ListeningOptions()))
         assertEquals(WebAction(WebDestination.SEARCH, "restaurantes de Barcelona"), WebCommands.parse("Busca en Google restaurantes de Barcelona"))
         assertEquals(WebAction(WebDestination.SEARCH, "qué tiempo hará en Puigcerdà"), WebCommands.parse("Busca en Google qué tiempo hará en Puigcerdà"))
+        assertEquals(WebAction(WebDestination.SEARCH, "qué tiempo hará en Puigcerdà"), WebCommands.parse("Jarvis, busca en Google qué tiempo hará en Puigcerdà", "Jarvis"))
+        assertNull(WebCommands.parse("¿Cómo busca Jarvis en Google?", "Jarvis"))
     }
     @Test fun diagnosticoAcotadoSoloContieneCategoriasYDuraciones() {
         var clock = 10L

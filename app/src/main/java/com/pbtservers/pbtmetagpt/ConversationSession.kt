@@ -34,6 +34,10 @@ enum class LocalVoiceCommand { INTERRUPT, END, STOP_LISTENING, CHATGPT, SYSTEM_A
 
 /** Solo enunciados completos: nunca una subcadena ni una hipótesis parcial. */
 object VoiceCommands {
+    fun confident(text: String, confidence: Float, name: String, options: ListeningOptions): Boolean {
+        val action = parse(text, name, options) != null || WebCommands.parse(text, name) != null
+        return !action || confidence.isFinite() && confidence >= .85f
+    }
     fun normalize(text: String): String = Normalizer.normalize(text.lowercase(Locale.ROOT), Normalizer.Form.NFD)
         .replace(Regex("\\p{M}+"), "").replace(Regex("[^a-z0-9 ]"), " ").trim().replace(Regex("\\s+"), " ")
     private fun acousticText(text: String): String = normalize(text)

@@ -36,6 +36,7 @@ class SpanishRecognitionInstrumentedTest {
                     val reuseMs = SystemClock.elapsedRealtime() - reuseAt
                     var freeTotal = RecognitionErrors(0, 0, 0, 0)
                     var commandTotal = RecognitionErrors(0, 0, 0, 0)
+                    var correctIntents = 0
                     for ((index, phrase) in cases.withIndex()) {
                         val pcm = voice.synthesize(profile, phrase)
                         val samples = at16k(pcm)
@@ -43,7 +44,20 @@ class SpanishRecognitionInstrumentedTest {
                         val full = mutableListOf<String>()
                         val commands = mutableListOf<String>()
                         val started = SystemClock.elapsedRealtime()
+                        var localCommandMs: Long? = null
                         try {
+                            if (phrase in listOf("Para.", "Termina.", "Pon música.") || phrase.startsWith("¿Qué") || phrase.startsWith("¿Cómo") || phrase.startsWith("No ")) {
+                                // Misma ruta previa a Whisper: no red, ni segundo capturador.
+                                val bytes = ByteArray(samples.size * 2)
+                                repeat(samples.size) { index -> bytes[index * 2] = samples[index].toByte(); bytes[index * 2 + 1] = (samples[index].toInt() shr 8).toByte() }
+                                val wav = WavAudio.encodePcm16Mono(16000, bytes)
+                                try {
+                                    val local = LocalRecordedCommand(context).recognize(wav, "Jarvis", ListeningOptions())
+                                    if (phrase in listOf("Para.", "Termina.", "Pon música.")) assertNotNull("Orden local antes de Whisper: $phrase", local)
+                                    else assertNull("Pregunta/negación no debe sustituirse por una orden: $phrase", local)
+                                } finally { bytes.fill(0); wav.fill(0); localCommandMs = SystemClock.elapsedRealtime() - started }
+                            }
+                            val decodingAt = SystemClock.elapsedRealtime()
                             Recognizer(cached.model, 16000f).use { free ->
                                 LocalCommandDecoder(wake.model.absolutePath, sharedModel = cached.model).use { decoder ->
                                     fun feed(frame: ShortArray, count: Int) {
@@ -66,14 +80,19 @@ class SpanishRecognitionInstrumentedTest {
                             val recognized = commands.joinToString(" ")
                             val before = RecognitionMetrics.words(phrase, full.joinToString(" "))
                             val after = RecognitionMetrics.words(phrase, recognized)
+                            fun intent(text: String): String? = VoiceCommands.parse(text, "Jarvis", ListeningOptions())?.name ?: WebCommands.parse(text)?.destination?.name
+                            val expectedIntent = intent(phrase)
+                            val recognizedIntent = intent(recognized)
+                            if (expectedIntent == recognizedIntent) correctIntents++
                             freeTotal += before; commandTotal += after
                             val score = JSONObject().put("caso", index).put("origen", "Davefx sintético es-ES").put("hz", 16000)
                                 .put("libre_wer", before.rate).put("comandos_wer", after.rate)
                                 .put("comandos_cer", RecognitionMetrics.characters(phrase, recognized).rate)
-                                .put("omisiones", after.deletions).put("inferencia_ms", SystemClock.elapsedRealtime() - started)
+                                .put("intencion_esperada", expectedIntent).put("intencion_reconocida", recognizedIntent)
+                                .put("omisiones", after.deletions).put("inferencia_ms", SystemClock.elapsedRealtime() - decodingAt).put("orden_local_ms", localCommandMs)
                             // Solo la fixture pública usa textos en informes de tests. La app no los registra.
                             Log.i("PbtAsrTest", score.toString())
-                            if (phrase.startsWith("¿Qué") || phrase.startsWith("¿Cómo") || phrase.startsWith("No "))
+                            if (expectedIntent == null)
                                 assertNull("Una pregunta/negación sintética no debe ejecutar: $phrase → $recognized", VoiceCommands.parse(recognized, "Jarvis", ListeningOptions()))
                         } finally { samples.fill(0); full.clear(); commands.clear() }
                     }
@@ -82,6 +101,7 @@ class SpanishRecognitionInstrumentedTest {
                     Log.i("PbtAsrTest", JSONObject().put("corpus", "sintético es-ES, 14 frases, 16 kHz")
                         .put("libre_wer", freeTotal.rate).put("comandos_wer", commandTotal.rate).put("omisiones", commandTotal.deletions)
                         .put("modelo_primera_carga_ms", firstMs).put("modelo_reutilizado_ms", reuseMs)
+                        .put("intenciones_correctas", correctIntents).put("intenciones_total", cases.size)
                         .put("whisper_real_ejecutado", false).put("android_dictado_real_ejecutado", false).toString())
                 }
             }

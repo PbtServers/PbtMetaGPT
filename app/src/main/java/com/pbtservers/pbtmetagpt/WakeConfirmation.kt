@@ -22,12 +22,12 @@ object WakeConfirmation {
         return PcmAudio(data, SAMPLE_RATE)
     }
 
-    suspend fun play(context: Context, preferBluetooth: Boolean) {
+    suspend fun play(context: Context, preferBluetooth: Boolean, preparedRoute: Boolean = false) {
         val route = AudioRoute(context) {}
         try {
             route.start(preferBluetooth)
-            // Meta necesita tiempo para abrir su ruta Bluetooth de comunicación.
-            PcmPlayer().playStream(flowOf(pcm()), preRollMs = if (preferBluetooth) 300 else 0)
+            // El servicio ya retiene su ruta: no añadir 300 ms en cada activación.
+            PcmPlayer().playStream(flowOf(pcm()), preRollMs = if (preferBluetooth && !preparedRoute) 300 else 0)
         } finally {
             route.close()
         }

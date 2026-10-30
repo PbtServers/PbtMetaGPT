@@ -5,7 +5,13 @@ data class WebAction(val destination: WebDestination, val query: String = "")
 
 /** Enunciados imperativos completos. La consulta conserva tildes y nombres propios. */
 object WebCommands {
-    fun parse(text: String): WebAction? {
+    fun parse(text: String, name: String = ""): WebAction? {
+        val prefix = VoiceCommands.normalize(name)
+        if (prefix.isNotBlank() && VoiceCommands.normalize(text).startsWith("$prefix ")) {
+            val words = Regex("[\\p{L}\\p{N}]+").findAll(text).toList()
+            val first = words.getOrNull(prefix.split(' ').size)?.range?.first ?: return null
+            return parse(text.substring(first))
+        }
         val normalized = VoiceCommands.normalize(text)
         if (normalized in setOf("google", "abre google", "abre la aplicacion google")) return WebAction(WebDestination.GOOGLE)
         if (normalized in setOf("abre el navegador", "abre navegador")) return WebAction(WebDestination.BROWSER)

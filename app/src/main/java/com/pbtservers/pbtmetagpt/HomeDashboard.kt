@@ -29,7 +29,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
             }
         }
         Text(when { voice.failed -> "Error"; voice.paused -> "Pausado"; voice.status in listOf("Escuchando", "Te escucho") -> "Te escucho"; voice.responding -> "Hablando"; voice.connecting -> "Pensando"; voice.active -> "Conversación activa"; else -> "Listo" }, style = MaterialTheme.typography.titleLarge)
-        Text(if (microphoneReady) "Micrófono preparado" else "Micrófono pendiente de permiso", style = MaterialTheme.typography.bodySmall)
+        Text(if (microphoneReady) "Permiso de micrófono concedido" else "Micrófono pendiente de permiso", style = MaterialTheme.typography.bodySmall)
         if (wakeEnabled) Text("Escuchando la frase de activación", color = MaterialTheme.colorScheme.primary)
         if (persistent != ListeningPhase.OFF) {
             Text(persistent.label)

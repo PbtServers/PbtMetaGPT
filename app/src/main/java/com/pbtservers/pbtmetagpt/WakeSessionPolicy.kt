@@ -22,6 +22,7 @@ class WakeSessionPolicy {
         if (!authorized || token != epoch || phase != ListeningPhase.LOADING) return false
         phase = ListeningPhase.LISTENING; return true
     }
+    fun captureCurrent(token: Int) = authorized && token == epoch && phase in setOf(ListeningPhase.LOADING, ListeningPhase.LISTENING)
     fun detected(token: Int): Boolean {
         if (!authorized || token != epoch || phase != ListeningPhase.LISTENING) return false
         phase = ListeningPhase.DETECTED; return true

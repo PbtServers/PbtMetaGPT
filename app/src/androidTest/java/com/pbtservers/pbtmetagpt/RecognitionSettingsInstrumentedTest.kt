@@ -7,6 +7,34 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 
 class RecognitionSettingsInstrumentedTest {
+    @Test fun cancelarUnaDescargaBorraLaPreparacionYPermiteReintentarSinActivarMicrofono() = runBlocking<Unit> {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val model = WakeModel(context)
+        model.delete()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val manager = WakeModelDownload(context, scope)
+        val reading = CompletableDeferred<Unit>()
+        try {
+            manager.install {
+                object : java.io.FilterInputStream(instrumentation.context.assets.open("activacion-prueba.zip")) {
+                    override fun read(bytes: ByteArray, offset: Int, length: Int): Int {
+                        reading.complete(Unit)
+                        Thread.sleep(20)
+                        return super.read(bytes, offset, length)
+                    }
+                }
+            }
+            withTimeout(5000) { reading.await() }
+            manager.cancel()
+            withTimeout(5000) { while (manager.state.value.downloading) delay(20) }
+            assertFalse(model.installed())
+            assertTrue(manager.state.value.status.contains("cancelada"))
+            manager.install { instrumentation.context.assets.open("activacion-prueba.zip") }
+            withTimeout(20000) { while (!manager.state.value.installed) { assertTrue(manager.state.value.downloading); delay(20) } }
+            assertNull((context.applicationContext as PbtApplication).microphone.owner())
+        } finally { scope.cancel(); model.cancelDownload(); model.delete() }
+    }
     @Test fun googleNavegadorYBusquedaConstruyenEntradasPublicasSinAbrirElAsistente() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val launcher = WebLauncher(context)

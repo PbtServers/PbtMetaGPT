@@ -91,6 +91,29 @@ class MicrophoneServiceInstrumentedTest {
             await { ContinuousWakeService.state.value == ListeningPhase.LISTENING }
         }
     }
+    @Test fun iniciosYParadasConcurrentesNoDejanUnDetectorTardioOcupandoElMicrofono() = runBlocking<Unit> {
+        WakeModel(context).install { instrumentation.context.assets.open("activacion-prueba.zip") }
+        val profile = AssistantProfile(name = "Jarvis").validated()
+        val engineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        val engine = ContinuousWakeEngine(context, engineScope)
+        ActivityScenario.launch(MainActivity::class.java).use {
+            try {
+                val ready = CompletableDeferred<Unit>()
+                withContext(Dispatchers.Main) { engine.start(listOf(profile), { ready.complete(Unit) }, { _, _ -> }, { ready.completeExceptionally(it) }) }
+                withTimeout(10000) { ready.await() }
+                assertEquals(MicrophoneOwner.CONTINUOUS_LOCAL, app.microphone.owner())
+                repeat(5) {
+                    coroutineScope {
+                        val start = launch(Dispatchers.Main) { engine.start(listOf(profile), {}, { _, _ -> }, {}) }
+                        val stop = launch(Dispatchers.Main) { engine.stop() }
+                        joinAll(start, stop)
+                    }
+                    withContext(Dispatchers.Main) { engine.stop() }
+                    assertNull(app.microphone.owner())
+                }
+            } finally { withContext(Dispatchers.Main) { engine.stop() }; engineScope.cancel() }
+        }
+    }
     @Test fun servicioCapturaEnOtraTareaYPantallaBloqueadaYNotificacionPausaYDetiene() = runBlocking<Unit> {
         assertEquals(PackageManager.PERMISSION_GRANTED, context.checkSelfPermission(Manifest.permission.RECORD_AUDIO))
         withContext(Dispatchers.IO) { WakeModel(context).install { instrumentation.context.assets.open("activacion-prueba.zip") } }
@@ -125,6 +148,7 @@ class MicrophoneServiceInstrumentedTest {
                 assertTrue(notification.actions.any { it.title.toString() == "Pausar" })
                 notification.actions.single { it.title.toString() == "Pausar" }.actionIntent.send()
                 await { ContinuousWakeService.state.value == ListeningPhase.SUSPENDED && app.microphone.owner() == null }
+                assertFalse(ContinuousWakeService.authorizedRunning)
                 // La pausa no puede reanudar por sí sola al volver a la actividad.
                 shell("input keyevent KEYCODE_WAKEUP"); shell("wm dismiss-keyguard")
                 activity.moveToState(Lifecycle.State.RESUMED)

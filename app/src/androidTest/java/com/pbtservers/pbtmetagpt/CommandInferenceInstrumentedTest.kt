@@ -63,12 +63,15 @@ class CommandInferenceInstrumentedTest {
             val positive = listOf("Abre GPT Live.", "Inicia GPT Live.", "Abre ChatGPT.", "Inicia ChatGPT en voz.", "Abre ChatGPT en voz.", "Quiero hablar con ChatGPT.")
             val negative = listOf("No quiero hablar con ChatGPT.", "Explícame cómo abre GPT Live.", "Esto es para mañana.", "Quiero hablar contigo.")
             for (phrase in positive + negative) {
+                repeat(if (phrase == "Inicia ChatGPT en voz.") 3 else 1) {
                 val pcm = engine.synthesize(voice, phrase)
                 try {
                     val heard = decode(wake, pcm)
                     val opens = heard.any { VoiceCommands.parse(it.text, "Jarvis", ListeningOptions()) == LocalVoiceCommand.CHATGPT }
                     assertEquals("Fixture fija $phrase → ${heard.map { Triple(it.text, it.confidence, it.onsetSeconds) }}", phrase in positive, opens)
+                    if (phrase == "Inicia ChatGPT en voz.") assertEquals("La orden no puede perder sus sílabas al dividirse", 1, heard.count { it.text.isNotBlank() })
                 } finally { pcm.bytes.fill(0) }
+                }
             }
         } finally { engine.close(); model.delete(); wake.delete() }
     }

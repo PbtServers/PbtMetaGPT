@@ -105,19 +105,30 @@ class ContinuousWakeService : Service() {
                 activation?.cancel()
                 activation = scope.launch {
                 if (!session.authorized) return@launch
-                WebCommands.parse(question)?.let { app.openWeb(it); return@launch }
+                WebCommands.parse(question, matched.name)?.let { app.openWeb(it); return@launch }
                 when (VoiceCommands.parse(question, matched.name, ListeningSettings(this@ContinuousWakeService).load())) {
                     LocalVoiceCommand.SYSTEM_ASSISTANT -> { app.openSystemAssistant(); return@launch }
                     LocalVoiceCommand.CHATGPT -> { app.openChatGpt(); return@launch }
-                    else -> Unit
-                }
-                MusicCommands.parse(question)?.let { action ->
-                    app.controlSpotify(action)
-                    if (session.localCommandFinished()) listen()
-                    return@launch
+                    LocalVoiceCommand.GOOGLE -> { app.openWeb(WebAction(WebDestination.GOOGLE)); return@launch }
+                    LocalVoiceCommand.BROWSER -> { app.openWeb(WebAction(WebDestination.BROWSER)); return@launch }
+                    LocalVoiceCommand.STOP_LISTENING -> {
+                        ListeningSettings(this@ContinuousWakeService).let { it.save(it.load().copy(background = false)) }
+                        stop(this@ContinuousWakeService); return@launch
+                    }
+                    LocalVoiceCommand.INTERRUPT, LocalVoiceCommand.END -> {
+                        if (session.localCommandFinished()) listen()
+                        return@launch
+                    }
+                    LocalVoiceCommand.MUSIC_PLAY, LocalVoiceCommand.MUSIC_PAUSE, LocalVoiceCommand.MUSIC_NEXT, LocalVoiceCommand.MUSIC_PREVIOUS -> {
+                        val command = VoiceCommands.parse(question, matched.name, ListeningSettings(this@ContinuousWakeService).load())
+                        app.controlSpotify(requireNotNull(command?.let(MusicCommands::action)))
+                        if (session.localCommandFinished()) listen()
+                        return@launch
+                    }
+                    null -> Unit
                 }
                 if (matched.confirmationSound) try {
-                    withTimeout(3000) { WakeConfirmation.play(this@ContinuousWakeService, AudioInputSettings(this@ContinuousWakeService).useBluetooth()) }
+                    withTimeout(3000) { WakeConfirmation.play(this@ContinuousWakeService, AudioInputSettings(this@ContinuousWakeService).useBluetooth(), preparedRoute = true) }
                 } catch (_: TimeoutCancellationException) {
                     suspendListening("El sonido de confirmación no ha terminado. Reintenta la escucha."); return@launch
                 } catch (cancel: CancellationException) { throw cancel }
@@ -149,7 +160,8 @@ class ContinuousWakeService : Service() {
                 }
                 }
             }
-        }, failed = { problem -> app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); suspendListening() }, input = { inputTypeValue.value = it })
+        }, failed = { problem -> if (session.captureCurrent(current)) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); suspendListening() } },
+            input = { if (session.captureCurrent(current)) inputTypeValue.value = it })
     }
     private fun armDeadline(timeout: Long, message: String) {
         deadline?.cancel()
@@ -248,6 +260,7 @@ class ContinuousWakeService : Service() {
         val inputType = inputTypeValue.asStateFlow()
         val state = mutable.asStateFlow()
         val running get() = instance != null
+        val authorizedRunning get() = instance?.session?.authorized == true
         fun reportSystemStop() { mutable.value = ListeningPhase.SUSPENDED }
         fun startVisible(context: Context): android.content.ComponentName? {
             check((context.applicationContext as PbtApplication).activityVisible) { "Abre la aplicación para iniciar el micrófono" }

@@ -8,6 +8,8 @@ import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.vosk.LibVosk
 import org.vosk.LogLevel
 import org.vosk.Model
@@ -16,9 +18,11 @@ import java.io.IOException
 /** ASR local continuo. No usa SpeechRecognizer, no guarda PCM ni transcripciones. */
 class ContinuousWakeEngine(private val context: Context, private val scope: CoroutineScope) {
     private var work: Job? = null
-    suspend fun stop() { work?.cancelAndJoin(); work = null }
-    suspend fun start(profiles: List<AssistantProfile>, ready: () -> Unit, detected: (AssistantProfile, String) -> Unit, failed: (Throwable) -> Unit, input: (Int) -> Unit = {}) {
-        stop()
+    private val lifecycle = Mutex()
+    private suspend fun stopLocked() { work?.cancelAndJoin(); work = null }
+    suspend fun stop() = lifecycle.withLock { stopLocked() }
+    suspend fun start(profiles: List<AssistantProfile>, ready: () -> Unit, detected: (AssistantProfile, String) -> Unit, failed: (Throwable) -> Unit, input: (Int) -> Unit = {}) = lifecycle.withLock {
+        stopLocked()
         val gate = ActivationGate(); val epoch = gate.arm(profiles)
         work = scope.launch(Dispatchers.IO) {
             val gatekeeper = (context.applicationContext as PbtApplication).microphone
