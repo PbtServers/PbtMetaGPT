@@ -2,6 +2,8 @@
 
 ## Corrección de inferencia Spotify tras CI · 30/10/2026
 
+La CI Google `ee56d0a` detecta a las 00:34 UTC una importación ausente de `Intent` en el botón de ajustes de MainActivity. Se corrige explícitamente; no llegó a JVM/emuladores y no publicó APK. La corrección musical `7aad232` necesita también esa importación, incluida en el siguiente commit. Las puertas de publicación permanecen intactas.
+
 **78 % acreditado · 00:37 UTC · 2 h 28 min desde el inicio.** La [CI de 376cefc](https://github.com/PbtServers/PbtMetaGPT/actions/runs/40978269641) registra **191 JVM (190 correctas, una remota optativa omitida), Lint/compilación/seguridad/backend correctos y 55/56 instrumentadas por API** en los informes conservados. API36 termina con fallo; API35 se cancela al publicarse el siguiente bloque, después de conservar su informe de 56 casos. Pasan Jarvis/Luna por VAD→Vosk, tres ciclos de pantalla, foco/interrupción, transporte multimedia bajo bloqueo, filtro de paquete, revocación y convivencia de foco durante escucha. No hubo APK de ese SHA por fallar la barrera.
 
 Fallo exacto: «Pon Spotify» produce «cuando spotify», confianza libre 0,443869 en Android. Se añade un reconocedor restringido musical **con el mismo Model y PCM**, separado de la gramática ChatGPT existente. Solo el reconocedor libre marca el cierre. Se exige orden completa, confianza musical ≥0,93, misma frontera inicial/final del VAD y rechazo de negación/explicación del dictado libre. No se crea alias «cuando spotify» ni se baja ningún umbral. No se ejecuta la gramática durante espera pasiva. Se liberan/recrean todos los reconocedores al cerrar/perder tramas.
