@@ -91,6 +91,29 @@ class MicrophoneServiceInstrumentedTest {
             await { ContinuousWakeService.state.value == ListeningPhase.LISTENING }
         }
     }
+    @Test fun inicioPreparaLaConexionSinDetenerElServicioAlConfirmarLaEscucha() = runBlocking<Unit> {
+        WakeModel(context).install { instrumentation.context.assets.open("activacion-prueba.zip") }
+        val profile = AssistantProfile(name = "Jarvis").validated()
+        ProfileStore(context).save(listOf(profile), profile.id)
+        ListeningSettings(context).save(ListeningOptions(background = true))
+        var prepared = false
+        ActivityScenario.launch(MainActivity::class.java).use { activity ->
+            try {
+                activity.onActivity { it.setContent { MaterialTheme {
+                    HomeDashboard(profile, true, VoiceState(), "Sin gafas", true, {}, {}, { error("Preparar no debe detener el servicio") },
+                        prepareListening = { prepared = true; app.connection = WakeConnection("https://example.com", "token-de-prueba-no-real", false); true }, navigate = {})
+                } } }
+                compose.onNodeWithText("Activar escucha permanente").performScrollTo().performClick()
+                compose.onNodeWithText("Autorizar y activar").performClick()
+                await { ContinuousWakeService.state.value == ListeningPhase.LISTENING }
+                assertTrue(prepared)
+                assertNotNull(app.connection)
+                assertEquals(MicrophoneOwner.CONTINUOUS_LOCAL, app.microphone.owner())
+                compose.onNodeWithText("Desactivar escucha permanente").performScrollTo().performClick()
+                await { !ContinuousWakeService.running && app.microphone.owner() == null }
+            } finally { app.connection = null }
+        }
+    }
     @Test fun iniciosYParadasConcurrentesNoDejanUnDetectorTardioOcupandoElMicrofono() = runBlocking<Unit> {
         WakeModel(context).install { instrumentation.context.assets.open("activacion-prueba.zip") }
         val profile = AssistantProfile(name = "Jarvis").validated()

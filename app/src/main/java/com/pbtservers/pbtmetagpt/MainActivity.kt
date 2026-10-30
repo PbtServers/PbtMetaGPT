@@ -270,7 +270,7 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         if (DatRegistrationPolicy.callback(intent.action, intent.data?.scheme)) glasses.registrationReturn()
     }
-    override fun onStart() { super.onStart(); foreground = true; app.activityVisible = true; app.stopVisibleWake = { wake.stop() }; refreshDiagnostics(); glasses.registrationReturn() }
+    override fun onStart() { super.onStart(); foreground = true; app.activityVisible = true; app.stopVisibleWake = { wake.stop(); localAudio.stop() }; refreshDiagnostics(); glasses.registrationReturn() }
     override fun onStop() {
         foreground = false; app.activityVisible = false; app.stopVisibleWake = null; wake.stop(); localAudio.stop()
         if (ContinuousWakeService.running && !ListeningSettings(this).load().background) ContinuousWakeService.stop(this, finishConversation = false)

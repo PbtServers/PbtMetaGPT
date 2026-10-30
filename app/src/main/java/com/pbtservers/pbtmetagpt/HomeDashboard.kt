@@ -12,7 +12,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable fun HomeDashboard(profile: AssistantProfile?, configured: Boolean, voice: VoiceState, deviceSummary: String,
     microphoneReady: Boolean, requestMic: () -> Unit, start: () -> Unit, stop: () -> Unit, provider: String = "openai",
-    wakeEnabled: Boolean = false, toggleWake: (() -> Unit)? = null, navigate: (String) -> Unit,
+    wakeEnabled: Boolean = false, toggleWake: (() -> Unit)? = null, prepareListening: () -> Boolean = { true }, navigate: (String) -> Unit,
 ) {
     val persistent by ContinuousWakeService.state.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -44,8 +44,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
         if (voice.responding || voice.connecting) Button(onClick = { if (provider == "groq") app.hosted.interrupt() else app.voice.interrupt() }, modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)) { Text("Parar", style = MaterialTheme.typography.headlineSmall) }
         if (voice.active || voice.connecting) OutlinedButton(onClick = { if (provider == "groq") app.hosted.stop() else app.voice.stop() }, modifier = Modifier.fillMaxWidth()) { Text("Terminar conversación") }
         TextButton(onClick = app::openChatGpt) { Text("Abrir ChatGPT") }
-        ListeningControls(configured, microphoneReady, requestMic, stop, compact = true,
-            configure = { navigate("Activación por voz") })
+        ListeningControls(configured, microphoneReady, requestMic, stopVisible = {
+            app.stopVisibleWake?.invoke(); app.voice.stop(); app.hosted.stop()
+        }, compact = true, configure = { navigate("Activación por voz") }, prepare = prepareListening)
         OutlinedCard(onClick = { navigate("Dispositivos") }, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Gafas y audio", style = MaterialTheme.typography.titleMedium)

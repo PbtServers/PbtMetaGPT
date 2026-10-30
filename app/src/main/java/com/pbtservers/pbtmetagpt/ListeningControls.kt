@@ -16,7 +16,7 @@ import kotlinx.coroutines.*
 import java.io.IOException
 
 @Composable fun ListeningControls(configured: Boolean, microphoneReady: Boolean, requestMic: () -> Unit, stopVisible: () -> Unit,
-    compact: Boolean = false, configure: () -> Unit = {}) {
+    compact: Boolean = false, configure: () -> Unit = {}, prepare: () -> Boolean = { true }) {
     val context = LocalContext.current
     val phase by ContinuousWakeService.state.collectAsStateWithLifecycle()
     val running by ContinuousWakeService.isRunning.collectAsStateWithLifecycle()
@@ -107,6 +107,7 @@ import java.io.IOException
             consent = false
             ListeningSettings(context).let { it.save(it.load().copy(background = backgroundConsent)) }
             stopVisible()
+            if (!prepare()) { status = "Revisa el proveedor y el asistente antes de activar la escucha."; return@TextButton }
             try { ContinuousWakeService.startVisible(context) }
             catch (_: SecurityException) { status = "Android ha denegado el servicio. Revisa permiso de micrófono y notificaciones." }
             catch (_: IllegalStateException) { status = "Android no permite iniciar el servicio ahora. Vuelve a Inicio e inténtalo con la aplicación visible." }

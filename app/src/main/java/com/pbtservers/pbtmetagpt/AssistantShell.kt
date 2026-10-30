@@ -238,7 +238,7 @@ fun AssistantShell(context: Context, vault: KeyVault, voice: RealtimeClient, wak
             TextButton(onClick = stopAll) { Text("Detener conversación") }
         }
         if (page == "Inicio") Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = androidx.compose.ui.Alignment.TopCenter) {
-            HomeDashboard(selected, configured, vs, deviceSummary, microphoneReady, requestMic, start, stopAll, provider = provider,
+            HomeDashboard(selected, configured, vs, deviceSummary, microphoneReady, requestMic, start, stopAll, provider = provider, prepareListening = { configure() },
                 wakeEnabled = wake.armed, toggleWake = {
                     if (wake.armed) { consent = false; returnToWake = false; wake.stop() }
                     else if (!microphoneReady) requestMic()

@@ -63,13 +63,19 @@ class ContinuousWakeService : Service() {
             session.authorize()
             detail.value = ""
             app.voiceTransitions.record(session.phase, TransitionReason.START, app.microphone.owner(), inputTypeValue.value)
+            update(ListeningPhase.LOADING)
             getSharedPreferences("escucha", MODE_PRIVATE).edit().putBoolean("proceso-activo", true).apply()
             scope.launch { listen() }
-        } catch (problem: SecurityException) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); update(ListeningPhase.SUSPENDED); stopSelf() }
-        catch (problem: IllegalStateException) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); update(ListeningPhase.SUSPENDED); stopSelf() }
-        catch (problem: IllegalArgumentException) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); update(ListeningPhase.SUSPENDED); stopSelf() }
-        catch (problem: org.json.JSONException) { app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem); update(ListeningPhase.SUSPENDED); stopSelf() }
+        } catch (problem: SecurityException) { initializationFailed(problem, "Android ha impedido iniciar la escucha. Revisa micrófono, notificaciones y su canal; vuelve a activarla con la aplicación visible.") }
+        catch (problem: IllegalStateException) { initializationFailed(problem, "Falta permiso de micrófono, modelo español válido o un asistente con frase activa. Revísalos antes de activar la escucha.") }
+        catch (problem: IllegalArgumentException) { initializationFailed(problem, "La configuración de escucha no es válida. Revisa el asistente, sus frases y el modelo español.") }
+        catch (problem: org.json.JSONException) { initializationFailed(problem, "No se pudo leer la configuración. Revisa y guarda el asistente antes de reintentar.") }
         return START_NOT_STICKY
+    }
+    private fun initializationFailed(problem: Throwable, message: String) {
+        detail.value = message
+        app.journal.record(Check.WAKE, Fault.INITIALIZATION, problem)
+        update(ListeningPhase.SUSPENDED); stopSelf()
     }
     private suspend fun listen() {
         // «Termina» publica el cierre inmediatamente; el AudioRecord anterior
@@ -77,6 +83,8 @@ class ContinuousWakeService : Service() {
         try {
             awaitAudioRelease(audioRelease)
             app.hosted.awaitReleased()
+            if (withTimeoutOrNull(3000) { while (app.microphone.owner() != null) delay(20); true } != true)
+                throw HostedFailure("Micrófono todavía ocupado")
         } catch (cancel: CancellationException) { throw cancel }
         catch (_: Exception) { suspendListening("No se ha liberado el micrófono anterior. Pulsa Activar escucha para reintentar."); return }
         val current = session.beginListening() ?: return
